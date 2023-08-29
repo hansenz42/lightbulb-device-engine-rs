@@ -1,4 +1,5 @@
 use actix_web::{get, web, App, HttpServer, Responder};
+use crate::common::setting::Settings;
 
 async fn index() -> impl Responder {
     "Hello, World!"
@@ -15,7 +16,7 @@ pub async fn run() -> std::io::Result<()> {
                 .route("/index.html", web::get().to(index)),
         )
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind((Settings::get().web.web_host.as_str(), Settings::get().web.web_port))?
     .run()
     .await?;
 

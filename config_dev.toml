@@ -6,9 +6,8 @@ server_name = "default_server"
 
 # 环境信息
 [env]
-env = "dev"
-log_level = "debug"
 debug = true
+env = "dev"
 
 # 服务器信息
 [server]

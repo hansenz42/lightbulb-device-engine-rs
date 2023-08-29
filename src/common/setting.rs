@@ -1,6 +1,9 @@
+//! 配置文件管理器
+
 use std::{fs::File, io::Read};
 use lazy_static::lazy_static;
 use serde::Deserialize;
+use std::env;
 
 #[derive(Debug, Deserialize)]
 pub struct Meta {
@@ -11,9 +14,8 @@ pub struct Meta {
 
 #[derive(Debug, Deserialize)]
 pub struct Env {
-    pub env: String,
-    pub log_level: String,
-    pub debug: bool
+    pub debug: bool,
+    pub env: String
 }
 
 #[derive(Debug, Deserialize)]
@@ -26,7 +28,7 @@ pub struct Server {
 #[derive(Debug, Deserialize)]
 pub struct Web {
     pub web_host: String,
-    pub web_port: i32
+    pub web_port: u16
 }
 
 #[derive(Debug, Deserialize)]
@@ -53,17 +55,22 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        let file_path = "config.toml";
-        let mut file = match File::open(file_path) {
+        let env = env::var("ENV").expect("环境变量 env 未设置，请检查环境变量配置或 .env 文件是否存在");
+        let file_path: String = format!("config_{}.toml", env);
+
+        let mut file = match File::open(file_path.as_str()) {
             Ok(f) => f,
-            Err(e) => panic!("no such file {} exception:{}", file_path, e)
+            Err(e) => panic!("no such file {} exception:{}", file_path.as_str(), e)
         };
+
         let mut str_val = String::new();
+
         match file.read_to_string(&mut str_val) {
             Ok(s) => s,
-            Err(e) => panic!("Error Reading file: {}", e)
+            Err(e) => panic!("加载配置文件失败: {}", e)
         };
-        toml::from_str(&str_val).expect("Parsing the configuration file failed")
+
+        toml::from_str(&str_val).expect("配置文件格式不正确")
     }
 }
 
