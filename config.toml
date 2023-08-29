@@ -1,0 +1,32 @@
+# 基本信息
+[meta]
+application_name = "lightbulb"
+scenario_name = "default_scenario"
+server_name = "default_server"
+
+# 环境信息
+[env]
+env = "dev"
+log_level = "debug"
+debug = true
+
+# 服务器信息
+[server]
+server_id = "server_id_1"
+server_ip = "127.0.0.1"
+server_type = "deviceserver"
+
+# 网络接口
+[web]
+web_host = "0.0.0.0"
+web_port = 5008
+
+# pm2 守护进程名称（用于重启）
+[pm2]
+process_name = "device"
+
+# mqtt 信息
+[mqtt]
+broker_host = "broker-cn.emqx.io"
+broker_port = 1883
+client_id = "lightbulb-device-engine-2335"
