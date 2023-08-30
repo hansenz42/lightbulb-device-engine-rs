@@ -20,6 +20,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     // 设置 logger
     init_logger()?;
     log::info!("配置已加载，环境: {:?}", settings.env.env);
+    log::debug!("配置: {:?}", settings);
 
     // 执行 http 服务器
     // http_run()?;
