@@ -1,6 +1,7 @@
 mod http_server;
 mod mqtt_client;
 mod common;
+mod device;
 use http_server::server::run as http_run;
 use mqtt_client::client::run as mqtt_run;
 use common::setting::Settings;
@@ -8,6 +9,7 @@ use common::logger::init_logger;
 use std::error::Error;
 use log;
 use dotenv::dotenv;
+use http_server::*;
 
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -26,4 +28,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     // http_run()?;
 
     Ok(())
+}
+
+fn playground() {
+
 }
