@@ -19,7 +19,7 @@ struct ModbusBus {
     // 波特率
     baudrate: u32,
     // 已经注册的客户端哈希表
-    slaves: HashMap<u8, Rc<RefCell<Context>>>,
+    slaves: HashMap<u8, RefCell<Context>>,
 }
 
 impl Bus for ModbusBus {
@@ -50,55 +50,66 @@ impl ModbusBus {
     }
 
     /// 注册一个 slave 设备
-    pub fn register_slave(&self, unit: u8) -> Result<(), Box<dyn Error>> {
-        let slave = Slave(unit);
+    pub fn register_slave(&mut self, unit: u8) -> Result<(), Box<dyn Error>> {
         let builder = tokio_serial::new(self.serial_port.as_str(), self.baudrate);
         let port = SerialStream::open(&builder)?;
         let slave = Slave(unit);
         let mut ctx = rtu::attach_slave(port, slave);
         // 将设备注册到哈希表
-        self.slaves.insert(unit, Rc::new(RefCell::new(ctx)));
+        self.slaves.insert(unit, RefCell::new(ctx));
         Ok(())
     }
 
-    pub fn drop_slave(& self, unit: u8) -> Result<(), Box<dyn Error>> {
-        let ctx_option = self.slaves.get_mut(&unit);
-        match ctx_option {
-            Some(ctx) => {
-                ctx.disconnect();
-                self.slaves.remove(&unit);
-                return Ok(());
+    /// 解除一个 slave 设备
+    pub async fn drop_slave(&mut self, unit: u8) -> Result<(), Box<dyn Error>> {
+        let slave_option = self.slaves.remove(&unit);
+        match slave_option {
+            Some(slave) => {
+                slave.borrow_mut().disconnect().await?;
+                Ok(())
             },
             None => {
-                return Err("设备未注册".into());
+                Err("设备未注册".into())
             }
         }
     }
 
     /// 写单个线圈
-    pub async fn write_coil(& self, unit: u8, address: u16, value: bool) -> Result<(), Box<dyn Error>> {
+    pub async fn write_coil(&self, unit: u8, address: u16, value: bool) -> Result<(), Box<dyn Error>> {
         match self.slaves.get(&unit) {
-            Some(ctx_boxed) => {
-                unsafe {
-                    let ctx_pointer = ctx_boxed.clone().borrow_mut();
-                    let ctx = ctx_pointer.as_ptr();
-                    (* ctx).write_single_coil(address, value).await?;
-                }
-                return Ok(());
+            Some(ctx_ref) => {
+                let mut ctx = (*ctx_ref).borrow_mut();
+                (* ctx).write_single_coil(address, value).await?;
+                Ok(())
             },
             None => {
-                return Err("设备未注册".into());
+                Err("设备未注册".into())
             }
         }
     }
 
     /// 写多个线圈
-    pub async fn write_coils(&mut self, unit: u8, address: u16, values: Vec<bool>) -> Result<(), Box<dyn Error>> {
-        let ctx_option = self.slaves.get_mut(&unit);
+    pub async fn write_coils(& self, unit: u8, address: u16, values: Vec<bool>) -> Result<(), Box<dyn Error>> {
+        let ctx_option = self.slaves.get(&unit);
         match ctx_option {
-            Some(ctx) => {
+            Some(ctx_ref) => {
+                let mut ctx = (*ctx_ref).borrow_mut();
                 ctx.write_multiple_coils(address, &values).await?;
-                return Ok(());
+                Ok(())
+            },
+            None => {
+                Err("设备未注册".into())
+            }
+        }
+    }
+
+    /// 读单个寄存器
+    pub async fn read_coil(&self, unit: u8, address: u16) -> Result<bool, Box<dyn Error>> {
+        match self.slaves.get(&unit) {
+            Some(ctx_ref) => {
+                let mut ctx = (*ctx_ref).borrow_mut();
+                let ret = ctx.read_coils(address, 1).await?[0];
+                Ok(ret)
             },
             None => {
                 return Err("设备未注册".into());
@@ -106,14 +117,18 @@ impl ModbusBus {
         }
     }
 
-    /// 读单个寄存器
-    pub async fn read_coil(&self, unit: u8, address: u8) -> Result<bool, Box<dyn Error>> {
-        Ok(true)
-    }
-
     /// 读多个寄存器
-    pub async fn read_coils(&self, unit: u8, address: u8, count: u8) -> Result<Vec<bool>, Box<dyn Error>> {
-        Ok(vec![true])
+    pub async fn read_coils(&self, unit: u8, address: u16, count: u16) -> Result<Vec<bool>, Box<dyn Error>> {
+        match self.slaves.get(&unit) {
+            Some(ctx_ref) => {
+                let mut ctx = (*ctx_ref).borrow_mut();
+                let ret = ctx.read_coils(address, count).await?;
+                Ok(ret)
+            },
+            None => {
+                return Err("设备未注册".into());
+            }
+        }
     }
 }
 
