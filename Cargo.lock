@@ -434,7 +434,7 @@ checksum = "d379af7f68bfc21714c6c7dea883544201741d2ce8274bb12fa54f89507f52a7"
 dependencies = [
  "async-trait",
  "json5",
- "lazy_static",
+ "lazy_static 1.4.0",
  "nom",
  "pathdiff",
  "ron",
@@ -545,6 +545,37 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0688c2a7f92e427f44895cd63841bff7b29f8d7a1648b9e7e07a4a365b2e1257"
 
 [[package]]
+name = "dmx"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1114062d78497d39167f405e8999a2b5d7d460eefe13372d66f7bda5c88deb1"
+dependencies = [
+ "dmx-serial",
+ "lazy_static 0.2.11",
+]
+
+[[package]]
+name = "dmx-serial"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "98db3458b83bc824ef9dbf0cceddcb48b61e6be83fad7d27b03552d7a9ff3053"
+dependencies = [
+ "dmx-termios",
+ "ioctl-rs",
+ "libc",
+]
+
+[[package]]
+name = "dmx-termios"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf7955e3be47a2a8db9b14f977d4e41adcb0dfb029dba4a7e6d5a4a92de0cac5"
+dependencies = [
+ "ioctl-rs",
+ "libc",
+]
+
+[[package]]
 name = "dotenv"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -606,7 +637,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7dccdd0a59457ba353cc44c26d431ca5089f2cf93035c780a1b3f2814a017ebd"
 dependencies = [
  "bincode",
- "lazy_static",
+ "lazy_static 1.4.0",
  "serde",
  "uuid",
 ]
@@ -864,6 +895,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ioctl-rs"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7970510895cee30b3e9128319f2cefd4bde883a39f38baa279567ba3a7eb97d"
+dependencies = [
+ "libc",
+]
+
+[[package]]
 name = "is-terminal"
 version = "0.4.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -908,6 +948,12 @@ checksum = "d4345964bb142484797b161f473a503a434de77149dd8c7427788c6e13379388"
 
 [[package]]
 name = "lazy_static"
+version = "0.2.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "76f033c7ad61445c5b347c7382dd1237847eb1bce590fe50365dcb33d546be73"
+
+[[package]]
+name = "lazy_static"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
@@ -924,9 +970,10 @@ version = "0.1.0"
 dependencies = [
  "actix-web",
  "config",
+ "dmx",
  "dotenv",
  "event-emitter-rs",
- "lazy_static",
+ "lazy_static 1.4.0",
  "log",
  "paho-mqtt",
  "pretty_env_logger",

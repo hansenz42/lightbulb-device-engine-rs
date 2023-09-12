@@ -2,7 +2,8 @@
 //! modbus 上可以挂载多个输入输出单元，使用 unit 标识
 //! 本类可以按照 unit 的顺序操作 modbus 设备。
 //! 功能
-//! - 支持读和写 modbus 设备
+//! - 支持读写 dmx 数据
+//! - 多线程控制 dmx 写入
 
 use std::{error::Error, rc::Rc, borrow::BorrowMut, cell::RefCell};
 
@@ -41,9 +42,9 @@ impl Bus for ModbusBus {
 
 impl ModbusBus {
     /// 创建一个 Modbus 总线设备
-    fn new(serial_port: String, baudrate: u32) -> Result<ModbusBus, Box<dyn Error>> {
-        Ok(ModbusBus {
-            serial_port,
+    fn new(serial_port: &str, baudrate: u32) -> Result<Self, Box<dyn Error>> {
+        Ok(Self {
+            serial_port: serial_port.to_string(),
             baudrate,
             slaves: HashMap::new(),
         })
@@ -138,6 +139,6 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let device = ModbusBus::new("/dev/ttyUSB0".to_string(), 9600);
+        let device = ModbusBus::new("/dev/ttyUSB0", 9600);
     }
 }
