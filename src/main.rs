@@ -1,11 +1,12 @@
 mod http_server;
 mod mqtt_client;
 mod common;
-mod device;
+mod driver;
 use http_server::server::run as http_run;
 use mqtt_client::client::run as mqtt_run;
 use common::setting::Settings;
 use common::logger::init_logger;
+use common::sqlite::SqliteConnection;
 use std::error::Error;
 use log;
 use dotenv::dotenv;
@@ -26,6 +27,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // 执行 http 服务器
     // http_run()?;
+    SqliteConnection::new("cache/test.db").unwrap();
 
     Ok(())
 }

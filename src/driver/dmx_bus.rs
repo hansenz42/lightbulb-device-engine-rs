@@ -53,6 +53,7 @@ fn dmx_send_thread(
     running_flag: Arc<Mutex<bool>>,
     rx: mpsc::Receiver<[u8; 512]>, 
 ) ->  Option<thread::JoinHandle<()>> {
+
     let handle = thread::spawn(move || {
         let mut dmx_port = dmx::open_serial(serial_port_str.as_str()).expect(format!("dmx worker thread: cannot open dmx port {serial_port_str}").as_str());
         debug!("dmx worker thread: open dmx port {}, start trasmitting", serial_port_str);
@@ -79,6 +80,7 @@ fn dmx_send_thread(
         }
     });
     Some(handle)
+    
 }
 
 impl DmxBus {
