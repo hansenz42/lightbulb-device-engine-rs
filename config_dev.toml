@@ -15,6 +15,7 @@ server_id = "server_id_1"
 server_ip = "127.0.0.1"
 server_type = "deviceserver"
 
+
 # 网络接口
 [web]
 web_host = "0.0.0.0"
@@ -29,3 +30,9 @@ process_name = "device"
 broker_host = "broker-cn.emqx.io"
 broker_port = 1883
 client_id = "lightbulb-device-engine-2335"
+
+
+# 上游服务器地址
+[upstream]
+host = "127.0.0.1"
+port = 7001

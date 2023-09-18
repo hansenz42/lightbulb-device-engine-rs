@@ -44,13 +44,20 @@ pub struct Mqtt {
 }
 
 #[derive(Debug, Deserialize)]
+pub struct Upstream {
+    pub host: String,
+    pub port: u16
+}
+
+#[derive(Debug, Deserialize)]
 pub struct Settings {
     pub meta: Meta,
     pub env: Env,
     pub server: Server,
     pub web: Web,
     pub pm2: Pm2,
-    pub mqtt: Mqtt
+    pub mqtt: Mqtt,
+    pub upstream: Upstream
 }
 
 impl Default for Settings {
