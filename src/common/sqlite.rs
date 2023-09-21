@@ -23,9 +23,10 @@ impl SqliteConnection {
     /// 创建数据表
     fn init_tables(&self) -> Result<()> {
         let conn = self.open()?;
+        conn.execute("DROP TABLE file", ())?;
         conn.execute(
             "CREATE TABLE file (
-                id              INTEGER PRIMARY KEY,
+                id              INTEGER PRIMARY KEY autoincrement,
                 tag             TEXT NOT NULL,
                 orig_filename   TEXT NOT NULL,
                 filename        TEXT NOT NULL,
@@ -35,19 +36,15 @@ impl SqliteConnection {
             )",
             (),
         )?;
-        conn.execute(
-            "CREATE TABLE device (
-                id              INTEGER PRIMARY KEY,
-                device_class    TEXT NOT NULL,
-                device_type     TEXT NOT NULL,
-                name            TEXT NOT NULL,
-                description     TEXT NOT NULL,
-                room            TEXT NOT NULL,
-                config          TEXT NOT NULL
-            )",
-            (),
-        )?;
-        log::info!("sqlite 缓存数据表初始化完成");
+
         Ok(())
+    }
+
+    pub fn get<'a>() -> &'a Self {
+        // 给静态变量延迟赋值的宏
+        lazy_static! {
+            static ref CONN: SqliteConnection = SqliteConnection::new("cache/cache.db").expect("初始化 sqlite 连接失败");
+        }
+        &CONN
     }
 }

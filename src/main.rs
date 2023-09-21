@@ -3,6 +3,7 @@ mod mqtt_client;
 mod common;
 mod driver;
 mod controller;
+mod entity;
 use http_server::server::run as http_run;
 use mqtt_client::client::run as mqtt_run;
 use common::setting::Settings;
@@ -28,7 +29,6 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // 执行 http 服务器
     // http_run()?;
-    SqliteConnection::new("cache/test.db")?;
 
     Ok(())
 }

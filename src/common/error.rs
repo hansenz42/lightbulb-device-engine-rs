@@ -5,9 +5,9 @@ use std::fmt;
 #[derive(Debug, Copy, Clone)]
 pub enum ErrorCode {
     // 未知错误
-    UnknownError = 3000,
+    UnknownError = 1000,
     // http 请求错误
-    HttpError = 3001,
+    HttpError = 1001,
 }
 
 #[derive(Debug)]

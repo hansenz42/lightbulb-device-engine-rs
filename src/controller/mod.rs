@@ -5,3 +5,5 @@
 //! - 定期检查设备状态
 
 mod manager;
+mod cache_dao;
+mod file_dao;
