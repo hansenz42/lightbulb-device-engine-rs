@@ -1,6 +1,7 @@
 use rusqlite::{Connection, Result};
 use lazy_static::lazy_static;
 use log;
+use std::error::Error;
 
 pub struct SqliteConnection {
     // sqlite 文件路径
@@ -8,36 +9,26 @@ pub struct SqliteConnection {
 }
 
 impl SqliteConnection {
-    pub fn new(file_name: &str) -> Result<Self> {
-        let ret = SqliteConnection {
+    pub fn new(file_name: &str) -> Result<Self, Box<dyn Error>> {
+        let conn = SqliteConnection {
             file_name: file_name.to_string(),
         };
-        ret.init_tables()?;
-        Ok(ret)
+        conn.check_folder()?;
+        Ok(conn)
     }
+
+    fn check_folder(&self) -> Result<(), Box<dyn Error>> {
+        let path = std::path::Path::new(&self.file_name);
+        let parent = path.parent().unwrap();
+        if !parent.exists() {
+            log::info!("创建文件夹: {:?}", parent);
+            std::fs::create_dir_all(parent)?;
+        }
+        Ok(())
+    } 
 
     pub fn open(&self) -> Result<Connection> {
         Connection::open(&self.file_name)
-    }
-
-    /// 创建数据表
-    fn init_tables(&self) -> Result<()> {
-        let conn = self.open()?;
-        conn.execute("DROP TABLE file", ())?;
-        conn.execute(
-            "CREATE TABLE file (
-                id              INTEGER PRIMARY KEY autoincrement,
-                tag             TEXT NOT NULL,
-                orig_filename   TEXT NOT NULL,
-                filename        TEXT NOT NULL,
-                hash            TEXT NOT NULL,
-                media_type      INTEGER NOT NULL,
-                deleted         INTEGER NOT NULL
-            )",
-            (),
-        )?;
-
-        Ok(())
     }
 
     pub fn get<'a>() -> &'a Self {

@@ -6,17 +6,40 @@ use rusqlite::Result;
 use crate::common::sqlite::SqliteConnection;
 use crate::entity::po::DevicePo;
 
-struct CacheDao {
+pub struct DeviceDao {
     file_path: String,
     table_name: String
 }
 
-impl CacheDao {
+impl DeviceDao {
     pub fn new() -> Self {
-        CacheDao {
+        let obj = DeviceDao {
             file_path: String::from("cache/test.db"),
             table_name: String::from("device")
+        };
+        let is_exist = obj.check_table().unwrap();
+        if is_exist {
+            log::debug!("设备缓存表已存在");
+        } else {
+            obj.create_table().expect("创建设备缓存表失败");
+            log::debug!("设备缓存表初始化");
         }
+        return obj;
+    }
+
+    pub fn check_table (&self) -> Result<bool> {
+        let conn = SqliteConnection::get().open()?;
+
+        let mut stmt = conn.prepare(format!("SELECT name FROM sqlite_master WHERE type='table' AND name='{}'", self.table_name).as_str())?;
+        let device_iter = stmt.query_map([], |row| Ok(row.get::<usize, String>(0)?))?;
+
+        let mut ret = false;
+        for device in device_iter {
+            ret = true;
+            break;
+        }
+
+        Ok(ret)
     }
 
     /// 将单个设备加入缓存
@@ -31,7 +54,7 @@ impl CacheDao {
         Ok(())
     }
 
-    /// 读取缓存列表
+    /// 读取整个列表
     pub fn get_device_config_list(&self) -> Result<Vec<DevicePo>> {
         let conn = SqliteConnection::get().open()?;
 
@@ -55,17 +78,19 @@ impl CacheDao {
         Ok(ret) 
     }
 
-    /// 清除缓存
-    pub fn clear_cache(&self) -> Result<()> {
-        self.recreate_table()?;
+    /// 删除数据表
+    fn drop_table(&self) -> Result<()> {
+        let conn = SqliteConnection::get().open()?;
+
+        conn.execute(format!("DROP TABLE {}", self.table_name).as_str(), ())?;
+
         Ok(())
     }
 
-    /// 创建缓存数据表
-    pub fn recreate_table(&self) -> Result<()> {
+    /// 创建数据表
+    fn create_table(&self) -> Result<()> {
         let conn = SqliteConnection::get().open()?;
 
-        conn.execute("DROP TABLE device", ())?;
         conn.execute(
             "CREATE TABLE device (
                 id              INTEGER PRIMARY KEY autoincrement,

@@ -62,7 +62,14 @@ pub struct Settings {
 
 impl Default for Settings {
     fn default() -> Self {
-        let env = env::var("ENV").expect("环境变量 env 未设置，请检查环境变量配置或 .env 文件是否存在");
+        let env = match env::var("ENV") {
+            Ok(e) => e,
+            Err(_) => {
+                log::warn!("未设置环境变量 ENV，使用默认值 dev");
+                String::from("dev")
+            }
+        };
+        
         let file_path: String = format!("config_{}.toml", env);
 
         let mut file = match File::open(file_path.as_str()) {
