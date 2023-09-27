@@ -2,6 +2,7 @@
 use std::error::Error;
 use serde_json::{Value, Map};
 
+use super::dao::Dao;
 use super::device_dao::DeviceDao;
 use super::file_dao::FileDao;
 use crate::common::http;
@@ -12,15 +13,15 @@ use crate::entity::po::DevicePo;
 const UPDATE_CONFIG_URL: &str = "/api/v1.2/device";
 
 
-struct DeivceManager <'a> {
-    cache_dao: DeviceDao,
-    file_dao: FileDao<'a>,
+struct DeivceManager {
+    device_dao: DeviceDao,
+    file_dao: FileDao,
 }
 
-impl <'a> DeivceManager <'a> {
+impl DeivceManager {
     fn new() -> Self {
         DeivceManager{
-            cache_dao: DeviceDao::new(),
+            device_dao: DeviceDao::new(),
             file_dao: FileDao::new(),
         }
     }
@@ -28,12 +29,14 @@ impl <'a> DeivceManager <'a> {
     /// 从远程获取设备配置文件
     async fn get_device_config_from_remote(&self) -> Result<(), Box<dyn Error>>{
         let result = http::api_get(UPDATE_CONFIG_URL).await?;
-        self.write_config_to_local_cache(result)?;
+        // 先清除表中的数据再写新数据
+        self.device_dao.clear_table();
+        self.write_config_to_local_cache(result).await?;
         Ok(())
     }
 
     /// 将远程设备文件 JSON 写入数据库
-    fn write_config_to_local_cache(&self, json_data: Value) -> Result<(), Box<dyn Error>>{
+    async fn write_config_to_local_cache(&self, json_data: Value) -> Result<(), Box<dyn Error>>{
         let device_list = json_data.get("list").unwrap().as_array().expect("list 未找到");
         for device in device_list {
             let device_data = device.as_object().expect("device 数据格式错误");
@@ -46,7 +49,7 @@ impl <'a> DeivceManager <'a> {
                 room: config.get("room").unwrap().as_str().unwrap().to_string(),
                 config: construct_device_config_obj_str(config)
             };
-            self.cache_dao.add_device_config(device_po)?;
+            self.device_dao.add_device_config(device_po).await?;
         }
         Ok(())
     }
@@ -82,6 +85,6 @@ mod tests {
             let manager = DeivceManager::new();
             manager.get_device_config_from_remote().await.unwrap();
         });
-        log::error!("测试完成");
+        log::info!("测试完成");
     }
 }

@@ -1342,6 +1342,7 @@ name = "lightbulb-device-engine-rs"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+ "async-trait",
  "config",
  "dmx",
  "dotenv",
@@ -1359,6 +1360,7 @@ dependencies = [
  "serde_yaml",
  "tokio",
  "tokio-modbus",
+ "tokio-rusqlite",
  "tokio-serial",
  "toml 0.8.0",
 ]
@@ -2522,6 +2524,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbae76ab933c85776efabc971569dd6119c580d8f5d448769dec1764bf796ef2"
 dependencies = [
  "native-tls",
+ "tokio",
+]
+
+[[package]]
+name = "tokio-rusqlite"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7aa66395f5ff117faee90c9458232c936405f9227ad902038000b74b3bc1feac"
+dependencies = [
+ "crossbeam-channel",
+ "rusqlite",
  "tokio",
 ]
 

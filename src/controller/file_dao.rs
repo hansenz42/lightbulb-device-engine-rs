@@ -1,133 +1,136 @@
 //! 设备配置缓存 dao 对象
 use rusqlite::params;
-use rusqlite::Result;
 use std::error::Error;
+use super::dao::Dao;
 
 use crate::common::sqlite::SqliteConnection;
 use crate::entity::po::{FilePo, MediaTypeEnum};
+use async_trait::async_trait;
 
-pub struct FileDao<'a> {
-    file_path: &'a str,
-    table_name: &'a str,
+pub struct FileDao {
+    file_path: &'static str,
+    table_name: &'static str,
 }
 
-impl FileDao<'_> {
-    pub fn new() -> Self {
-        let obj = FileDao {
-            file_path: "cache/test.db",
-            table_name: "file",
-        };
-        let is_exist = obj.check_table().unwrap();
-        if is_exist {
-            log::debug!("文件数据表已存在");
-        } else {
-            obj.create_table().expect("创建文件数据表失败");
-            log::debug!("文件数据表初始化");
-        }
-        return obj;
-    }
-    
-    /// 检查表中是否存在 file 表
-    pub fn check_table(&self) -> Result<bool> {
-        let conn = SqliteConnection::get().open()?;
+#[async_trait]
+impl Dao for FileDao {
+    /// 删除数据表
+    async fn drop_table(&self) -> tokio_rusqlite::Result<()> {
+        let conn = SqliteConnection::get().open().await?;
+        let table_name_copy = self.table_name.clone();
 
-        let mut stmt = conn.prepare(
-            format!(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='{}'",
-                self.table_name
+        conn.call(move |conn| {
+            conn.execute(
+                format!("DROP TABLE {}", table_name_copy).as_str(),
+                (),
             )
-            .as_str(),
-        )?;
-        let file_iter = stmt.query_map([], |row| Ok(row.get::<usize, String>(0)?))?;
-
-        let mut ret = false;
-        for file in file_iter {
-            ret = true;
-            break;
-        }
-
-        Ok(ret)
-    }
-
-    /// 将单个文件信息加入缓存
-    pub fn add_file_info(&self, file_info: FilePo) -> Result<()> {
-        let conn = SqliteConnection::get().open()?;
-
-        conn.execute(
-            format!("INSERT INTO {} (tag, orig_filename, filename, hash, media_type, deleted) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", self.table_name).as_str(),
-            (&file_info.tag, &file_info.orig_filename, &file_info.filename, &file_info.hash, file_info.media_type as u8, &file_info.deleted),
-        )?;
-
-        Ok(())
-    }
-
-    /// 获取所有的文件信息
-    pub fn get_file(&self) -> Result<Vec<FilePo>> {
-        let conn = SqliteConnection::get().open()?;
-
-        let mut stmt = conn.prepare(
-            format!(
-                "SELECT tag, orig_filename, filename, hash, media_type, deleted FROM {}",
-                self.table_name
-            )
-            .as_str(),
-        )?;
-        let file_iter = stmt.query_map([], |row| {
-            Ok(FilePo {
-                tag: row.get(0)?,
-                orig_filename: row.get(1)?,
-                filename: row.get(2)?,
-                hash: row.get(3)?,
-                media_type: match row.get(4)? {
-                    1 => MediaTypeEnum::Audio,
-                    2 => MediaTypeEnum::Video,
-                    _ => MediaTypeEnum::Audio,
-                },
-                deleted: row.get(5)?,
-            })
-        })?;
-
-        let mut ret = Vec::new();
-        for file in file_iter {
-            ret.push(file?);
-        }
-
-        Ok(ret)
-    }
-
-    // 删除数据表
-    fn drop_table(&self) -> Result<()> {
-        let conn = SqliteConnection::get().open()?;
-
-        conn.execute(
-            format!("DROP TABLE {}", self.table_name).as_str(),
-            (),
-        )?;
+        }).await?;
 
         Ok(())
     }
 
     /// 创建缓存数据表
-    fn create_table(&self) -> Result<()> {
-        let conn = SqliteConnection::get().open()?;
+    async fn create_table(&self) -> tokio_rusqlite::Result<()> {
+        let conn = SqliteConnection::get().open().await?;
+        let table_name_copy = self.table_name.clone();
 
-        conn.execute(
-            format!(
-                "CREATE TABLE {} (
-                id              INTEGER PRIMARY KEY autoincrement,
-                tag             TEXT NOT NULL,
-                orig_filename   TEXT NOT NULL,
-                filename        TEXT NOT NULL,
-                hash            TEXT NOT NULL,
-                media_type      INTEGER NOT NULL,
-                deleted         INTEGER NOT NULL
-            )", self.table_name
+        conn.call( move |conn| {
+            conn.execute(
+                format!(
+                    "CREATE TABLE {} (
+                    id              INTEGER PRIMARY KEY autoincrement,
+                    tag             TEXT NOT NULL,
+                    orig_filename   TEXT NOT NULL,
+                    filename        TEXT NOT NULL,
+                    hash            TEXT NOT NULL,
+                    media_type      INTEGER NOT NULL,
+                    deleted         INTEGER NOT NULL
+                )", table_name_copy
+                )
+                .as_str(),
+                (),
             )
-            .as_str(),
-            (),
-        )?;
+        }).await?;
+
+        
         log::debug!("[Controller] 文件数据表初始化");
 
         Ok(())
+    }
+}
+
+impl FileDao {
+    pub fn new() -> Self {
+        FileDao {
+            file_path: "cache/test.db",
+            table_name: "file",
+        }
+    }
+
+    pub async fn ensure_table_exist(&self) -> Result<(), Box<dyn Error>> {
+        let is_exist = self.check_table(self.table_name).await?;
+        if is_exist {
+            log::debug!("设备缓存表已存在");
+        } else {
+            self.create_table().await?;
+            log::debug!("设备缓存表初始化");
+        }
+        Ok(())
+    }   
+    
+
+    /// 将单个文件信息加入缓存
+    pub async fn add_file_info(&self, file_info: FilePo) -> Result<(), Box<dyn Error>> {
+        let conn = SqliteConnection::get().open().await?;
+
+        let file_info_copy = file_info.clone();
+        let table_name  = self.table_name.clone();
+
+        conn.call(move |conn| {
+            conn.execute(
+                format!("INSERT INTO {} (tag, orig_filename, filename, hash, media_type, deleted) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", table_name).as_str(),
+                (file_info_copy.tag, file_info_copy.orig_filename, file_info_copy.filename, file_info_copy.hash, file_info_copy.media_type as u8, file_info_copy.deleted),
+            )
+        }).await?;
+
+        Ok(())
+    }
+
+    /// 获取所有的文件信息
+    pub async fn get_file(&self) -> Result<Vec<FilePo>, Box<dyn Error>> {
+        let conn = SqliteConnection::get().open().await?;
+
+        let table_name_copy = self.table_name.clone();
+
+        let files = conn.call(move |conn| {
+            let mut stmt = conn.prepare(
+                format!("SELECT tag, orig_filename, filename, hash, media_type, deleted FROM {}", table_name_copy).as_str(),
+            )?;
+
+            let files = stmt.query_map([], |row| {
+                Ok(FilePo {
+                    tag: row.get(0)?,
+                    orig_filename: row.get(1)?,
+                    filename: row.get(2)?,
+                    hash: row.get(3)?,
+                    media_type: match row.get(4)? {
+                        1 => MediaTypeEnum::Audio,
+                        2 => MediaTypeEnum::Video,
+                        _ => MediaTypeEnum::Audio,
+                    },
+                    deleted: row.get(5)?,
+                })
+            })?
+            .collect::<Result<Vec<FilePo>, rusqlite::Error>>()?;
+            Ok(files)
+        }).await?;
+
+
+        let mut ret = Vec::new();
+        for file in files {
+            ret.push(file);
+        }
+
+        Ok(ret)
     }
 }

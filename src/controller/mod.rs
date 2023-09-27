@@ -7,3 +7,4 @@
 mod manager;
 mod device_dao;
 mod file_dao;
+mod dao;

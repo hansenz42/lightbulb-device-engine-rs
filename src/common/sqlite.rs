@@ -1,4 +1,4 @@
-use rusqlite::{Connection, Result};
+use tokio_rusqlite::{Connection};
 use lazy_static::lazy_static;
 use log;
 use std::error::Error;
@@ -27,8 +27,8 @@ impl SqliteConnection {
         Ok(())
     } 
 
-    pub fn open(&self) -> Result<Connection> {
-        Connection::open(&self.file_name)
+    pub async fn open(&self) -> tokio_rusqlite::Result<Connection> {
+        Ok(Connection::open(&self.file_name).await?)
     }
 
     pub fn get<'a>() -> &'a Self {

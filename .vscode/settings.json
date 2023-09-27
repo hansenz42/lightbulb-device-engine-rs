@@ -3,5 +3,13 @@
     "./Cargo.toml"
   ],
   "rust-analyzer.showUnlinkedFileNotification": false,
-  "remote.autoForwardPorts": false
+  "remote.autoForwardPorts": false,
+  "vsmqtt.brokerProfiles": [
+    {
+      "name": "hoemdev-mqtt",
+      "host": "localhost",
+      "port": 1883,
+      "clientId": "vsmqtt_client_b606"
+    }
+  ]
 }
