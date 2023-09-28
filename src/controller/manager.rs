@@ -26,6 +26,13 @@ impl DeivceManager {
         }
     }
 
+    /// 系统初始化
+    async fn init(&self) -> Result<(), Box<dyn Error>> {
+        self.device_dao.ensure_table_exist().await?;
+        self.file_dao.ensure_table_exist().await?;
+        Ok(())
+    }
+
     /// 从远程获取设备配置文件
     async fn get_device_config_from_remote(&self) -> Result<(), Box<dyn Error>>{
         let result = http::api_get(UPDATE_CONFIG_URL).await?;
@@ -83,6 +90,7 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let manager = DeivceManager::new();
+            manager.init().await.unwrap();
             manager.get_device_config_from_remote().await.unwrap();
         });
         log::info!("测试完成");

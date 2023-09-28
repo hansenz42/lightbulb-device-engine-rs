@@ -1347,6 +1347,7 @@ dependencies = [
  "dmx",
  "dotenv",
  "event-emitter-rs",
+ "futures",
  "lazy_static 1.4.0",
  "log",
  "paho-mqtt",

@@ -1,6 +1,7 @@
 //! MQTT 服务连接器
 
 use paho_mqtt;
+use futures::{executor::block_on, stream::StreamExt};
 
 struct MqttConnection {
     /// 远程服务器地址
@@ -56,6 +57,49 @@ impl MqttConnection {
         Ok(())
     }
 
-    // 订阅、侦听消息
+    /// 订阅消息
+    pub async fn subscribe(&self, topic: &str) -> Result<(), paho_mqtt::Error> {
+        if let Some(client) = &self.client {
+            client.subscribe(topic, 0).await?;
+        } else {
+            log::error!("MQTT 未连接");
+        }
+
+        Ok(())
+    }
     
+    /// 开启消息循环
+    pub async fn start(&mut self) -> Result<(), paho_mqtt::Error> {
+        if let Some(client) = &mut self.client {
+            let mut strm: paho_mqtt::AsyncReceiver<Option<paho_mqtt::Message>> = client.get_stream(25);
+            while let Some(msg) = strm.next().await {
+                if let Some(msg) = msg {
+                    println!("Received: {:?}", msg);
+                }
+            }
+        } else {
+            log::error!("MQTT 未连接");
+        }
+
+        Ok(())
+    }
+}
+
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use crate::common::logger::{init_logger};
+
+    #[test]
+    fn test_mqtt_connection() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            init_logger();
+            let mut conn = MqttConnection::new("127.0.0.1", 1883);
+            conn.connect().await.unwrap();
+            conn.subscribe("test").await.unwrap();
+            conn.start().await;
+        })
+    }
 }

@@ -12,10 +12,10 @@ pub trait Dao {
 
         let result = conn.call( move|conn| {
             let mut stmt = conn.prepare(format!("SELECT name FROM sqlite_master WHERE type='table' AND name='{}'", table_name).as_str())?;
-            let device_iter = stmt.query_map([], |row| Ok(row.get::<usize, String>(0)?))?;
-
+            let table_iter = stmt.query_map([], |row| Ok(row.get::<usize, String>(0)?))?;
+            
             let mut ret = false;
-            for device in device_iter {
+            for table in table_iter {
                 ret = true;
                 break;
             }
