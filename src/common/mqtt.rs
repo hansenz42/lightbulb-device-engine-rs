@@ -2,8 +2,9 @@
 
 use paho_mqtt;
 use futures::{executor::block_on, stream::StreamExt};
+use crate::entity::mqtt;
 
-struct MqttConnection {
+pub struct MqttConnection {
     /// 远程服务器地址
     host: String,
 
@@ -12,14 +13,18 @@ struct MqttConnection {
 
     /// 连接客户端对象
     client: Option<paho_mqtt::AsyncClient>,
+
+    // 消息发送通道
+    tx: tokio::sync::mpsc::Sender<mqtt::MqttMessageBo>,
 }
 
 impl MqttConnection {
-    pub fn new(host: &str, port: u16) -> Self {
+    pub fn new(host: &str, port: u16, tx: tokio::sync::mpsc::Sender<mqtt::MqttMessageBo>) -> Self {
         MqttConnection {
             host: host.to_string(),
             port,
-            client: None
+            client: None,
+            tx,
         }
     }
 
@@ -51,7 +56,7 @@ impl MqttConnection {
         if let Some(client) = &self.client {
             client.publish(msg).await?;
         } else {
-            log::error!("MQTT 未连接");
+            log::error!("mqtt 消息发布失败，未连接");
         }
 
         Ok(())
@@ -62,7 +67,7 @@ impl MqttConnection {
         if let Some(client) = &self.client {
             client.subscribe(topic, 0).await?;
         } else {
-            log::error!("MQTT 未连接");
+            log::error!("mqtt 消息订阅失败，未连接");
         }
 
         Ok(())
@@ -74,7 +79,14 @@ impl MqttConnection {
             let mut strm: paho_mqtt::AsyncReceiver<Option<paho_mqtt::Message>> = client.get_stream(25);
             while let Some(msg) = strm.next().await {
                 if let Some(msg) = msg {
-                    println!("Received: {:?}", msg);
+                    println!("payload: {:?}", msg.payload_str());
+                    println!("topic: {:?}", msg.topic());
+                    let message_bo = mqtt::MqttMessageBo {
+                        topic: msg.topic().to_string(),
+                        payload: msg.payload_str().to_string(),
+                    };
+                    // 向通道中发送数据
+                    self.tx.send(message_bo).await.expect("mqtt 发送消息失败，通道错误");
                 }
             }
         } else {
@@ -88,18 +100,24 @@ impl MqttConnection {
 
 #[cfg(test)]
 mod test {
+    use tokio::sync::mpsc;
+
     use super::*;
     use crate::common::logger::{init_logger};
 
     #[test]
     fn test_mqtt_connection() {
+        init_logger();
         let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            init_logger();
-            let mut conn = MqttConnection::new("127.0.0.1", 1883);
+        let (tx, mut rx) = mpsc::channel(1);
+        let mut conn = MqttConnection::new("127.0.0.1", 1883, tx);
+        rt.spawn(async move {
             conn.connect().await.unwrap();
             conn.subscribe("test").await.unwrap();
             conn.start().await;
-        })
+        });
+        let message_bo = rx.blocking_recv();
+        println!("received: {:?}", message_bo);
+        
     }
 }

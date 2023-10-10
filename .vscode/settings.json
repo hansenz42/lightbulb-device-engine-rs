@@ -10,6 +10,12 @@
       "host": "localhost",
       "port": 1883,
       "clientId": "vsmqtt_client_b606"
+    },
+    {
+      "name": "homedev-local",
+      "host": "192.168.3.100",
+      "port": 1883,
+      "clientId": "vsmqtt_client_07c9"
     }
   ]
 }
