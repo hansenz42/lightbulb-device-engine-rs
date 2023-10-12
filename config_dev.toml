@@ -27,7 +27,7 @@ process_name = "device"
 
 # mqtt 信息
 [mqtt]
-broker_host = "broker-cn.emqx.io"
+broker_host = "127.0.0.1"
 broker_port = 1883
 client_id = "lightbulb-device-engine-2335"
 

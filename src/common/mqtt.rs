@@ -1,8 +1,11 @@
 //! MQTT 服务连接器
 
+use std::{pin::Pin, sync::Arc};
+
 use paho_mqtt;
 use futures::{executor::block_on, stream::StreamExt};
-use crate::entity::mqtt;
+use crate::entity::mqtt::{self, MqttMessageBo};
+use tokio::sync::mpsc;
 
 pub struct MqttConnection {
     /// 远程服务器地址
@@ -11,31 +14,51 @@ pub struct MqttConnection {
     /// 端口
     port: u16,
 
-    /// 连接客户端对象
-    client: Option<paho_mqtt::AsyncClient>,
+    // client_id
+    client_id: String,
 
-    // 消息发送通道
-    tx: tokio::sync::mpsc::Sender<mqtt::MqttMessageBo>,
+    /// 连接客户端对象
+    client: Option<paho_mqtt::AsyncClient>
 }
 
 impl MqttConnection {
-    pub fn new(host: &str, port: u16, tx: tokio::sync::mpsc::Sender<mqtt::MqttMessageBo>) -> Self {
+    pub fn new(host: &str, port: u16, client_id: &str) -> Self {
         MqttConnection {
             host: host.to_string(),
             port,
-            client: None,
-            tx,
+            client_id: client_id.to_string(),
+            client: None
         }
     }
 
     /// 连接到 MQTT 服务器
-    pub async fn connect(&mut self) -> Result<(), paho_mqtt::Error> {
-        let client = paho_mqtt::AsyncClient::new(format!("tcp://{}:{}", self.host.as_str(), self.port))?;
+    /// 传入的 tx 为发送消息的 mpsc 通道，目前支持标准库的多发单收
+    pub async fn connect(&mut self, tx: mpsc::Sender<MqttMessageBo>) -> Result<(), paho_mqtt::Error> {
+        let create_opts = paho_mqtt::CreateOptionsBuilder::new()
+            .server_uri(format!("tcp://{}:{}", self.host.as_str(), self.port))
+            .client_id(self.client_id.as_str())
+            .finalize();
+        
+        let client = paho_mqtt::AsyncClient::new(create_opts)?;
         
         let conn_opts = paho_mqtt::ConnectOptionsBuilder::new() 
             .keep_alive_interval(std::time::Duration::from_secs(20))
             .clean_session(true)
             .finalize();
+
+        client.set_connection_lost_callback(|_cli| {
+            println!("*** Connection lost ***");
+        });
+
+        client.set_message_callback(move |_cli, msg| {
+            if let Some(msg) = msg {
+                log::debug!("接收到消息！内容：{}", msg.payload_str());
+                tx.blocking_send(MqttMessageBo {
+                    topic: msg.topic().to_string(),
+                    payload: msg.payload_str().to_string()
+                }).expect("mqtt 消息发送失败");
+            }
+        });
 
         if let Err(e) = client.connect(conn_opts).await {
             log::error!("连接到 MQTT 服务器失败: {:?}", e);
@@ -46,8 +69,6 @@ impl MqttConnection {
         
         Ok(())
     }
-
-    /// 连接到 MQTT 服务器（异步封装）
     
 
     /// 发布消息
@@ -72,29 +93,6 @@ impl MqttConnection {
 
         Ok(())
     }
-    
-    /// 开启消息循环
-    pub async fn start(&mut self) -> Result<(), paho_mqtt::Error> {
-        if let Some(client) = &mut self.client {
-            let mut strm: paho_mqtt::AsyncReceiver<Option<paho_mqtt::Message>> = client.get_stream(25);
-            while let Some(msg) = strm.next().await {
-                if let Some(msg) = msg {
-                    println!("payload: {:?}", msg.payload_str());
-                    println!("topic: {:?}", msg.topic());
-                    let message_bo = mqtt::MqttMessageBo {
-                        topic: msg.topic().to_string(),
-                        payload: msg.payload_str().to_string(),
-                    };
-                    // 向通道中发送数据
-                    self.tx.send(message_bo).await.expect("mqtt 发送消息失败，通道错误");
-                }
-            }
-        } else {
-            log::error!("MQTT 未连接");
-        }
-
-        Ok(())
-    }
 }
 
 
@@ -105,19 +103,22 @@ mod test {
     use super::*;
     use crate::common::logger::{init_logger};
 
+    // 单次接收数据测试
     #[test]
-    fn test_mqtt_connection() {
-        init_logger();
+    fn test() {
+        init_logger().expect("初始化日志失败");
         let rt = tokio::runtime::Runtime::new().unwrap();
         let (tx, mut rx) = mpsc::channel(1);
-        let mut conn = MqttConnection::new("127.0.0.1", 1883, tx);
         rt.spawn(async move {
-            conn.connect().await.unwrap();
+            let mut conn = MqttConnection::new("127.0.0.1", 1883, "test_client");
+            conn.connect(tx).await.unwrap();
             conn.subscribe("test").await.unwrap();
-            conn.start().await;
+            let message_bo = rx.recv().await;
+            println!("received: {:?}", message_bo);
         });
-        let message_bo = rx.blocking_recv();
-        println!("received: {:?}", message_bo);
         
+        println!("进程已结束，进入等待……");
+        // 等待 25 秒
+        std::thread::sleep(std::time::Duration::from_secs(25));
     }
 }
