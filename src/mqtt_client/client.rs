@@ -1,6 +1,4 @@
-use futures::FutureExt;
 use tokio::sync::mpsc;
-use tokio::task::JoinHandle;
 
 use crate::common::mqtt;
 use crate::common::setting::Settings;
@@ -66,6 +64,31 @@ impl MqttClient {
         Ok(())
     }
 
+    /// 发送心跳包
+    pub async fn publish_heartbeat(&self) -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+
+    /// 发送设备状态变化通知
+    pub async fn publish_status(&self) -> Result<(), Box<dyn Error>> {
+        Ok(())
+    }
+
+    /// 发布离线消息
+    pub async fn publish_offline(&self) -> Result<(), Box<dyn Error>> {
+        match &self.con {
+            Some(con) => {
+                let topic = self.protocol.topic_self_declare("offline", None, None, None);
+                let msg = self.protocol.message_from_server(None, None, None, None);
+                con.publish(topic.as_str(), "");
+                Ok(())
+            }
+            None => Err("mqtt 连接未初始化".into())
+        }
+    }
+
+
+
     /// 注册预定义的 mqtt 话题
     pub async fn subscribe_topics(&mut self) -> Result<(), Box<dyn Error>> {
         match &self.con {
@@ -102,7 +125,7 @@ impl MqttClient {
                 Ok(())
             },
             None => {
-                return Err("mqtt 连接未初始化".into());
+                Err("mqtt 连接未初始化".into())
             }
         }
         

@@ -820,7 +820,7 @@ dependencies = [
  "bincode",
  "lazy_static 1.4.0",
  "serde",
- "uuid",
+ "uuid 0.8.2",
 ]
 
 [[package]]
@@ -1364,6 +1364,7 @@ dependencies = [
  "tokio-rusqlite",
  "tokio-serial",
  "toml 0.8.0",
+ "uuid 1.4.1",
 ]
 
 [[package]]
@@ -2710,6 +2711,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bc5cf98d8186244414c848017f0e2676b3fcb46807f6668a97dfe67359a3c4b7"
 dependencies = [
  "getrandom",
+]
+
+[[package]]
+name = "uuid"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79daa5ed5740825c40b389c5e50312b9c86df53fccd33f281df655642b43869d"
+dependencies = [
+ "getrandom",
+ "rand",
+ "uuid-macro-internal",
+]
+
+[[package]]
+name = "uuid-macro-internal"
+version = "1.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7e1ba1f333bd65ce3c9f27de592fcbc256dafe3af2717f56d7c87761fbaccf4"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.29",
 ]
 
 [[package]]

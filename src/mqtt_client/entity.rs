@@ -1,5 +1,7 @@
 use serde_json::{Result, Value};
 use crate::util::time::get_timestamp;
+use crate::util::gen_id::generate_uuid;
+use crate::common::setting::Settings;
 
 
 /// mqtt Payload 对象，应用于和 mqtt 服务器的传输中
@@ -15,18 +17,56 @@ pub struct MqttPayloadDto {
     pub data: Value,
 }
 
-impl Default for MqttPayloadDto {
-    fn default() -> Self {
+impl MqttPayloadDto {
+    pub fn new(
+        code: Option<i32>,
+        msg: Option<String>, 
+        source_type: Option<String>,
+        source_id: Option<String>,
+        target_type: Option<String>,
+        target_id: Option<String>,
+        session_id: Option<String>,
+        timestamp: Option<f64>,
+        data: Option<Value>,
+    ) -> Self {
+        let settings = Settings::get();
         MqttPayloadDto {
-            code: 200,
-            msg: "ok".to_string(),
-            source_type: "".to_string(),
-            source_id: "".to_string(),
-            target_type: "".to_string(),
-            target_id: "".to_string(),
-            session_id: "".to_string(),
-            timestamp: get_timestamp(),
-            data: Value::Null,
+            code: match code {
+                Some(code) => code,
+                None => 200,
+            },
+            msg: match msg {
+                Some(msg) => msg,
+                None => String::from(""),
+            },
+            source_type: match source_type {
+                Some(source_type) => source_type,
+                None => settings.server.server_type.clone(),
+            },
+            source_id: match source_id {
+                Some(source_id) => source_id,
+                None => settings.server.server_id.clone(),
+            },
+            target_type: match target_type {
+                Some(target_type) => target_type,
+                None => String::from(""),
+            },
+            target_id: match target_id {
+                Some(target_id) => target_id,
+                None => String::from(""),
+            },
+            session_id: match session_id {
+                Some(session_id) => session_id,
+                None => generate_uuid(),
+            },
+            timestamp: match timestamp {
+                Some(timestamp) => timestamp,
+                None => get_timestamp(),
+            },
+            data: match data {
+                Some(data) => data,
+                None => Value::Null,
+            },
         }
     }
 }

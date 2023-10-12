@@ -1,5 +1,6 @@
 
 use std::error::Error;
+use crate::util::gen_id::generate_uuid;
 
 use super::entity::{MqttTopicInfoBo, MqttPayloadDto};
 use crate::common::setting::Settings;
@@ -146,37 +147,49 @@ impl Protocol {
     }
 
     /// 发送错误消息数据
-    pub fn error_message(&self, msg: String, session_id: String, target_type: String, target_id: String) -> MqttPayloadDto {
-        let mut payload = MqttPayloadDto::default();
-        payload.code = 500;
-        payload.msg = msg;
-        payload.session_id = session_id;
-        payload.target_type = target_type;
-        payload.target_id = target_id;
-        payload
+    pub fn error_message(&self, msg: Option<String>, session_id: Option<String>, target_type: Option<String>, target_id: Option<String>) -> MqttPayloadDto {
+        MqttPayloadDto::new(
+            Some(500),
+            msg,
+            Some(self.server_type.clone()),
+            Some(self.server_id.clone()),
+            target_type,
+            target_id,
+            session_id,
+            None,
+            None
+        )
     }
 
 
     /// 发送参数错误消息
-    pub fn param_fail_message(&self, msg: String, session_id: String, target_type: String, target_id: String) -> MqttPayloadDto {
-        let mut payload = MqttPayloadDto::default();
-        payload.code = 400;
-        payload.msg = msg;
-        payload.session_id = session_id;
-        payload.target_type = target_type;
-        payload.target_id = target_id;
-        payload
+    pub fn param_fail_message(self, msg: Option<String>, session_id: Option<String>, target_type: Option<String>, target_id: Option<String>) -> MqttPayloadDto {
+        MqttPayloadDto::new(
+            Some(400),
+            msg,
+            Some(self.server_type.clone()),
+            Some(self.server_id.clone()),
+            target_type,
+            target_id,
+            session_id,
+            None,
+            None
+        )
     }
 
     /// 服务器发送的带数据消息
-    pub fn message_from_server(&self, data: serde_json::Value, session_id: String, target_type: String, target_id: String) -> MqttPayloadDto {
-        let mut payload = MqttPayloadDto::default();
-        payload.data = data;
-        payload.session_id = session_id;
-        payload.target_type = target_type;
-        payload.target_id = target_id;
-        payload
+    pub fn message_from_server(&self, data: Option<serde_json::Value>, session_id: Option<String>, target_type: Option<String>, target_id: Option<String>) -> MqttPayloadDto {
+        MqttPayloadDto::new(
+            Some(200),
+            Some("ok".to_string()),
+            Some(self.server_type.clone()),
+            Some(self.server_id.clone()),
+            target_type,
+            target_id,
+            session_id,
+            None,
+            data
+        )
     }
-
     
 }

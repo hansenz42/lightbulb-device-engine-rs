@@ -29,3 +29,4 @@ tokio-rusqlite = "0.4.0"
 async-trait = "0.1.73"
 rusqlite = "0.29.0"
 futures = "0.3.28"
+uuid = { version = "1.4.1", features = [ "v4", "fast-rng", "macro-diagnostics" ]}
