@@ -1,3 +1,4 @@
+use serde::{Serialize, Deserialize};
 use serde_json::{Result, Value};
 use crate::util::time::get_timestamp;
 use crate::util::gen_id::generate_uuid;
@@ -5,6 +6,7 @@ use crate::common::setting::Settings;
 
 
 /// mqtt Payload 对象，应用于和 mqtt 服务器的传输中
+#[derive(Serialize, Deserialize, Debug)]
 pub struct MqttPayloadDto {
     pub code: i32,
     pub msg: String,
@@ -68,6 +70,14 @@ impl MqttPayloadDto {
                 None => Value::Null,
             },
         }
+    }
+
+    pub fn to_json(&self) -> Result<String> {
+        serde_json::to_string(self)
+    }
+
+    pub fn from_json(json: &str) -> Result<Self> {
+        serde_json::from_str(json)
     }
 }
 

@@ -12,8 +12,8 @@ use common::sqlite::SqliteConnection;
 use std::error::Error;
 use log;
 use dotenv::dotenv;
-use http_server::*;
-
+use mqtt_client::client::MqttClient;
+use tokio;
 
 fn main() -> Result<(), Box<dyn Error>> {
     // 检查 env 文件
@@ -27,8 +27,19 @@ fn main() -> Result<(), Box<dyn Error>> {
     log::info!("配置已加载，环境: {:?}", settings.env.env);
     log::debug!("配置: {:?}", settings);
 
-    // 执行 http 服务器
-    // http_run()?;
+    let rt = tokio::runtime::Runtime::new().unwrap();
+
+    rt.block_on(async move {
+        // 执行 http 服务器
+        http_run().await.unwrap();
+
+        // 执行 mqtt 服务器
+        let mut client = MqttClient::new();
+        client.start().await.unwrap();
+    });
+
+    // loop 主线程
+    loop {}
 
     Ok(())
 }

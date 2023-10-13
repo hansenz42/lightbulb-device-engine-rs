@@ -5,10 +5,8 @@ async fn index() -> impl Responder {
     "Hello, World!"
 }
 
-#[actix_web::main]
-// run server as a submodule
 pub async fn run() -> std::io::Result<()> {
-    HttpServer::new(|| {
+    let server = HttpServer::new(|| {
         App::new().service(
             // prefixes all resources and routes attached to it...
             web::scope("/app")
@@ -17,8 +15,10 @@ pub async fn run() -> std::io::Result<()> {
         )
     })
     .bind((Settings::get().web.web_host.as_str(), Settings::get().web.web_port))?
-    .run()
-    .await?;
+    .workers(2)
+    .run();
+
+    tokio::spawn(server);
 
     Ok(())
 }

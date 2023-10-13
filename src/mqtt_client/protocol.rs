@@ -34,7 +34,7 @@ pub struct Protocol {
     server_id: String
 }
 
-impl Protocol {
+    impl Protocol {
     pub fn new() -> Self {
         Protocol {
             app_name: Settings::get().meta.application_name.clone(),
@@ -147,7 +147,7 @@ impl Protocol {
     }
 
     /// 发送错误消息数据
-    pub fn error_message(&self, msg: Option<String>, session_id: Option<String>, target_type: Option<String>, target_id: Option<String>) -> MqttPayloadDto {
+    pub fn error_payload(&self, msg: Option<String>, session_id: Option<String>, target_type: Option<String>, target_id: Option<String>) -> MqttPayloadDto {
         MqttPayloadDto::new(
             Some(500),
             msg,
@@ -161,9 +161,8 @@ impl Protocol {
         )
     }
 
-
     /// 发送参数错误消息
-    pub fn param_fail_message(self, msg: Option<String>, session_id: Option<String>, target_type: Option<String>, target_id: Option<String>) -> MqttPayloadDto {
+    pub fn param_fail_payload(self, msg: Option<String>, session_id: Option<String>, target_type: Option<String>, target_id: Option<String>) -> MqttPayloadDto {
         MqttPayloadDto::new(
             Some(400),
             msg,
@@ -178,7 +177,7 @@ impl Protocol {
     }
 
     /// 服务器发送的带数据消息
-    pub fn message_from_server(&self, data: Option<serde_json::Value>, session_id: Option<String>, target_type: Option<String>, target_id: Option<String>) -> MqttPayloadDto {
+    pub fn payload_from_server(&self, data: Option<serde_json::Value>, session_id: Option<String>, target_type: Option<String>, target_id: Option<String>) -> MqttPayloadDto {
         MqttPayloadDto::new(
             Some(200),
             Some("ok".to_string()),
@@ -191,5 +190,4 @@ impl Protocol {
             data
         )
     }
-    
 }

@@ -8,19 +8,19 @@ use std::error::Error;
 use std::result::Result;
 use std::sync::Arc;
 
-struct MqttClient {
+pub struct MqttClient {
     // mqtt 连接
     con: Option<mqtt::MqttConnection>,
 
     // 消息接收通道
-    rx: Option<mpsc::Receiver<MqttMessageBo>>,
+    pub rx: Option<mpsc::Receiver<MqttMessageBo>>,
 
     // 消息转换对象
     protocol: Protocol
 }
 
 impl MqttClient {
-    fn new() -> Self {
+    pub fn new() -> Self {
         let setting = Settings::get();
         MqttClient {
             con: None,
@@ -45,7 +45,7 @@ impl MqttClient {
         self.con = Some(con);
         self.rx = Some(rx);
 
-        log::info!("mqtt 连接创建成功 host: {} port: {}", setting.mqtt.broker_host, setting.mqtt.broker_port);
+        log::info!("mqtt 连接成功 host: {} port: {}", setting.mqtt.broker_host, setting.mqtt.broker_port);
 
         self.subscribe_topics().await.expect("注册话题失败");
         Ok(())
@@ -64,12 +64,12 @@ impl MqttClient {
         Ok(())
     }
 
-    /// 发送心跳包
+    /// TODO: 发送心跳包
     pub async fn publish_heartbeat(&self) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
 
-    /// 发送设备状态变化通知
+    /// TODO: 发送设备状态变化通知
     pub async fn publish_status(&self) -> Result<(), Box<dyn Error>> {
         Ok(())
     }
@@ -79,15 +79,14 @@ impl MqttClient {
         match &self.con {
             Some(con) => {
                 let topic = self.protocol.topic_self_declare("offline", None, None, None);
-                let msg = self.protocol.message_from_server(None, None, None, None);
-                con.publish(topic.as_str(), "");
+                let payload = self.protocol.payload_from_server(None, None, None, None);
+                let json_str = payload.to_json()?;
+                con.publish(topic.as_str(), json_str.as_str()).await?;
                 Ok(())
             }
             None => Err("mqtt 连接未初始化".into())
         }
     }
-
-
 
     /// 注册预定义的 mqtt 话题
     pub async fn subscribe_topics(&mut self) -> Result<(), Box<dyn Error>> {
@@ -141,7 +140,7 @@ mod test {
     use super::*;
     use crate::common::logger::{init_logger};
 
-    // 测试接收一条消息
+    /// 测试接收一条消息
     #[test]
     fn test() {
         init_logger();
@@ -151,6 +150,7 @@ mod test {
 
         rt.block_on(async move {
             client.start().await.unwrap();
+            client.publish("test", "from rust client").await.unwrap();
 
             match &mut client.rx {
                 Some(rx) => {
