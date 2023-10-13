@@ -5,7 +5,7 @@ mod driver;
 mod controller;
 mod entity;
 mod util;
-use http_server::server::run as http_run;
+use http_server::server::CustomHttpServer;
 use common::setting::Settings;
 use common::logger::init_logger;
 use common::sqlite::SqliteConnection;
@@ -31,7 +31,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     rt.block_on(async move {
         // 执行 http 服务器
-        http_run().await.unwrap();
+        CustomHttpServer::start().await.unwrap();
 
         // 执行 mqtt 服务器
         let mut client = MqttClient::new();
