@@ -32,9 +32,9 @@ pub trait Dao {
     async fn drop_table(&self) -> tokio_rusqlite::Result<()>;
 
     /// 清空数据表
-    fn clear_table(&self) -> tokio_rusqlite::Result<()> {
-        self.drop_table();
-        self.create_table();
+    async fn clear_table(&self) -> tokio_rusqlite::Result<()> {
+        self.drop_table().await?;
+        self.create_table().await?;
         Ok(())
     }
 }

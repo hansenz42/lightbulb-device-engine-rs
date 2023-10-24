@@ -4,3 +4,4 @@ pub mod sqlite;
 pub mod http;
 pub mod error;
 pub mod mqtt;
+pub mod dao;

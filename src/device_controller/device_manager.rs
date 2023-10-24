@@ -2,9 +2,8 @@
 use std::error::Error;
 use serde_json::{Value, Map};
 
-use super::dao::Dao;
+use crate::common::dao::Dao;
 use super::device_dao::DeviceDao;
-use super::file_dao::FileDao;
 use crate::common::http;
 use crate::entity::po::DevicePo;
 
@@ -14,22 +13,19 @@ const UPDATE_CONFIG_URL: &str = "/api/v1.2/device";
 
 
 struct DeivceManager {
-    device_dao: DeviceDao,
-    file_dao: FileDao,
+    device_dao: DeviceDao
 }
 
 impl DeivceManager {
     fn new() -> Self {
         DeivceManager{
-            device_dao: DeviceDao::new(),
-            file_dao: FileDao::new(),
+            device_dao: DeviceDao::new()
         }
     }
 
     /// 系统初始化
     async fn init(&self) -> Result<(), Box<dyn Error>> {
         self.device_dao.ensure_table_exist().await?;
-        self.file_dao.ensure_table_exist().await?;
         Ok(())
     }
 
@@ -37,12 +33,12 @@ impl DeivceManager {
     async fn get_device_config_from_remote(&self) -> Result<(), Box<dyn Error>>{
         let result = http::api_get(UPDATE_CONFIG_URL).await?;
         // 先清除表中的数据再写新数据
-        self.device_dao.clear_table();
+        self.device_dao.clear_table().await?;
         self.write_config_to_local_cache(result).await?;
         Ok(())
     }
 
-    /// 将远程设备文件 JSON 写入数据库
+    /// 将远程设备文件写入数据库
     async fn write_config_to_local_cache(&self, json_data: Value) -> Result<(), Box<dyn Error>>{
         let device_list = json_data.get("list").unwrap().as_array().expect("list 未找到");
         for device in device_list {

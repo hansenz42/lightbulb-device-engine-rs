@@ -1,5 +1,5 @@
 //! 设备配置缓存 dao 对象
-use super::dao::Dao;
+use crate::common::dao::Dao;
 use std::error::Error;
 use std::result::Result;
 use rusqlite::params;

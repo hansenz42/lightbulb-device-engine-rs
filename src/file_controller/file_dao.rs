@@ -1,7 +1,7 @@
 //! 设备配置缓存 dao 对象
 use rusqlite::params;
 use std::error::Error;
-use super::dao::Dao;
+use crate::common::dao::Dao;
 
 use crate::common::sqlite::SqliteConnection;
 use crate::entity::po::{FilePo, MediaTypeEnum};
@@ -40,7 +40,6 @@ impl Dao for FileDao {
                     "CREATE TABLE {} (
                     id              INTEGER PRIMARY KEY autoincrement,
                     tag             TEXT NOT NULL,
-                    orig_filename   TEXT NOT NULL,
                     filename        TEXT NOT NULL,
                     hash            TEXT NOT NULL,
                     media_type      INTEGER NOT NULL,
@@ -88,8 +87,8 @@ impl FileDao {
 
         conn.call(move |conn| {
             conn.execute(
-                format!("INSERT INTO {} (tag, orig_filename, filename, hash, media_type, deleted) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", table_name).as_str(),
-                (file_info_copy.tag, file_info_copy.orig_filename, file_info_copy.filename, file_info_copy.hash, file_info_copy.media_type as u8, file_info_copy.deleted),
+                format!("INSERT INTO {} (tag, filename, hash, media_type, deleted) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", table_name).as_str(),
+                (file_info_copy.tag, file_info_copy.filename, file_info_copy.hash, file_info_copy.media_type as u8, file_info_copy.deleted),
             )
         }).await?;
 
@@ -104,21 +103,20 @@ impl FileDao {
 
         let files = conn.call(move |conn| {
             let mut stmt = conn.prepare(
-                format!("SELECT tag, orig_filename, filename, hash, media_type, deleted FROM {}", table_name_copy).as_str(),
+                format!("SELECT tag, filename, hash, media_type, deleted FROM {}", table_name_copy).as_str(),
             )?;
 
             let files = stmt.query_map([], |row| {
                 Ok(FilePo {
                     tag: row.get(0)?,
-                    orig_filename: row.get(1)?,
-                    filename: row.get(2)?,
-                    hash: row.get(3)?,
-                    media_type: match row.get(4)? {
+                    filename: row.get(1)?,
+                    hash: row.get(2)?,
+                    media_type: match row.get(3)? {
                         1 => MediaTypeEnum::Audio,
                         2 => MediaTypeEnum::Video,
                         _ => MediaTypeEnum::Audio,
                     },
-                    deleted: row.get(5)?,
+                    deleted: row.get(4)?,
                 })
             })?
             .collect::<Result<Vec<FilePo>, rusqlite::Error>>()?;
