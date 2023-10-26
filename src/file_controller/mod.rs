@@ -1,4 +1,4 @@
 //! 文件管理模块
 
-mod file_dao;
-mod file_manager;
+pub mod file_dao;
+pub mod file_manager;

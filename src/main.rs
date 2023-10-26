@@ -6,6 +6,7 @@ mod device_controller;
 mod file_controller;
 mod entity;
 mod util;
+use file_controller::file_manager::FileManager;
 use http_server::server::CustomHttpServer;
 use common::setting::Settings;
 use common::logger::init_logger;
@@ -31,6 +32,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async move {
+        // 初始化设备管理器
+
+        // 初始化文件管理器 fileManager
+        
+
         // 执行 http 服务器
         CustomHttpServer::start().await.unwrap();
 

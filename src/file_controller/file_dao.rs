@@ -4,7 +4,8 @@ use std::error::Error;
 use crate::common::dao::Dao;
 
 use crate::common::sqlite::SqliteConnection;
-use crate::entity::po::{FilePo, MediaTypeEnum};
+use crate::entity::po::FilePo::FilePo;
+use crate::entity::bo::FileBo::MediaTypeEnum;
 use async_trait::async_trait;
 
 pub struct FileDao {
@@ -96,12 +97,12 @@ impl FileDao {
     }
 
     /// 获取所有的文件信息
-    pub async fn get_file(&self) -> Result<Vec<FilePo>, Box<dyn Error>> {
+    pub async fn get_all(&self) -> Result<Vec<FilePo>, Box<dyn Error>> {
         let conn = SqliteConnection::get().open().await?;
 
         let table_name_copy = self.table_name.clone();
 
-        let files = conn.call(move |conn| {
+        let file_pos = conn.call(move |conn| {
             let mut stmt = conn.prepare(
                 format!("SELECT tag, filename, hash, media_type, deleted FROM {}", table_name_copy).as_str(),
             )?;
@@ -125,8 +126,8 @@ impl FileDao {
 
 
         let mut ret = Vec::new();
-        for file in files {
-            ret.push(file);
+        for file_po in file_pos {
+            ret.push(file_po);
         }
 
         Ok(ret)

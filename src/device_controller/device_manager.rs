@@ -5,7 +5,7 @@ use serde_json::{Value, Map};
 use crate::common::dao::Dao;
 use super::device_dao::DeviceDao;
 use crate::common::http;
-use crate::entity::po::DevicePo;
+use crate::entity::po::DevicePo::DevicePo;
 
 
 // 设备更新地址

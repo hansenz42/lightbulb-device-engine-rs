@@ -3,7 +3,7 @@
 //! - 处理远程服务器错误：如果远程发生错误，code 不为 200，那么返回 HttpError
 //! - 保证输入输出均为 json object
 
-use std::collections::HashMap;
+use std::{collections::HashMap, fs::File, io::Write};
 use super::setting::Settings;
 use lazy_static::lazy_static;
 use serde_json::Value;
@@ -36,6 +36,27 @@ pub async fn api_post(api_url: &str, data: Value) -> Result<Value, Box<dyn Error
         .await?;
     let res = get_res_data(resp)?;
     Ok(res)
+}
+
+/// 下载文件
+pub async fn download_file(url: &str, folder_path: &str) -> Result<(), Box<dyn Error>> {
+    let mut resp = reqwest::get(url).await?;
+    // 从 response Content-Disposition 中获取文件名
+    let filename = resp
+        .headers()
+        .get("Content-Disposition")
+        .and_then(|cd| cd.to_str().ok())
+        .and_then(|cd| {
+            cd.split(';')
+                .find_map(|s| s.trim().strip_prefix("filename="))
+                .map(|s| s.trim_matches('"'))
+        })
+        .unwrap_or("download.bin");
+    let mut out = File::create(format!("{}/{}", folder_path, filename))?;
+    while let Some(chunk) = resp.chunk().await? {
+        out.write_all(&chunk)?;
+    }
+    Ok(())
 }
 
 /// 检查返回值中的 code 是否成功，不成功则抛出异常
