@@ -1,6 +1,8 @@
 /// 数据库对象：设备
 #[derive(Debug, Clone)]
 pub struct DevicePo {
+    // 设备 id
+    pub device_id: String,
     // 设备二级类目
     pub device_class: String,
     // 设备类型

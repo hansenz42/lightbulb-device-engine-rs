@@ -2,3 +2,4 @@
 
 pub mod file_dao;
 pub mod file_manager;
+pub mod file_repo;

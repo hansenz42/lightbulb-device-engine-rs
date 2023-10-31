@@ -35,6 +35,7 @@ impl Dao for DeviceDao {
             conn.execute(
                 "CREATE TABLE device (
                         id              INTEGER PRIMARY KEY autoincrement,
+                        device_id       TEXT NOT NULL,
                         device_class    TEXT NOT NULL,
                         device_type     TEXT NOT NULL,
                         name            TEXT NOT NULL,
@@ -80,8 +81,8 @@ impl DeviceDao {
 
         conn.call(move |conn| {
             conn.execute(
-                "INSERT INTO device (device_class, device_type, name, description, room, config) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-                params![device_config_copy.device_class, device_config_copy.device_type, device_config_copy.name, device_config_copy.description, device_config_copy.room, device_config_copy.config],
+                "INSERT INTO device (device_id, device_class, device_type, name, description, room, config) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![device_config_copy.device_id, device_config_copy.device_class, device_config_copy.device_type, device_config_copy.name, device_config_copy.description, device_config_copy.room, device_config_copy.config],
             )
         }).await?;
 
@@ -89,21 +90,22 @@ impl DeviceDao {
     }
 
     /// 读取整个列表
-    pub async fn get_device_config_list(&self) -> tokio_rusqlite::Result<Vec<DevicePo>> {
+    pub async fn get_all(&self) -> tokio_rusqlite::Result<Vec<DevicePo>> {
         let conn = SqliteConnection::get().open().await?;
 
         let res = conn.call(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT device_class, device_type, name, description, room, config FROM device",
+                "SELECT device_id, device_class, device_type, name, description, room, config FROM device",
             )?;
             let device_iter = stmt.query_map([], |row| {
                 Ok(DevicePo {
-                    device_class: row.get(0)?,
-                    device_type: row.get(1)?,
-                    name: row.get(2)?,
-                    description: row.get(3)?,
-                    room: row.get(4)?,
-                    config: row.get(5)?,
+                    device_id: row.get(0)?,
+                    device_class: row.get(1)?,
+                    device_type: row.get(2)?,
+                    name: row.get(3)?,
+                    description: row.get(4)?,
+                    room: row.get(5)?,
+                    config: row.get(6)?,
                 })
             })?;
     

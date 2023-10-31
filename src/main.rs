@@ -17,6 +17,8 @@ use dotenv::dotenv;
 use mqtt_client::client::MqttClient;
 use tokio;
 
+const LOG_TAG: &str = "main";
+
 fn main() -> Result<(), Box<dyn Error>> {
     // 检查 env 文件
     dotenv().ok();
@@ -26,8 +28,8 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // 设置 logger
     init_logger()?;
-    log::info!("配置已加载，环境: {:?}", settings.env.env);
-    log::debug!("配置: {:?}", settings);
+    info!(LOG_TAG, "配置已加载，环境: {:?}", settings.env.env);
+    debug!(LOG_TAG, "配置: {:?}", settings);
 
     let rt = tokio::runtime::Runtime::new().unwrap();
 

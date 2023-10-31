@@ -9,6 +9,9 @@ use lazy_static::lazy_static;
 use serde_json::Value;
 use std::error::Error;
 use super::error::{DeviceServerError, ErrorCode};
+use crate::{info, warn, error, trace, debug};
+
+const LOG_TAG: &str = "Http-common-module";
 
 lazy_static! {
     static ref SETTINGS: &'static Settings = Settings::get();
@@ -39,8 +42,8 @@ pub async fn api_post(api_url: &str, data: Value) -> Result<Value, Box<dyn Error
 }
 
 /// 下载文件
-pub async fn download_file(url: &str, folder_path: &str) -> Result<(), Box<dyn Error>> {
-    let mut resp = reqwest::get(url).await?;
+pub async fn download_file(api_url: &str, folder_path: &str) -> Result<(), Box<dyn Error>> {
+    let mut resp = reqwest::get(format!("{}/{}", BASEURL.as_str(), api_url)).await?;
     // 从 response Content-Disposition 中获取文件名
     let filename = resp
         .headers()
@@ -52,10 +55,18 @@ pub async fn download_file(url: &str, folder_path: &str) -> Result<(), Box<dyn E
                 .map(|s| s.trim_matches('"'))
         })
         .unwrap_or("download.bin");
-    let mut out = File::create(format!("{}/{}", folder_path, filename))?;
-    while let Some(chunk) = resp.chunk().await? {
-        out.write_all(&chunk)?;
+    // 检查是否存在同名文件
+    let is_exist = tokio::fs::metadata(format!("{}/{}", folder_path, filename)).await.is_ok();
+    if !is_exist {
+        // 跳过该文件的保存
+        let mut out = File::create(format!("{}/{}", folder_path, filename))?;
+        while let Some(chunk) = resp.chunk().await? {
+            out.write_all(&chunk)?;
+        }
+    } else {
+        warn!(LOG_TAG, "文件 {} 已存在，跳过下载", filename);
     }
+    
     Ok(())
 }
 

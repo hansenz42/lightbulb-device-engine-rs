@@ -7,6 +7,9 @@ use crate::common::sqlite::SqliteConnection;
 use crate::entity::po::FilePo::FilePo;
 use crate::entity::bo::FileBo::MediaTypeEnum;
 use async_trait::async_trait;
+use crate::{info, warn, error, trace, debug};
+
+const TAG: &str = "FileDao";
 
 pub struct FileDao {
     file_path: &'static str,
@@ -53,7 +56,7 @@ impl Dao for FileDao {
         }).await?;
 
         
-        log::debug!("[Controller] 文件数据表初始化");
+        debug!(TAG, "文件数据表初始化");
 
         Ok(())
     }
@@ -70,10 +73,10 @@ impl FileDao {
     pub async fn ensure_table_exist(&self) -> Result<(), Box<dyn Error>> {
         let is_exist = self.check_table(self.table_name).await?;
         if is_exist {
-            log::debug!("设备缓存表已存在");
+            debug!(TAG, "设备缓存表已存在");
         } else {
             self.create_table().await?;
-            log::debug!("设备缓存表初始化");
+            debug!(TAG, "设备缓存表初始化");
         }
         Ok(())
     }   
@@ -88,8 +91,25 @@ impl FileDao {
 
         conn.call(move |conn| {
             conn.execute(
-                format!("INSERT INTO {} (tag, filename, hash, media_type, deleted) VALUES (?1, ?2, ?3, ?4, ?5, ?6)", table_name).as_str(),
+                format!("INSERT INTO {} (tag, filename, hash, media_type, deleted) VALUES (?1, ?2, ?3, ?4, ?5)", table_name).as_str(),
                 (file_info_copy.tag, file_info_copy.filename, file_info_copy.hash, file_info_copy.media_type as u8, file_info_copy.deleted),
+            )
+        }).await?;
+
+        Ok(())
+    }
+
+    /// 删除文件记录
+    pub async fn delete_file_info(&self, hash: &str) -> Result<(), Box<dyn Error>> {
+        let conn = SqliteConnection::get().open().await?;
+
+        let table_name_copy = self.table_name.clone();
+        let hash_copy = hash.to_string();
+
+        conn.call(move |conn| {
+            conn.execute(
+                format!("DELETE FROM {} WHERE hash = ?1", table_name_copy).as_str(),
+                params![hash_copy],
             )
         }).await?;
 
