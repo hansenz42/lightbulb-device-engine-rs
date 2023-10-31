@@ -17,7 +17,7 @@ use crate::entity::po::FilePo::FilePo;
 use crate::entity::bo::FileBo::MediaTypeEnum;
 use crate::{info, warn, error, trace, debug};
 
-const UPDATE_CONFIG_URL: &str = "/api/v1.2/file";
+const UPDATE_CONFIG_URL: &str = "api/v1.2/file";
 const LOG_TAG: &str = "FileManager";
 
 pub struct FileManager {

@@ -10,7 +10,7 @@ use crate::entity::po::DevicePo::DevicePo;
 use crate::{info, warn, error, trace, debug};
 
 // 设备更新地址
-const UPDATE_CONFIG_URL: &str = "/api/v1.2/device";
+const UPDATE_CONFIG_URL: &str = "api/v1.2/device";
 const LOG_TAG : &str = "DeviceManager";
 
 
@@ -39,12 +39,12 @@ impl DeivceManager {
                 info!(LOG_TAG, "远程设备配置加载成功！");
             }
             Err(e) => {
-                warn!(LOG_TAG, "无法获取远程设备配置文件，错误信息：{}", e);
+                warn!(LOG_TAG, "无法获取远程设备配置文件，将使用本地缓存配置文件，错误信息：{}", e);
             }
         }
 
         self.load_from_db().await?;
-        info!(LOG_TAG, "设备配置已更新，设备管理器启动成功");
+        info!(LOG_TAG, "设备管理器已启动");
         Ok(())
     }
 
@@ -57,18 +57,11 @@ impl DeivceManager {
     async fn write_to_db(&self, json_data: Value) -> Result<(), Box<dyn Error>>{
         let device_list = json_data.get("list").unwrap().as_array().expect("list 未找到");
         for device in device_list {
-            let device_data = device.as_object().expect("device 数据格式错误");
-            let config = device_data.get("config").unwrap().as_object().expect("config 数据格式错误");
-            let device_po = DevicePo {
-                device_id: config.get("id").unwrap().as_str().unwrap().to_string(),
-                device_class: config.get("class").unwrap().as_str().unwrap().to_string(),
-                device_type: config.get("type").unwrap().as_str().unwrap().to_string(),
-                name: config.get("name").unwrap().as_str().unwrap().to_string(),
-                description: config.get("description").unwrap().as_str().unwrap().to_string(),
-                room: config.get("room").unwrap().as_str().unwrap().to_string(),
-                config: transform_device_config_obj_str(config)
-            };
-            self.device_dao.add_device_config(device_po).await?;
+            if let Some(device_po) = transform_json_data_to_po(device.clone()) {
+                self.device_dao.add_device_config(device_po).await?;
+            } else {
+                warn!(LOG_TAG, "无法解析设备配置文件：{:?}", device);
+            }
         }
         Ok(())
     }
@@ -82,6 +75,21 @@ impl DeivceManager {
         Ok(())
     }
     
+}
+
+fn transform_json_data_to_po(json_object: Value) -> Option<DevicePo> {
+    let device_data = json_object.as_object()?;
+    let config = device_data.get("config")?.as_object()?;
+    let device_po = DevicePo {
+        device_id: config.get("id")?.as_str()?.to_string(),
+        device_class: config.get("class")?.as_str()?.to_string(),
+        device_type: config.get("type")?.as_str()?.to_string(),
+        name: config.get("name")?.as_str()?.to_string(),
+        description: config.get("description")?.as_str()?.to_string(),
+        room: config.get("room")?.as_str()?.to_string(),
+        config: transform_device_config_obj_str(config)
+    };
+    Some(device_po)
 }
 
 // 辅助函数：构造一个配置文件 str 用于保存到数据库的 config 字段中
@@ -111,7 +119,7 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let mut manager = DeivceManager::new();
-            manager.get_remote().await.unwrap();
+            manager.startup().await.unwrap();
         });
         info!(LOG_TAG, "测试完成");
     }
