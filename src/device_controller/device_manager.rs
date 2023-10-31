@@ -27,13 +27,10 @@ impl DeivceManager {
         }
     }
 
-    async fn init(&mut self) -> Result<(), Box<dyn Error>> {
-        self.device_dao.ensure_table_exist().await?;
-        Ok(())
-    }
-
     /// 系统初始化
-    async fn start(&mut self) -> Result<(), Box<dyn Error>> {
+    async fn startup(&mut self) -> Result<(), Box<dyn Error>> {
+        self.device_dao.ensure_table_exist().await?;
+
         match self.get_remote().await {
             Ok(json_data) => {
                 // 清空已有数据，并保存当前数据
@@ -45,8 +42,9 @@ impl DeivceManager {
                 warn!(LOG_TAG, "无法获取远程设备配置文件，错误信息：{}", e);
             }
         }
+
         self.load_from_db().await?;
-        info!(LOG_TAG, "设备配置加载成功！");
+        info!(LOG_TAG, "设备配置已更新，设备管理器启动成功");
         Ok(())
     }
 
@@ -86,7 +84,7 @@ impl DeivceManager {
     
 }
 
-// 构造一个配置文件 str 用于保存到数据库的 config 字段中
+// 辅助函数：构造一个配置文件 str 用于保存到数据库的 config 字段中
 fn transform_device_config_obj_str(device_data: &Map<String, Value>) -> String {
     // 去除已经记录的字段
     let mut config = device_data.clone();
@@ -113,7 +111,6 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let mut manager = DeivceManager::new();
-            manager.init().await.unwrap();
             manager.get_remote().await.unwrap();
         });
         info!(LOG_TAG, "测试完成");

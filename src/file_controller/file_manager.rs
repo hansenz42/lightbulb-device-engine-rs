@@ -72,31 +72,12 @@ impl FileManager {
         Ok(())
     }
 
-    /// 将单个 json object 转换为 FilePo，如果转换失败，则返回 None
-    fn json_object_to_single_po(json_obj: &Value) -> Option<FilePo> {
-        let file_data = json_obj.as_object().expect("file 数据格式错误");
-        let file_po = FilePo {
-            // tag 有可能为空
-            tag: file_data.get("tag").expect("get tag from file_data").as_str().or_else(|| Some(""))?.to_string(),
-            filename: file_data.get("filename")?.as_str()?.to_string(),
-            hash: file_data.get("hash")?.as_str()?.to_string(),
-            media_type: match file_data.get("type")?.as_str()? {
-                "audio" => MediaTypeEnum::Audio,
-                "video" => MediaTypeEnum::Video,
-                _ => panic!("media_type 字段数据错误")
-            },
-            // delete 字段将数据库中的 int 转换为 bool
-            deleted: file_data.get("deleted")?.as_bool()?
-        };
-        Some(file_po)
-    }
-
     /// 将远程返回的 json_array 数组转换为可处理的 po
     async fn transform_list_to_po(&self, json_array: Value) -> Result<Vec<FilePo>, Box<dyn Error>> {
         let mut file_po_list: Vec<FilePo> = Vec::new();
         if let Some(file_list) = json_array.as_array() {
             for file in file_list {
-                if let Some(file_po) = FileManager::json_object_to_single_po(file) {
+                if let Some(file_po) = json_object_to_single_po(file) {
                     file_po_list.push(file_po);
                 } else {
                     warn!(LOG_TAG, "单条文件数据格式错误，解析失败 data: {:?}", file);
@@ -202,6 +183,25 @@ impl FileManager {
         Ok(())
     }
     
+}
+
+/// 辅助函数：将单个 json object 转换为 FilePo，如果转换失败，则返回 None
+fn json_object_to_single_po(json_obj: &Value) -> Option<FilePo> {
+    let file_data = json_obj.as_object().expect("file 数据格式错误");
+    let file_po = FilePo {
+        // tag 有可能为空
+        tag: file_data.get("tag").expect("get tag from file_data").as_str().or_else(|| Some(""))?.to_string(),
+        filename: file_data.get("filename")?.as_str()?.to_string(),
+        hash: file_data.get("hash")?.as_str()?.to_string(),
+        media_type: match file_data.get("type")?.as_str()? {
+            "audio" => MediaTypeEnum::Audio,
+            "video" => MediaTypeEnum::Video,
+            _ => panic!("media_type 字段数据错误")
+        },
+        // delete 字段将数据库中的 int 转换为 bool
+        deleted: file_data.get("deleted")?.as_bool()?
+    };
+    Some(file_po)
 }
 
 
