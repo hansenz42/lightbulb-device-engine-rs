@@ -2,14 +2,21 @@
 //! 用于管理日志输出
 
 use std::io::Error;
-
 use pretty_env_logger;
+use super::setting::Settings;
 
 /// 初始化日志的基础功能
 pub fn init_logger() -> Result<(), Error> {
     pretty_env_logger::formatted_builder()
         .target(pretty_env_logger::env_logger::Target::Stdout)
-        .filter_level(log::LevelFilter::Debug)
+        .filter_level(match Settings::get().env.log_level.as_str() {
+            "trace" => log::LevelFilter::Trace,
+            "debug" => log::LevelFilter::Debug,
+            "info" => log::LevelFilter::Info,
+            "warn" => log::LevelFilter::Warn,
+            "error" => log::LevelFilter::Error,
+            _ => log::LevelFilter::Info
+        })
         .init();
     Ok(())
 }

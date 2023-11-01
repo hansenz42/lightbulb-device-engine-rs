@@ -14,21 +14,21 @@ const UPDATE_CONFIG_URL: &str = "api/v1.2/device";
 const LOG_TAG : &str = "DeviceManager";
 
 
-struct DeivceManager {
+pub struct DeviceManager {
     device_dao: DeviceDao,
     cache: HashMap<String, DevicePo>
 }
 
-impl DeivceManager {
-    fn new() -> Self {
-        DeivceManager{
+impl DeviceManager {
+    pub fn new() -> Self {
+        DeviceManager{
             device_dao: DeviceDao::new(),
             cache: HashMap::new()
         }
     }
 
     /// 系统初始化
-    async fn startup(&mut self) -> Result<(), Box<dyn Error>> {
+    pub async fn startup(&mut self) -> Result<(), Box<dyn Error>> {
         self.device_dao.ensure_table_exist().await?;
 
         match self.get_remote().await {
@@ -118,7 +118,7 @@ mod tests {
         init_logger();
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
-            let mut manager = DeivceManager::new();
+            let mut manager = DeviceManager::new();
             manager.startup().await.unwrap();
         });
         info!(LOG_TAG, "测试完成");

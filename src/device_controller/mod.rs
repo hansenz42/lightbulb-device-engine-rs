@@ -4,5 +4,5 @@
 //! - 提供设备操作的接口
 //! - 定期检查设备状态
 
-mod device_manager;
-mod device_dao;
+pub mod device_manager;
+pub mod device_dao;

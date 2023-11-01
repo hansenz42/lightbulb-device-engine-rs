@@ -27,7 +27,7 @@ pub struct FileManager {
 }
 
 impl FileManager {
-    fn new() -> Self {
+    pub fn new() -> Self {
         FileManager {
             file_dao: FileDao::new(),
             file_repo: FileRepo::new(),
@@ -115,7 +115,7 @@ impl FileManager {
     /// - （如有文件未下载）则下载文件
     /// - 将最新的数据写入缓存，保存到数据库
     /// 注意：目前本地旧的文件不会被清理
-    async fn startup(&mut self) -> Result<(), Box<dyn Error>> {
+    pub async fn startup(&mut self) -> Result<(), Box<dyn Error>> {
         // 确保 file 数据表存在
         self.file_dao.ensure_table_exist().await?;
 

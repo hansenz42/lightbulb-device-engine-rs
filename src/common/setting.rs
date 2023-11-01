@@ -15,7 +15,8 @@ pub struct Meta {
 #[derive(Debug, Deserialize)]
 pub struct Env {
     pub debug: bool,
-    pub env: String
+    pub env: String,
+    pub log_level: String,
 }
 
 #[derive(Debug, Deserialize)]
