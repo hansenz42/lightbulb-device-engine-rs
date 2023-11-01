@@ -1,5 +1,5 @@
 /// 数据库对象：文件
-use crate::entity::bo::FileBo::MediaTypeEnum;
+use crate::entity::bo::file_bo::MediaTypeEnum;
 
 #[derive(Debug, Clone)]
 pub struct FilePo {

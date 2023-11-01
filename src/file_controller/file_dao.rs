@@ -4,8 +4,8 @@ use std::error::Error;
 use crate::common::dao::Dao;
 
 use crate::common::sqlite::SqliteConnection;
-use crate::entity::po::FilePo::FilePo;
-use crate::entity::bo::FileBo::MediaTypeEnum;
+use crate::entity::po::file_po::FilePo;
+use crate::entity::bo::file_bo::MediaTypeEnum;
 use async_trait::async_trait;
 use crate::{info, warn, error, trace, debug};
 

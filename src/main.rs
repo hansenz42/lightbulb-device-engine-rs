@@ -36,11 +36,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     let rt = tokio::runtime::Runtime::new().unwrap();
 
     rt.block_on(async move {
-        // 初始化设备管理器
+        // 设备管理器
         let mut device_manager = DeviceManager::new();
         device_manager.startup().await.expect("设备管理器启动失败");
 
-        // 初始化文件管理器 fileManager
+        // 文件管理器 fileManager
         let mut file_manager = FileManager::new();
         file_manager.startup().await.expect("文件管理器启动失败");
 

@@ -6,7 +6,7 @@ use serde_json::{Value, Map};
 use crate::common::dao::Dao;
 use super::device_dao::DeviceDao;
 use crate::common::http;
-use crate::entity::po::DevicePo::DevicePo;
+use crate::entity::po::device_po::DevicePo;
 use crate::{info, warn, error, trace, debug};
 
 // 设备更新地址
