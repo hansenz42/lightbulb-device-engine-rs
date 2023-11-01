@@ -7,7 +7,7 @@
 
 use std::{error::Error, rc::Rc, borrow::BorrowMut, cell::RefCell};
 
-use super::bus::Bus;
+use super::traits::bus::Bus;
 use tokio_serial::SerialStream;
 use tokio_modbus::{prelude::*, client::Context, Slave};
 use std::collections::HashMap;

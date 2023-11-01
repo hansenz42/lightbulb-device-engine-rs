@@ -15,7 +15,7 @@ use std::{thread, time, error::Error};
 use std::time::Duration;
 use log::{info, error, warn, debug};
 
-use super::bus::Bus;
+use super::traits::bus::Bus;
 
 struct DmxBus {
     // 串口文件标识符

@@ -1,4 +1,6 @@
 //! 设备管理器
+//! - 管理设备列表
+//! - 管理设备与外部模块的通信
 use std::collections::HashMap;
 use std::error::Error;
 use serde_json::{Value, Map};
@@ -7,7 +9,9 @@ use crate::common::dao::Dao;
 use super::device_dao::DeviceDao;
 use crate::common::http;
 use crate::entity::po::device_po::DevicePo;
+use crate::entity::bo::state_bo::StateBo;
 use crate::{info, warn, error, trace, debug};
+
 
 // 设备更新地址
 const UPDATE_CONFIG_URL: &str = "api/v1.2/device";
@@ -16,14 +20,31 @@ const LOG_TAG : &str = "DeviceManager";
 
 pub struct DeviceManager {
     device_dao: DeviceDao,
-    cache: HashMap<String, DevicePo>
+    cache_map: HashMap<String, DevicePo>,
+    listener_map: HashMap<String, Vec<Box<dyn Fn(&Box<dyn StateBo>)>>>
 }
 
 impl DeviceManager {
     pub fn new() -> Self {
         DeviceManager{
             device_dao: DeviceDao::new(),
-            cache: HashMap::new()
+            cache_map: HashMap::new(),
+            listener_map: HashMap::new(),
+        }
+    }
+
+    /// 注册设备通知器
+    pub fn register_listener(&mut self, device_id: &str, func: Box<dyn Fn(&Box<dyn StateBo>)>) {
+        let listeners = self.listener_map.entry(device_id.to_string()).or_insert(Vec::new());
+        listeners.push(func);
+    }
+
+    /// 发布设备状态通知
+    pub fn notify(&self, device_id: &str, state_bo: &Box<dyn StateBo>) {
+        if let Some(listeners) = self.listener_map.get(device_id) {
+            for listener in listeners {
+                listener(state_bo);
+            }
         }
     }
 
@@ -70,7 +91,7 @@ impl DeviceManager {
     async fn load_from_db(&mut self) -> Result<(), Box<dyn Error>> {
         let device_config_po_list: Vec<DevicePo> = self.device_dao.get_all().await?;
         for device_config_po in device_config_po_list {
-            self.cache.insert(device_config_po.device_id.clone(), device_config_po);
+            self.cache_map.insert(device_config_po.device_id.clone(), device_config_po);
         }
         Ok(())
     }
