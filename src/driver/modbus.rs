@@ -8,6 +8,7 @@
 use std::{error::Error, rc::Rc, borrow::BorrowMut, cell::RefCell};
 
 use super::traits::bus::Bus;
+use super::traits::master::Master;
 use tokio_serial::SerialStream;
 use tokio_modbus::{prelude::*, client::Context, Slave};
 use std::collections::HashMap;
@@ -22,6 +23,8 @@ struct ModbusBus {
     // 已经注册的客户端哈希表
     slaves: HashMap<u8, RefCell<Context>>,
 }
+
+impl Master for ModbusBus {}
 
 impl Bus for ModbusBus {
     /// 检查当前的总线状态

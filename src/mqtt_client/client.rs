@@ -7,6 +7,7 @@ use super::protocol::Protocol;
 use std::error::Error;
 use std::result::Result;
 use std::sync::Arc;
+use crate::entity::bo::device_state_bo::DeviceStateBo;
 
 pub struct MqttClient {
     // mqtt 连接
@@ -51,7 +52,7 @@ impl MqttClient {
         Ok(())
     }
 
-    /// 发布内容
+    /// 根据 topic 和 payload 发布消息
     pub async fn publish(&self, topic: &str, payload: &str) -> Result<(), Box<dyn Error>> {
         match &self.con {
             Some(con) => {
@@ -69,8 +70,13 @@ impl MqttClient {
         Ok(())
     }
 
-    /// TODO: 发送设备状态变化通知
-    pub async fn publish_status(&self) -> Result<(), Box<dyn Error>> {
+    /// 发送设备状态变化通知
+    pub async fn publish_status(&self, state_bo: DeviceStateBo) -> Result<(), Box<dyn Error>> {
+        let topic = self.protocol.topic_self_declare("status", None, Some(state_bo.device_class.clone()), Some(state_bo.device_id.clone()));
+        let payload_content = serde_json::to_value(state_bo)?;
+        let payload = self.protocol.payload_from_server( Some(payload_content), None, None, None);
+        let json_str = payload.to_json()?;
+        self.publish(topic.as_str(), json_str.as_str()).await?;
         Ok(())
     }
 

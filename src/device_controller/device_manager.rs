@@ -1,51 +1,96 @@
 //! 设备管理器
-//! - 管理设备列表
-//! - 管理设备与外部模块的通信
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::error::Error;
 use serde_json::{Value, Map};
 
 use crate::common::dao::Dao;
+use crate::mqtt_client::client::MqttClient;
 use super::device_dao::DeviceDao;
 use crate::common::http;
 use crate::entity::po::device_po::DevicePo;
-use crate::entity::bo::state_bo::StateBo;
+use crate::entity::bo::device_state_bo::{DeviceStateBo, StateBo};
+use crate::entity::bo::device_command_bo::DeviceCommandBo;
 use crate::{info, warn, error, trace, debug};
+use std::thread;
+use std::sync::{mpsc, Arc};
+use crate::driver::traits::device::Device;
 
 
-// 设备更新地址
+// 设备列表更新地址
 const UPDATE_CONFIG_URL: &str = "api/v1.2/device";
 const LOG_TAG : &str = "DeviceManager";
 
-
+/// 设备管理器
+/// - 管理设备列表
+/// - 管理设备与外部变量的通信
+/// - 双线程架构，一个线程负责上行通信（到 mqtt），一个线程负责下行通信（到设备）
 pub struct DeviceManager {
     device_dao: DeviceDao,
     cache_map: HashMap<String, DevicePo>,
-    listener_map: HashMap<String, Vec<Box<dyn Fn(&Box<dyn StateBo>)>>>
+    device_obj_map: HashMap<String, RefCell<Box<dyn Device + Send>>>,
+    // 上行：接收从 device 来的消息，发送到 mqtt
+    upward_rx: mpsc::Receiver<DeviceStateBo>,
+    upward_tx: mpsc::Sender<DeviceStateBo>,
+    // 下行：从 mqtt 服务器接收到的消息，给设备的指令
+    downward_rx: Option<mpsc::Receiver<DeviceCommandBo>>,
 }
 
 impl DeviceManager {
     pub fn new() -> Self {
+        let (upward_tx, upward_rx) = mpsc::channel();
         DeviceManager{
             device_dao: DeviceDao::new(),
             cache_map: HashMap::new(),
-            listener_map: HashMap::new(),
+            device_obj_map: HashMap::new(),
+            upward_rx: upward_rx,
+            upward_tx: upward_tx,
+            downward_rx: None
         }
     }
 
-    /// 注册设备通知器
-    pub fn register_listener(&mut self, device_id: &str, func: Box<dyn Fn(&Box<dyn StateBo>)>) {
-        let listeners = self.listener_map.entry(device_id.to_string()).or_insert(Vec::new());
-        listeners.push(func);
-    }
-
-    /// 发布设备状态通知
-    pub fn notify(&self, device_id: &str, state_bo: &Box<dyn StateBo>) {
-        if let Some(listeners) = self.listener_map.get(device_id) {
-            for listener in listeners {
-                listener(state_bo);
+    /// 开启双向线程
+    /// - 下行传递：从 mqtt 服务器接收到的消息，给设备的指令
+    /// - 上行传递：接收从 device 来的消息，推送到 mqtt
+    /// - 所有权关系：该函数将拿走 self 的所有权，因为需要在线程中调用访问 self 中的设备对象
+    pub fn start_worker(self, upward_rx: mpsc::Receiver<DeviceStateBo>, downward_rx: mpsc::Receiver<DeviceCommandBo>, mqtt_client: MqttClient) {
+        let device_map = self.device_obj_map;
+        // 下行传递线程
+        // - 向设备下达指令
+        thread::spawn( move || {
+            loop {
+                match downward_rx.recv() {
+                    Ok(commnad) => {
+                        let device_id = commnad.device_id;
+                        // let device_ref = device_map.get(&device_id).unwrap();
+                        if let Some(device_ref) = device_map.get(&device_id) {
+                            let device = device_ref.borrow_mut();
+                            device.cmd(&commnad.action, commnad.params);
+                        } else {
+                            warn!(LOG_TAG, "给设备发送指令失败，请求的设备 {} 不存在", device_id)
+                        }
+                    }
+                    Err(e) => {
+                        warn!(LOG_TAG, "向设备发送指令失败，通道异常，错误信息：{}", e);
+                    }
+                }
             }
-        }
+        });
+
+        // 上行传递线程
+        // - 向 mqtt 发布设备状态
+        thread::spawn( move || {
+            loop {
+                match upward_rx.recv() {
+                    Ok(device_state_bo) => {
+                        mqtt_client.publish_status(device_state_bo);
+                    }
+                    Err(e) => {
+                        warn!(LOG_TAG, "向 mqtt 发布设备状态失败，通道异常，错误信息：{}", e);
+                    }
+                }
+            }
+        });
     }
 
     /// 系统初始化

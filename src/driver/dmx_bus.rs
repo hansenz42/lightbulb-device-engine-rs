@@ -14,8 +14,8 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::{thread, time, error::Error};
 use std::time::Duration;
 use log::{info, error, warn, debug};
-
 use super::traits::bus::Bus;
+use super::traits::master::Master;
 
 struct DmxBus {
     // 串口文件标识符
@@ -27,6 +27,8 @@ struct DmxBus {
     // thread 发送通道句柄
     thread_tx: Option<mpsc::Sender<[u8; 512]>>,
 }
+
+impl Master for DmxBus {}
 
 impl Bus for DmxBus {
     /// 检查当前的总线状态
