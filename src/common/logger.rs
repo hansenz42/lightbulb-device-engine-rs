@@ -7,6 +7,11 @@ use super::setting::Settings;
 
 /// 初始化日志的基础功能
 pub fn init_logger() -> Result<(), Error> {
+    // 检查是否已经初始化
+    if log::max_level() != log::LevelFilter::Off {
+        return Ok(())
+    }
+
     pretty_env_logger::formatted_builder()
         .target(pretty_env_logger::env_logger::Target::Stdout)
         .filter_level(match Settings::get().env.log_level.as_str() {
@@ -18,6 +23,7 @@ pub fn init_logger() -> Result<(), Error> {
             _ => log::LevelFilter::Info
         })
         .init();
+    println!("日志管理器已经初始化");
     Ok(())
 }
 
