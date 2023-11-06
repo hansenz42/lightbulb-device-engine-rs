@@ -6,14 +6,13 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum StateBo {
-    DoControllerStateBo,
-    DiControllerStateBo,
-    AudioStateBo,
-    AudioFilePlayingBo,
-    ChannelStateBo,
-    RemoteStateBo,
-    DiStateBo,
-    DoStateBo,
+    DoController(DoControllerStateBo),
+    DiController(DiControllerStateBo),
+    Audio(AudioStateBo),
+    Channel(ChannelStateBo),
+    Remote(RemoteStateBo),
+    Di(DiStateBo),
+    Do(DoStateBo),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -30,7 +29,7 @@ pub struct DeviceStateBo {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DoControllerStateBo {
     // 输出端接口状态
-    port: Vec<u8>,
+    pub port: Vec<u8>,
 }
 
 /// 数字输入量控制器结构体

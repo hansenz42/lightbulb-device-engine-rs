@@ -53,11 +53,12 @@ impl DeviceManager {
     /// - 下行传递：从 mqtt 服务器接收到的消息，给设备的指令
     /// - 上行传递：接收从 device 来的消息，推送到 mqtt
     /// - 所有权关系：该函数将拿走 self 的所有权，因为需要在线程中调用访问 self 中的设备对象
-    pub fn start_worker(self, downward_rx: mpsc::Receiver<DeviceCommandBo>, mqtt_client: Arc<MqttClient>) {
+    pub fn start_worker(self, downward_rx: mpsc::Receiver<DeviceCommandBo>, mqtt_client: Arc<MqttClient>, rt: &tokio::runtime::Runtime) {
         let device_map = self.device_obj_map;
+        
         // 下行传递线程
         // - 向设备下达指令
-        thread::spawn( move || {
+        rt.spawn( async move {
             loop {
                 info!(LOG_TAG, "等待下行指令");
                 match downward_rx.recv() {
@@ -66,44 +67,43 @@ impl DeviceManager {
                         // let device_ref = device_map.get(&device_id).unwrap();
                         if let Some(device_ref) = device_map.get(device_id) {
                             let device = device_ref.borrow_mut();
-                            // device.cmd(&commnad.action, commnad.params);
-                            info!(LOG_TAG, "向设备 {} 发送指令：{:?}", device_id, commnad);
+                            info!(LOG_TAG, "下行指令：向设备 {} 发送指令：{:?}", device_id, commnad);
+                            device.cmd(&commnad.action, commnad.params);
                         } else {
-                            warn!(LOG_TAG, "给设备发送指令失败，请求的设备 {} 不存在", device_id)
+                            warn!(LOG_TAG, "下行指令：给设备发送指令失败，请求的设备 {} 不存在", device_id)
                         }
                     }
                     Err(e) => {
-                        warn!(LOG_TAG, "向设备发送指令失败，通道异常，错误信息：{}", e);
+                        warn!(LOG_TAG, "无法接收下行指令，通道异常，即将退出，错误信息：{}", e);
+                        return
                     }
                 }
             }
         });
-        info!(LOG_TAG, "下行传递线程已启动");
+        info!(LOG_TAG, "下行指令 worker 已启动");
 
         let upward_rx = self.upward_rx;
         // 上行传递线程 （注意使用 tokio 调度）
         // - 设备上报数据
         // - 向 mqtt 发布推送设备状态
-        thread::spawn( move || {
-            let rt = tokio::runtime::Runtime::new().expect("创建 tokio 运行时失败");
-            rt.spawn( async move {
-                loop{
-                    info!(LOG_TAG, "等待设备上报数据");
-                    let message = upward_rx.recv();
-                    match message {
-                        Ok(device_state_bo) => {
-                            mqtt_client.publish_status(device_state_bo).await;
-                            info!(LOG_TAG, "设备上报数据：{:?}", device_state_bo);
-                        }
-                        Err(e) => {
-                            warn!(LOG_TAG, "向 mqtt 发布设备状态失败，通道异常，错误信息：{}", e);
-                        }
+        rt.spawn( async move {
+            loop{
+                info!(LOG_TAG, "等待上行数据");
+                let message = upward_rx.recv();
+                match message {
+                    Ok(device_state_bo) => {
+                        info!(LOG_TAG, "设备上报数据：{:?}", &device_state_bo);
+                        mqtt_client.publish_status(device_state_bo).await.expect("向 mqtt 发布设备状态失败");
+                    }
+                    Err(e) => {
+                        warn!(LOG_TAG, "上行数据错误，向 mqtt 发布设备状态失败，即将退出，通道异常，错误信息：{}", e);
+                        return
                     }
                 }
-            });
+            }
         });
         
-        info!(LOG_TAG, "上行传递线程已启动");
+        info!(LOG_TAG, "上行数据 worker 已启动");
     }
 
     pub fn clone_upward_tx(&self) -> mpsc::Sender<DeviceStateBo> {
@@ -111,6 +111,8 @@ impl DeviceManager {
     }
 
     /// 系统初始化
+    /// - 从远程配置文件中加载设备
+    /// - 更新本地数据
     pub async fn startup(&mut self) -> Result<(), Box<dyn Error>> {
         self.device_dao.ensure_table_exist().await?;
 
@@ -194,6 +196,7 @@ fn transform_device_config_obj_str(device_data: &Map<String, Value>) -> String {
 mod tests {
     use super::*;
     use crate::common::logger::{init_logger};
+    use crate::entity::bo::device_state_bo::DoControllerStateBo;
     use crate::mqtt_client::client::MqttClient;
 
     // 测试获取服务配置
@@ -213,12 +216,16 @@ mod tests {
     fn test_downward_channel() {
         init_logger();
         println!("下行传递测试");
-        // let rt = tokio::runtime::Runtime::new().unwrap();
         let manager = DeviceManager::new();
         let (tx, rx) = mpsc::channel();
-        let mqtt_client_arc = Arc::new(MqttClient::new());
-        
-        manager.start_worker(rx, mqtt_client_arc.clone());
+        let rt = tokio::runtime::Runtime::new().unwrap();
+
+        rt.block_on(async {
+            let mut mqtt_client = MqttClient::new();
+            mqtt_client.start().await;
+            let mqtt_client_arc = Arc::new(mqtt_client);
+            manager.start_worker(rx, mqtt_client_arc.clone(), &rt);
+        });
 
         thread::sleep(std::time::Duration::from_secs(1));
 
@@ -243,17 +250,26 @@ mod tests {
         println!("上行传递测试");
         let manager = DeviceManager::new();
         let (tx, rx) = mpsc::channel();
-        let mqtt_client_arc = Arc::new(MqttClient::new());
         let upward_tx = manager.clone_upward_tx();
+        let rt = tokio::runtime::Runtime::new().unwrap();
 
-        manager.start_worker(rx, mqtt_client_arc);
+        rt.block_on(async {
+            let mut mqtt_client = MqttClient::new();
+            mqtt_client.start().await;        
+            let mqtt_client_arc = Arc::new(mqtt_client);
+            manager.start_worker(rx, mqtt_client_arc.clone(), &rt);
+        });
+
+        let do_controller_bo = StateBo::DoController(DoControllerStateBo{
+            port: vec![1, 2, 3, 4]
+        });
 
         upward_tx.send(DeviceStateBo{
             device_class: "test_class".to_string(),
-            server_id: "this".to_string(),
             device_id: "123".to_string(),
-            state: StateBo::Online
+            state: do_controller_bo
         }).unwrap();
 
+        thread::sleep(std::time::Duration::from_secs(2));
     }
 }
