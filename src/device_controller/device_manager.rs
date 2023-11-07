@@ -27,11 +27,17 @@ const LOG_TAG : &str = "DeviceManager";
 /// - 双线程架构，一个线程负责上行通信（到 mqtt），一个线程负责下行通信（到设备）
 pub struct DeviceManager {
     device_dao: DeviceDao,
-    cache_map: HashMap<String, DevicePo>,
-    device_obj_map: HashMap<String, RefCell<Box<dyn Device + Send>>>,
+    config_map: HashMap<String, DevicePo>,
+
+    // 设备对象 Map
+    device_obj_map: Option<HashMap<String, RefCell<Box<dyn Device>>>>,
+    
     // 上行：接收从 device 来的消息，发送到 mqtt
     upward_rx: mpsc::Receiver<DeviceStateBo>,
+    
+    // manager 名下的设备，clone 该 tx 即可向上发送数据
     upward_tx: mpsc::Sender<DeviceStateBo>,
+    
     // 下行：从 mqtt 服务器接收到的消息，给设备的指令
     downward_rx: Option<mpsc::Receiver<DeviceCommandBo>>,
 }
@@ -41,20 +47,23 @@ impl DeviceManager {
         let (upward_tx, upward_rx) = mpsc::channel();
         DeviceManager{
             device_dao: DeviceDao::new(),
-            cache_map: HashMap::new(),
-            device_obj_map: HashMap::new(),
+            config_map: HashMap::new(),
+            device_obj_map: None,
             upward_rx: upward_rx,
             upward_tx: upward_tx,
             downward_rx: None
         }
     }
 
+    pub fn add_device(&mut self, device: Box<dyn Device>) {
+        
+    }
+
     /// 开启双向线程
-    /// - 下行传递：从 mqtt 服务器接收到的消息，给设备的指令
+    /// - 下行传递：从 mqtt 服务器接收到的消息，给设备的指令。下行传递线程也是设备操作的主线程，负责初始化并管理所有设备
     /// - 上行传递：接收从 device 来的消息，推送到 mqtt
     /// - 所有权关系：该函数将拿走 self 的所有权，因为需要在线程中调用访问 self 中的设备对象
     pub fn start_worker(self, downward_rx: mpsc::Receiver<DeviceCommandBo>, mqtt_client: Arc<MqttClient>, rt: &tokio::runtime::Runtime) {
-        let device_map = self.device_obj_map;
         
         // 下行传递线程
         // - 向设备下达指令
@@ -83,6 +92,7 @@ impl DeviceManager {
         info!(LOG_TAG, "下行指令 worker 已启动");
 
         let upward_rx = self.upward_rx;
+
         // 上行传递线程 （注意使用 tokio 调度）
         // - 设备上报数据
         // - 向 mqtt 发布推送设备状态
@@ -94,7 +104,7 @@ impl DeviceManager {
                     Ok(device_state_bo) => {
                         info!(LOG_TAG, "设备上报数据：{:?}", &device_state_bo);
                         mqtt_client.publish_status(device_state_bo).await.expect("向 mqtt 发布设备状态失败");
-                    }
+                    }   
                     Err(e) => {
                         warn!(LOG_TAG, "上行数据错误，向 mqtt 发布设备状态失败，即将退出，通道异常，错误信息：{}", e);
                         return
@@ -155,7 +165,7 @@ impl DeviceManager {
     async fn load_from_db(&mut self) -> Result<(), Box<dyn Error>> {
         let device_config_po_list: Vec<DevicePo> = self.device_dao.get_all().await?;
         for device_config_po in device_config_po_list {
-            self.cache_map.insert(device_config_po.device_id.clone(), device_config_po);
+            self.config_map.insert(device_config_po.device_id.clone(), device_config_po);
         }
         Ok(())
     }
@@ -266,6 +276,7 @@ mod tests {
 
         upward_tx.send(DeviceStateBo{
             device_class: "test_class".to_string(),
+            device_type: "test_type".to_string(),
             device_id: "123".to_string(),
             state: do_controller_bo
         }).unwrap();

@@ -8,6 +8,8 @@ pub enum ErrorCode {
     UnknownError = 1000,
     // http 请求错误
     HttpError = 1001,
+    // 设备配置文件错误
+    DeviceConfigError = 1002,
 }
 
 #[derive(Debug)]
@@ -23,3 +25,15 @@ impl Display for DeviceServerError {
 }
 
 impl Error for DeviceServerError {}
+
+// 设备驱动错误
+#[derive(Debug)]
+pub struct DriverError(pub String);
+
+impl Display for DriverError {
+    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
+        write!(f, "设备驱动错误 msg: {}", self.0)
+    }
+}
+
+impl Error for DriverError {}

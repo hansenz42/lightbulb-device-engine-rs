@@ -14,10 +14,10 @@ use std::sync::{mpsc, Arc, Mutex};
 use std::{thread, time, error::Error};
 use std::time::Duration;
 use log::{info, error, warn, debug};
-use super::traits::bus::Bus;
-use super::traits::master::Master;
+use super::super::traits::bus::Bus;
+use super::super::traits::master::Master;
 
-struct DmxBus {
+pub struct DmxBus {
     // 串口文件标识符
     serial_port: String,
     // 当前数据数组 512 u8 长度

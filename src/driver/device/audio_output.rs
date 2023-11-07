@@ -11,7 +11,7 @@ enum Channel {
     Right,
 }
 
-struct AudioOutput {
+pub struct AudioOutput {
     // 声卡 id
     soundcard_id: String,
     // 使用的声道，每个 Output 支持单声道输出

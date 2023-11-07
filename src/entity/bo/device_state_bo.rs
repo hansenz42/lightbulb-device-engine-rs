@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum StateBo {
+    Empty,
+    DmxBus(DmxBusStateBo),
     DoController(DoControllerStateBo),
     DiController(DiControllerStateBo),
     Audio(AudioStateBo),
@@ -21,8 +23,15 @@ pub struct DeviceStateBo {
     pub device_id: String,
     // 设备类型
     pub device_class: String,
+    // 设备二级类目
+    pub device_type: String,
     // 设备状态
     pub state: StateBo
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct DmxBusStateBo {
+    pub debug_channels: Vec<u8>
 }
 
 /// 数字输出量控制器结构体
