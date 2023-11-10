@@ -86,7 +86,7 @@ impl DeviceManager {
                         }
                     }
                     Err(e) => {
-                        warn!(LOG_TAG, "无法接收下行指令，通道异常，即将退出，错误信息：{}", e);
+                        warn!(LOG_TAG, "下行指令通道关闭，即将退出，错误信息：{}", e);
                         return
                     }
                 }
@@ -109,7 +109,7 @@ impl DeviceManager {
                         mqtt_client.publish_status(device_state_bo).await.expect("向 mqtt 发布设备状态失败");
                     }   
                     Err(e) => {
-                        warn!(LOG_TAG, "上行数据错误，通道异常，错误信息：{}", e);
+                        warn!(LOG_TAG, "上行指令通道关闭，通道异常，错误信息：{}", e);
                         return
                     }
                 }
