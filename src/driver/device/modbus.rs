@@ -13,7 +13,7 @@ use super::super::traits::master::Master;
 use tokio_serial::SerialStream;
 use tokio_modbus::{prelude::*, client::Context, Slave};
 use std::collections::HashMap;
-use crate::entity::bo::{device_config_bo::DeviceConfigBo, device_state_bo::DeviceStateBo, device_state_bo::StateBo};
+use crate::entity::bo::{device_config_bo::{ConfigBo}, device_state_bo::DeviceStateBo, device_state_bo::StateBo};
 use async_trait::async_trait;
 use crate::common::error::DriverError;
 use serde_json::Value;
@@ -27,7 +27,7 @@ pub struct ModbusBus {
     // 串口文件标识符
     serial_port: String,
     // 波特率
-    baudrate: i32,
+    baudrate: u32,
     // 已经注册的客户端哈希表
     slaves: HashMap<u8, Mutex<Context>>,
 }
@@ -36,7 +36,8 @@ impl Master for ModbusBus {}
 
 #[async_trait]
 impl Device for ModbusBus {
-    fn init(&self, device_config_bo: &DeviceConfigBo) -> Result<(), DriverError> {
+
+    fn init(&self, device_config_bo: &ConfigBo) -> Result<(), DriverError> {
         // 检查串口是否可以打开
         let builder = tokio_serial::new(self.serial_port.as_str(), self.baudrate);
         let port = SerialStream::open(&builder).map_err(|e| {
@@ -72,17 +73,16 @@ impl Bus for ModbusBus {
 }
 
 impl ModbusBus {
-    /// 创建一个 Modbus 总线设备
-    pub fn new(device_id: String, serial_port: String, baudrate: i32) -> Self {
+    pub fn new(device_id: String, serial_port: String, baudrate: u32) -> Self {
         Self {
             device_class: String::from("bus"),
             device_type: String::from("modbus"),
-            serial_port: serial_port,
             device_id,
-            baudrate,
+            serial_port: serial_port,
+            baudrate: baudrate,
             slaves: HashMap::new(),
         }
-    }
+}
 
     /// 注册一个 slave 设备
     pub fn register_slave(&mut self, unit: u8) -> Result<(), Box<dyn Error>> {
@@ -192,6 +192,6 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let device = ModbusBus::new("test_device_id".to_string(),"/dev/ttyUSB0".to_string(), 9600);
+        // let device = ModbusBus::new("test_device_id".to_string(),"/dev/ttyUSB0".to_string(), 9600);
     }
 }

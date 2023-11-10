@@ -5,6 +5,7 @@ use std::error::Error;
 use serde_json::{Value, Map};
 
 use crate::common::dao::Dao;
+use crate::entity::bo::device_config_bo::{ConfigBo};
 use crate::mqtt_client::client::MqttClient;
 use super::device_dao::DeviceDao;
 use crate::common::http;
@@ -15,6 +16,8 @@ use crate::{info, warn, error, trace, debug};
 use std::thread;
 use std::sync::{mpsc, Arc};
 use crate::driver::traits::device::Device;
+use crate::driver::device::device_enum::DeviceEnum;
+use crate::driver::factory::device_factory::DeviceFactory;
 
 
 // 设备列表更新地址
@@ -27,10 +30,7 @@ const LOG_TAG : &str = "DeviceManager";
 /// - 双线程架构，一个线程负责上行通信（到 mqtt），一个线程负责下行通信（到设备）
 pub struct DeviceManager {
     device_dao: DeviceDao,
-    config_map: HashMap<String, DevicePo>,
-
-    // 设备对象 Map
-    device_obj_map: Option<HashMap<String, RefCell<Box<dyn Device>>>>,
+    pub config_map: HashMap<String, DevicePo>,
     
     // 上行：接收从 device 来的消息，发送到 mqtt
     upward_rx: mpsc::Receiver<DeviceStateBo>,
@@ -48,36 +48,39 @@ impl DeviceManager {
         DeviceManager{
             device_dao: DeviceDao::new(),
             config_map: HashMap::new(),
-            device_obj_map: None,
             upward_rx: upward_rx,
             upward_tx: upward_tx,
             downward_rx: None
         }
     }
 
-    pub fn add_device(&mut self, device: Box<dyn Device>) {
+    pub fn add_device(&mut self) {
         
     }
 
     /// 开启双向线程
-    /// - 下行传递：从 mqtt 服务器接收到的消息，给设备的指令。下行传递线程也是设备操作的主线程，负责初始化并管理所有设备
+    /// - 设备管理 + 下行线程：从 mqtt 服务器接收到的消息，给设备的指令。下行传递线程也是设备操作的主线程，负责初始化并管理所有设备
     /// - 上行传递：接收从 device 来的消息，推送到 mqtt
     /// - 所有权关系：该函数将拿走 self 的所有权，因为需要在线程中调用访问 self 中的设备对象
     pub fn start_worker(self, downward_rx: mpsc::Receiver<DeviceCommandBo>, mqtt_client: Arc<MqttClient>, rt: &tokio::runtime::Runtime) {
         
         // 下行传递线程
         // - 向设备下达指令
+        
         rt.spawn( async move {
             loop {
+                info!(LOG_TAG, "根据配置文件初始化设备");
+                let mut device_map: HashMap<String, Box<dyn Device + Sync + Send>> = init_devices_by_config_map(self.config_map.clone(), DeviceFactory::new());
+
                 info!(LOG_TAG, "等待下行指令");
-                match downward_rx.recv() {
+                let recv_message = downward_rx.recv();
+                match recv_message {
                     Ok(commnad) => {
                         let device_id = &commnad.device_id;
-                        // let device_ref = device_map.get(&device_id).unwrap();
+                        let device_ref = device_map.get(device_id).unwrap();
                         if let Some(device_ref) = device_map.get(device_id) {
-                            let device = device_ref.borrow_mut();
                             info!(LOG_TAG, "下行指令：向设备 {} 发送指令：{:?}", device_id, commnad);
-                            device.cmd(&commnad.action, commnad.params);
+                            let _ = device_ref.cmd(&commnad.action, commnad.params).await;
                         } else {
                             warn!(LOG_TAG, "下行指令：给设备发送指令失败，请求的设备 {} 不存在", device_id)
                         }
@@ -106,7 +109,7 @@ impl DeviceManager {
                         mqtt_client.publish_status(device_state_bo).await.expect("向 mqtt 发布设备状态失败");
                     }   
                     Err(e) => {
-                        warn!(LOG_TAG, "上行数据错误，向 mqtt 发布设备状态失败，即将退出，通道异常，错误信息：{}", e);
+                        warn!(LOG_TAG, "上行数据错误，通道异常，错误信息：{}", e);
                         return
                     }
                 }
@@ -169,9 +172,31 @@ impl DeviceManager {
         }
         Ok(())
     }
+
+
     
 }
 
+
+// 根据配置文件初始化设备
+fn init_devices_by_config_map(config_map: HashMap<String, DevicePo>, device_factory: DeviceFactory) -> HashMap<String, Box<dyn Device + Sync + Send>> {
+    let mut device_map: HashMap<String, Box<dyn Device + Sync + Send>> = HashMap::new();
+        for (device_id, device_po) in config_map {
+        let device_type = device_po.device_type.clone();
+        let device_class = device_po.device_class.clone();
+        match device_factory.create_device(device_po.clone()) {
+            Ok(device) => {
+                device_map.insert(device_id.clone(), device);
+            }
+            Err(e) => {
+                warn!(LOG_TAG, "无法初始化设备，设备类型：{}，设备类别：{}，错误信息：{}", device_type, device_class, e);
+            }
+        }
+    }
+    device_map
+}
+
+// 将 json 转换为 po
 fn transform_json_data_to_po(json_object: Value) -> Option<DevicePo> {
     let device_data = json_object.as_object()?;
     let config = device_data.get("config")?.as_object()?;
@@ -208,6 +233,40 @@ mod tests {
     use crate::common::logger::{init_logger};
     use crate::entity::bo::device_state_bo::DoControllerStateBo;
     use crate::mqtt_client::client::MqttClient;
+
+    // 设备初始化测试
+    #[test]
+    fn test_device_create() {
+        init_logger();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let (tx, rx) = mpsc::channel();
+        rt.block_on( async {
+            let mut manager = DeviceManager::new();
+            manager.config_map.insert("test_device_id".to_string(), DevicePo{
+                device_id: "test_device_id".to_string(),
+                device_class: "dummy".to_string(),
+                device_type: "dummy".to_string(),
+                name: "test_device_name".to_string(),
+                description: "test_device_description".to_string(),
+                room: "test_device_room".to_string(),
+                config: "{}".to_string()
+            });
+
+            let mut mqtt_client = MqttClient::new();
+            mqtt_client.start().await;
+            let mqtt_client_arc = Arc::new(mqtt_client);
+
+            manager.start_worker(rx, mqtt_client_arc.clone(), &rt);
+        });
+        tx.send(DeviceCommandBo{
+            server_id: "this".to_string(),
+            device_id: "test_device_id".to_string(),
+            action: "some action".to_string(),
+            params: serde_json::json!(null)
+        }).unwrap();
+        info!(LOG_TAG, "测试完成");
+        thread::sleep(std::time::Duration::from_secs(6));
+    }
 
     // 测试获取服务配置
     #[test] 

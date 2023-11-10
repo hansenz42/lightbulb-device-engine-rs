@@ -81,8 +81,16 @@ impl DeviceDao {
 
         conn.call(move |conn| {
             conn.execute(
-                "INSERT INTO device (device_id, device_class, device_type, name, description, room, config) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
-                params![device_config_copy.device_id, device_config_copy.device_class, device_config_copy.device_type, device_config_copy.name, device_config_copy.description, device_config_copy.room, device_config_copy.config],
+                "INSERT INTO device (device_id, device_class, device_type, name, description, room, config) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                params![
+                    device_config_copy.device_id,
+                    device_config_copy.device_class,
+                    device_config_copy.device_type, 
+                    device_config_copy.name, 
+                    device_config_copy.description, 
+                    device_config_copy.room, 
+                    device_config_copy.config
+                ],
             )
         }).await?;
 
@@ -95,7 +103,7 @@ impl DeviceDao {
 
         let res = conn.call(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT device_id, device_class, device_type, name, description, room, config FROM device",
+                "SELECT device_id, device_class, device_type, name, description, room, master_device_id, config FROM device",
             )?;
             let device_iter = stmt.query_map([], |row| {
                 Ok(DevicePo {

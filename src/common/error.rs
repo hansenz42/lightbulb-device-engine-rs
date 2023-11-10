@@ -10,6 +10,8 @@ pub enum ErrorCode {
     HttpError = 1001,
     // 设备配置文件错误
     DeviceConfigError = 1002,
+    // 设备配置错误
+    DeviceTypeNotSupport = 1003,
 }
 
 #[derive(Debug)]

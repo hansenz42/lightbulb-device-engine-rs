@@ -18,6 +18,7 @@ use super::super::traits::bus::Bus;
 use super::super::traits::master::Master;
 
 pub struct DmxBus {
+    device_id: String,
     // 串口文件标识符
     serial_port: String,
     // 当前数据数组 512 u8 长度
@@ -88,13 +89,14 @@ fn dmx_send_thread(
 impl DmxBus {
 
     /// 创建一个新的 dmx 总线设备
-    fn new(serial_port: &str) -> Result<Self, Box<dyn Error>> {
-        Ok(Self {
-            serial_port: String::from(serial_port), 
+    pub fn new(device_id: String, serial_port: String) -> Self {
+        Self {
+            device_id,
+            serial_port,
             data: [0; 512],
             thread_running_flag: Arc::new(Mutex::new(false)),
             thread_tx: None,
-        })
+        }
     }
 
     /// 设置当前单个地址上的数据
@@ -186,6 +188,6 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let device = DmxBus::new("/dev/ttyUSB0");
+        let device = DmxBus::new(String::from("test_dmx_bus"), String::from("/dev/ttyUSB0"));
     }
 }

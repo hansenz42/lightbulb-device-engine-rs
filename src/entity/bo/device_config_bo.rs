@@ -1,21 +1,10 @@
-//! 设备配置 Bo
+//! 设备配置和创建设备相关 Bo
+
+use serde::{Deserialize, Serialize};
+
 
 #[derive(Debug, Clone)]
-pub enum ConfigBo {
-    Modbus(ModbusConfigBo),
-    DmxBus(DmxBusConfigBo),
-    SerialBus(SerialBusConfigBo),
-    ModbusDigitalInputController(ModbusDigitalInputControllerConfigBo),
-    ModbusDigitalOutputController(ModbusDigitalOutputControllerConfigBo),
-    Audio(AudioConfigBo),
-    Di(DiConfigBo),
-    Do(DoConfigBo),
-    Remote(RemoteConfigBo),
-    DmxCustom(DmxCustomConfigBo)
-}
-
-#[derive(Debug, Clone)]
-pub struct DeviceConfigBo {
+pub struct DeviceCreateBo {
     // 设备一级类目
     pub device_class: String,
     // 设备二级类目
@@ -36,64 +25,84 @@ pub struct DeviceConfigBo {
 }
 
 #[derive(Debug, Clone)]
-pub struct ModbusConfigBo {
-    pub serial_port: String,
-    pub baudrate: i32
+pub enum ConfigBo {
+    Modbus(ModbusConfigBo),
+    DmxBus(DmxBusConfigBo),
+    SerialBus(SerialBusConfigBo),
+    ModbusDigitalInputController(ModbusDigitalInputControllerConfigBo),
+    ModbusDigitalOutputController(ModbusDigitalOutputControllerConfigBo),
+    Audio(AudioConfigBo),
+    Di(DiConfigBo),
+    Do(DoConfigBo),
+    Remote(RemoteConfigBo),
+    DmxCustom(DmxCustomConfigBo),
+    Dummy(DummyConfigBo)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DummyConfigBo {
+
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct ModbusConfigBo {
+    pub serial_port: String,
+    pub baudrate: u32
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DmxBusConfigBo {
     pub ftdi_serial: String,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct SerialBusConfigBo {
     pub serial_port: String,
-    pub baudrate: i32
+    pub baudrate:u32
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ModbusDigitalInputControllerConfigBo {
-    pub unit: i32,
-    pub input_num: i32,
+    pub unit: u32,
+    pub input_num: u32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct ModbusDigitalOutputControllerConfigBo {
-    pub unit: i32,
-    pub output_num: i32,
+    pub unit: u32,
+    pub output_num: u32,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub enum AudioChannelEnum {
     Left,
     Right,
     Stereo
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct AudioConfigBo {
     pub soundcard_id: String,
     pub to_channel: AudioChannelEnum
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DiConfigBo {
-    pub address:i32
+    pub address:u32
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DoConfigBo {
-    pub address:i32
+    pub address:u32
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RemoteConfigBo {
-    pub num_button: i32
+    pub num_button: u32
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct DmxCustomConfigBo {
-    pub channels: i32,
-    pub address: i32
+    pub channels: u32,
+    pub address: u32
 }

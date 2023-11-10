@@ -2,7 +2,7 @@
 use std::error::Error;
 use async_trait::async_trait;
 use serde_json::Value;
-use crate::entity::bo::device_config_bo::DeviceConfigBo;
+use crate::entity::bo::device_config_bo::{DeviceCreateBo, ConfigBo};
 use crate::common::error::DriverError;
 use crate::entity::bo::device_state_bo::{DeviceStateBo, StateBo};
 
@@ -12,7 +12,7 @@ pub trait Device {
     /// 设备初始化
     /// - 检查当前设备是否配置正确
     /// - 初始化工作
-    fn init(&self, device_config_bo: &DeviceConfigBo) -> Result<(),DriverError>;
+    fn init(&self, device_config_bo: &ConfigBo) -> Result<(),DriverError> {Ok(())}
 
     /// 设备启动
     async fn start(&self) -> Result<(), DriverError> {Ok(())}
