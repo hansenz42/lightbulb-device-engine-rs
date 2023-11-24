@@ -5,7 +5,7 @@ use std::error::Error;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum StateBo {
+pub enum StateBoEnum {
     Empty,
     DmxBus(DmxBusStateBo),
     DoController(DoControllerStateBo),
@@ -26,7 +26,7 @@ pub struct DeviceStateBo {
     // 设备二级类目
     pub device_type: String,
     // 设备状态
-    pub state: StateBo
+    pub state: StateBoEnum
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -45,46 +45,46 @@ pub struct DoControllerStateBo {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DiControllerStateBo {
     // 输入接口状态
-    port: Vec<u8>,
+    pub port: Vec<u8>,
 }
 
 /// 音频设备状态
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AudioStateBo {
     // 当前正在播放的音频流
-    stream: Vec<AudioFilePlayingBo>
+    pub stream: Vec<AudioFilePlayingBo>
 }
 
 /// 当前音频的播放状态
 #[derive(Debug, Serialize, Deserialize)]
 pub struct AudioFilePlayingBo {
-    file_id: String,
-    playing: bool,
+    pub file_id: String,
+    pub playing: bool,
 }
 
 /// 带通道地址的设备状态
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ChannelStateBo {
     // 通道地址
-    address: u8,
+    pub address: u8,
     // 设备状态
-    channels: Vec<u8>,
+    pub channels: Vec<u8>,
 }
 
 /// 遥控器状态
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RemoteStateBo {
-    pressed: u8
+    pub pressed: u8
 }
 
 /// Di 输入设备状态
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DiStateBo {
-    on: u8
+    pub on: u8
 }
 
 /// Do 输出设备状态
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DoStateBo {
-    on: u8
+    pub on: u8
 }

@@ -5,7 +5,7 @@
 //! - 支持读写 dmx 数据
 //! - 多线程控制 dmx 写入
 
-use std::{error::Error, rc::Rc, borrow::BorrowMut, cell::RefCell, sync::{Arc, Mutex}};
+use std::{error::Error, rc::Rc, borrow::BorrowMut, cell::RefCell, sync::{Arc, Mutex, mpsc::Sender}};
 
 use super::super::traits::bus::Bus;
 use super::super::traits::device::Device;
@@ -13,16 +13,13 @@ use super::super::traits::master::Master;
 use tokio_serial::SerialStream;
 use tokio_modbus::{prelude::*, client::Context, Slave};
 use std::collections::HashMap;
-use crate::entity::bo::{device_config_bo::{ConfigBo}, device_state_bo::DeviceStateBo, device_state_bo::StateBo};
-use async_trait::async_trait;
+use crate::entity::bo::{device_config_bo::{ConfigBo}, device_state_bo::DeviceStateBo, device_state_bo::StateBoEnum};
 use crate::common::error::DriverError;
 use serde_json::Value;
 
 
 /// Modbus 总线
 pub struct ModbusBus {
-    device_class: String,
-    device_type: String,
     device_id: String,
     // 串口文件标识符
     serial_port: String,
@@ -30,13 +27,13 @@ pub struct ModbusBus {
     baudrate: u32,
     // 已经注册的客户端哈希表
     slaves: HashMap<u8, Mutex<Context>>,
+    // 上报通道
+    upward_channel: Option<Sender<DeviceStateBo>>,
 }
 
 impl Master for ModbusBus {}
 
-#[async_trait]
 impl Device for ModbusBus {
-
     fn init(&self, device_config_bo: &ConfigBo) -> Result<(), DriverError> {
         // 检查串口是否可以打开
         let builder = tokio_serial::new(self.serial_port.as_str(), self.baudrate);
@@ -47,11 +44,20 @@ impl Device for ModbusBus {
     }
 
     fn get_category(&self) -> (String, String) {
-        (self.device_class.clone(), self.device_type.clone())
+        (String::from("bus"), String::from("modbus"))
     }
 
     fn get_device_id(&self) -> String {
         self.device_id.clone()
+    }
+
+    fn set_upward_channel(&mut self, sender: Sender<DeviceStateBo>) -> Result<(), DriverError> {
+        self.upward_channel = Some(sender);
+        Ok(())
+    }
+
+    fn get_upward_channel(&self) -> Option<Sender<DeviceStateBo>> {
+        self.upward_channel.clone()
     }
 }
 
@@ -75,12 +81,11 @@ impl Bus for ModbusBus {
 impl ModbusBus {
     pub fn new(device_id: String, serial_port: String, baudrate: u32) -> Self {
         Self {
-            device_class: String::from("bus"),
-            device_type: String::from("modbus"),
             device_id,
             serial_port: serial_port,
             baudrate: baudrate,
             slaves: HashMap::new(),
+            upward_channel: None
         }
 }
 

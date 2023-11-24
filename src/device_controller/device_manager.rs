@@ -1,4 +1,7 @@
-//! 设备管理器
+//! 设备管理器，主要实现两部分功能
+//! - 设备配置信息管理：从远程服务器获得配置数据，并保存到本地缓存。优先下载远程数据，如果远程数据下载失败，则使用本地缓存
+//! - 设备通信管理：双线程结构，一个负责上行通信，一个负责下行通信
+//! - 下行通信线程管理设备实例，避免了实例在多线程传递的问题
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::error::Error;
@@ -10,7 +13,7 @@ use crate::mqtt_client::client::MqttClient;
 use super::device_dao::DeviceDao;
 use crate::common::http;
 use crate::entity::po::device_po::DevicePo;
-use crate::entity::bo::device_state_bo::{DeviceStateBo, StateBo};
+use crate::entity::bo::device_state_bo::{DeviceStateBo, StateBoEnum};
 use crate::entity::bo::device_command_bo::DeviceCommandBo;
 use crate::{info, warn, error, trace, debug};
 use std::thread;
@@ -54,6 +57,7 @@ impl DeviceManager {
         }
     }
 
+    /// 添加单个设备
     pub fn add_device(&mut self) {
         
     }
@@ -66,32 +70,35 @@ impl DeviceManager {
         
         // 下行传递线程
         // - 向设备下达指令
-        
-        rt.spawn( async move {
-            loop {
-                info!(LOG_TAG, "根据配置文件初始化设备");
-                let mut device_map: HashMap<String, Box<dyn Device + Sync + Send>> = init_devices_by_config_map(self.config_map.clone(), DeviceFactory::new());
-
-                info!(LOG_TAG, "等待下行指令");
-                let recv_message = downward_rx.recv();
-                match recv_message {
-                    Ok(commnad) => {
-                        let device_id = &commnad.device_id;
-                        let device_ref = device_map.get(device_id).unwrap();
-                        if let Some(device_ref) = device_map.get(device_id) {
-                            info!(LOG_TAG, "下行指令：向设备 {} 发送指令：{:?}", device_id, commnad);
-                            let _ = device_ref.cmd(&commnad.action, commnad.params).await;
-                        } else {
-                            warn!(LOG_TAG, "下行指令：给设备发送指令失败，请求的设备 {} 不存在", device_id)
+        thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().expect("下行传递线程：无法创建 tokio 运行时");
+            rt.block_on( async move {
+                loop {
+                    info!(LOG_TAG, "根据配置文件初始化设备");
+                    let mut device_map: HashMap<String, Box<dyn Device + Sync + Send>> = init_devices_by_config_map(self.config_map.clone(), DeviceFactory::new());
+    
+                    info!(LOG_TAG, "等待下行指令");
+                    let recv_message = downward_rx.recv();
+                    match recv_message {
+                        Ok(commnad) => {
+                            let device_id = &commnad.device_id;
+                            let device_ref = device_map.get(device_id).expect("获取设备失败");
+                            if let Some(device_ref) = device_map.get(device_id) {
+                                info!(LOG_TAG, "下行指令：向设备 {} 发送指令：{:?}", device_id, commnad);
+                                let _ = device_ref.cmd(commnad.action, commnad.params);
+                            } else {
+                                warn!(LOG_TAG, "下行指令：给设备发送指令失败，请求的设备 {} 不存在", device_id)
+                            }
+                        }
+                        Err(e) => {
+                            warn!(LOG_TAG, "下行指令通道关闭，即将退出，错误信息：{}", e);
+                            return
                         }
                     }
-                    Err(e) => {
-                        warn!(LOG_TAG, "下行指令通道关闭，即将退出，错误信息：{}", e);
-                        return
-                    }
                 }
-            }
+            });
         });
+        
         info!(LOG_TAG, "下行指令 worker 已启动");
 
         let upward_rx = self.upward_rx;
@@ -99,21 +106,24 @@ impl DeviceManager {
         // 上行传递线程 （注意使用 tokio 调度）
         // - 设备上报数据
         // - 向 mqtt 发布推送设备状态
-        rt.spawn( async move {
-            loop{
-                info!(LOG_TAG, "等待上行数据");
-                let message = upward_rx.recv();
-                match message {
-                    Ok(device_state_bo) => {
-                        info!(LOG_TAG, "设备上报数据：{:?}", &device_state_bo);
-                        mqtt_client.publish_status(device_state_bo).await.expect("向 mqtt 发布设备状态失败");
-                    }   
-                    Err(e) => {
-                        warn!(LOG_TAG, "上行指令通道关闭，通道异常，错误信息：{}", e);
-                        return
+        thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().expect("上行传递线程：无法创建 tokio 运行时");
+            rt.block_on( async move {
+                loop{
+                    info!(LOG_TAG, "等待上行数据");
+                    let message = upward_rx.recv();
+                    match message {
+                        Ok(device_state_bo) => {
+                            info!(LOG_TAG, "设备上报数据：{:?}", &device_state_bo);
+                            mqtt_client.publish_status(device_state_bo).await.expect("向 mqtt 发布设备状态失败");
+                        }   
+                        Err(e) => {
+                            warn!(LOG_TAG, "上行指令通道关闭，通道异常，错误信息：{}", e);
+                            return
+                        }
                     }
                 }
-            }
+            });
         });
         
         info!(LOG_TAG, "上行数据 worker 已启动");
@@ -178,7 +188,8 @@ impl DeviceManager {
 }
 
 
-// 根据配置文件初始化设备
+/// 根据配置文件初始化设备
+/// - 返回带有设备的 map
 fn init_devices_by_config_map(config_map: HashMap<String, DevicePo>, device_factory: DeviceFactory) -> HashMap<String, Box<dyn Device + Sync + Send>> {
     let mut device_map: HashMap<String, Box<dyn Device + Sync + Send>> = HashMap::new();
         for (device_id, device_po) in config_map {
@@ -237,7 +248,7 @@ mod tests {
     // 设备初始化测试
     #[test]
     fn test_device_create() {
-        init_logger();
+        let _ = init_logger();
         let rt = tokio::runtime::Runtime::new().unwrap();
         let (tx, rx) = mpsc::channel();
         rt.block_on( async {
@@ -271,7 +282,7 @@ mod tests {
     // 测试获取服务配置
     #[test] 
     fn test_get_device_config_from_remote() {
-        init_logger();
+        let _ = init_logger();
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             let mut manager = DeviceManager::new();
@@ -283,7 +294,7 @@ mod tests {
     // 下行传递测试
     #[test]
     fn test_downward_channel() {
-        init_logger();
+        let _ = init_logger();
         println!("下行传递测试");
         let manager = DeviceManager::new();
         let (tx, rx) = mpsc::channel();
@@ -291,7 +302,7 @@ mod tests {
 
         rt.block_on(async {
             let mut mqtt_client = MqttClient::new();
-            mqtt_client.start().await;
+            let _ = mqtt_client.start().await;
             let mqtt_client_arc = Arc::new(mqtt_client);
             manager.start_worker(rx, mqtt_client_arc.clone(), &rt);
         });
@@ -315,7 +326,7 @@ mod tests {
     // 上行传递测试
     #[test]
     fn test_upward_channel() {
-        init_logger();
+        let _ = init_logger();
         println!("上行传递测试");
         let manager = DeviceManager::new();
         let (tx, rx) = mpsc::channel();
@@ -324,12 +335,12 @@ mod tests {
 
         rt.block_on(async {
             let mut mqtt_client = MqttClient::new();
-            mqtt_client.start().await;        
+            let _ = mqtt_client.start().await;        
             let mqtt_client_arc = Arc::new(mqtt_client);
             manager.start_worker(rx, mqtt_client_arc.clone(), &rt);
         });
 
-        let do_controller_bo = StateBo::DoController(DoControllerStateBo{
+        let do_controller_bo = StateBoEnum::DoController(DoControllerStateBo{
             port: vec![1, 2, 3, 4]
         });
 

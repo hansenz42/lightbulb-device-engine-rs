@@ -1,5 +1,7 @@
 //! 测试用设备文件
-use crate::{entity::bo::device_config_bo::{DummyConfigBo, ConfigBo}, common::error::DriverError};
+use std::sync::mpsc::Sender;
+
+use crate::{entity::bo::{device_config_bo::{DummyConfigBo, ConfigBo}, device_state_bo::DeviceStateBo}, common::error::DriverError};
 use super::super::traits::device::Device;
 use async_trait::async_trait;
 use serde_json::Value;
@@ -14,15 +16,23 @@ pub struct DummyDevice {
 
 #[async_trait]
 impl Device for DummyDevice {
+    fn set_upward_channel(&mut self, sender: Sender<DeviceStateBo>) -> Result<(), DriverError> {
+        Ok(())
+    }
+
+    fn get_upward_channel(&self) -> Option<Sender<DeviceStateBo>> {
+        None
+    }
+
     fn get_category(&self) -> (String, String) {
-        ("dummy".to_string(), "dummy".to_string())
+        (String::from("dummy"), String::from("dummy"))
     }
 
     fn get_device_id(&self) -> String {
-        "dummy".to_string()
+        String::from("dummy")
     }
 
-    async fn cmd(&self, action: &str, param: Value) -> Result<(), DriverError> {
+    fn cmd(&self, action: String, param: Value) -> Result<(), DriverError> {
         info!(LOG_TAG, "dummy device cmd: {}, param: {}", action, param);
         Ok(())
     }
