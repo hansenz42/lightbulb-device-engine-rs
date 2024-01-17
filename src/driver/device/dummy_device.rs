@@ -32,7 +32,7 @@ impl Device for DummyDevice {
         String::from("dummy")
     }
 
-    fn cmd(&self, action: String, param: Value) -> Result<(), DriverError> {
+    fn cmd(&mut self, action: String, param: Value) -> Result<(), DriverError> {
         info!(LOG_TAG, "dummy device cmd: {}, param: {}", action, param);
         Ok(())
     }

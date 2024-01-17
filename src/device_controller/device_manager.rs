@@ -83,7 +83,7 @@ impl DeviceManager {
                         Ok(commnad) => {
                             let device_id = &commnad.device_id;
                             let device_ref = device_map.get(device_id).expect("获取设备失败");
-                            if let Some(device_ref) = device_map.get(device_id) {
+                            if let Some(device_ref) = device_map.get_mut(device_id) {
                                 info!(LOG_TAG, "下行指令：向设备 {} 发送指令：{:?}", device_id, commnad);
                                 let _ = device_ref.cmd(commnad.action, commnad.params);
                             } else {

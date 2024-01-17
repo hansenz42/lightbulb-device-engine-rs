@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 use std::fmt;
 
 #[derive(Debug, Copy, Clone)]
-pub enum ErrorCode {
+pub enum ServerErrorCode {
     // 未知错误
     UnknownError = 1000,
     // http 请求错误
@@ -16,7 +16,7 @@ pub enum ErrorCode {
 
 #[derive(Debug)]
 pub struct DeviceServerError {
-    pub code: ErrorCode,
+    pub code: ServerErrorCode,
     pub msg: String,
 }
 

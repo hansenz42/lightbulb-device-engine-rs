@@ -17,9 +17,6 @@ pub trait Device {
     /// 设备启动
     fn start(&self) -> Result<(), DriverError> {Ok(())}
 
-    /// 设备停止
-    fn stop(&self) -> Result<(), DriverError> {Ok(())}
-
     /// 设备销毁
     fn destroy(&self) -> Result<(), DriverError> {Ok(())}
 
@@ -46,7 +43,9 @@ pub trait Device {
     }
 
     /// 给设备下达指令
-    fn cmd(&self, action: String, param: Value) -> Result<(), DriverError> {Ok (())}
+    fn cmd(&mut self, action: String, param: Value) -> Result<(), DriverError> {
+        Err(DriverError(format!("不支持的操作, action: {}, device_type: {}", action, self.get_category().1)))
+    }
 
     /// 获取设备一级类目和二级类目（可初始化签名）
     fn get_category(&self) -> (String, String);

@@ -2,7 +2,7 @@
 use super::super::device::dummy_device::DummyDevice;
 use super::traits::Factory;
 use crate::entity::bo::device_config_bo::{ConfigBo, DummyConfigBo};
-use crate::common::error::{DeviceServerError, ErrorCode};
+use crate::common::error::{DeviceServerError, ServerErrorCode};
 use crate::driver::traits::device::Device;
 
 pub struct DummyFactory {}
@@ -16,7 +16,7 @@ impl Factory for DummyFactory {
             }
             _ => {
                 Err(DeviceServerError{
-                    code: ErrorCode::DeviceConfigError,
+                    code: ServerErrorCode::DeviceConfigError,
                     msg: format!("dummy 设备类型配置错误")
                 })
             }
@@ -30,7 +30,7 @@ impl Factory for DummyFactory {
     fn transform_config(&self, device_config_json: String) -> Result<ConfigBo, DeviceServerError> {
         let config_bo: DummyConfigBo = serde_json::from_str(&device_config_json).map_err(
             |err| DeviceServerError {
-                code: ErrorCode::DeviceConfigError,
+                code: ServerErrorCode::DeviceConfigError,
                 msg: format!("设备配置文件错误: {}", err)
             }
         )?;

@@ -1,21 +1,24 @@
 //! dmx 总线设备类
 //! dmx 总线可以控制多个带地址的设备
 //! 
-//! 功能
+//! 简介
 //! - 保存当前通道数据
-//! - 开启端口并不断发送数据
-//! 
-//! 架构
-//! - 使用线程不断向串口发送数据
-//! - DmxBus 结构体为控制器
+//! - 创建独立的线程，开启端口并不断发送数据
+//! - DmxBus 是一个控制器，负责和数据发送线程通信
 
 use dmx::{self, DmxTransmitter};
+use serde_json::Value;
+use std::sync::mpsc::Sender;
 use std::sync::{mpsc, Arc, Mutex};
 use std::{thread, time, error::Error};
 use std::time::Duration;
 use log::{info, error, warn, debug};
+use crate::common::error::DriverError;
+use crate::entity::bo::device_state_bo::{StateBoEnum, DeviceStateBo, DmxBusStateBo};
+
 use super::super::traits::bus::Bus;
 use super::super::traits::master::Master;
+use super::super::traits::device::Device;
 
 pub struct DmxBus {
     device_id: String,
@@ -23,10 +26,12 @@ pub struct DmxBus {
     serial_port: String,
     // 当前数据数组 512 u8 长度
     data: [u8; 512],
-    // 线程关闭标识
+    // 线程运行标志
     thread_running_flag: Arc<Mutex<bool>>,
     // thread 发送通道句柄
     thread_tx: Option<mpsc::Sender<[u8; 512]>>,
+
+    upward_channel: Option<Sender<DeviceStateBo>>,
 }
 
 impl Master for DmxBus {}
@@ -45,6 +50,31 @@ impl Bus for DmxBus {
     /// 重置总线
     fn reset(&self) -> Result<(), Box<dyn Error>> {
         Ok(())
+    }
+}
+
+impl Device for DmxBus {
+    fn set_upward_channel(&mut self, sender: Sender<DeviceStateBo>) -> Result<(), DriverError> {
+        self.upward_channel = Some(sender);
+        Ok(())
+    }
+
+    fn get_upward_channel(&self) -> Option<Sender<DeviceStateBo>> {
+        self.upward_channel.clone()
+    }
+
+    fn get_device_state_bo(&self) -> StateBoEnum {
+        StateBoEnum::DmxBus(DmxBusStateBo{
+            debug_channels: self.data.to_vec(),
+        })
+    }
+
+    fn get_category(&self) -> (String, String) {
+        (String::from("bus"), String::from("dmxbus"))
+    }
+
+    fn get_device_id(&self) -> String {
+        self.device_id.clone()
     }
 }
 
@@ -96,6 +126,7 @@ impl DmxBus {
             data: [0; 512],
             thread_running_flag: Arc::new(Mutex::new(false)),
             thread_tx: None,
+            upward_channel: None,
         }
     }
 

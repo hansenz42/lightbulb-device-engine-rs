@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use super::traits::Factory;
 use crate::{
     entity::{bo::device_config_bo::{DeviceCreateBo, ConfigBo}, po::device_po::DevicePo}, 
-    common::error::{DeviceServerError, ErrorCode}
+    common::error::{DeviceServerError, ServerErrorCode}
 };
 use crate::driver::device::device_enum::DeviceEnum;
 
@@ -33,7 +33,7 @@ impl DeviceFactory {
     pub fn create_device(&self, device_po: DevicePo) -> Result<Box<dyn Device + Sync + Send>, DeviceServerError> {
         let device_type = device_po.device_type.clone();
         let factory = self.factory_map.get(&device_type).ok_or(DeviceServerError{
-            code: ErrorCode::DeviceTypeNotSupport,
+            code: ServerErrorCode::DeviceTypeNotSupport,
             msg: format!("不支持的设备类型：{}", device_type)
         })?;
         Ok(factory.create(device_po)?)

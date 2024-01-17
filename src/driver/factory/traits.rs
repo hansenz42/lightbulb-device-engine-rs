@@ -8,7 +8,7 @@ pub trait Factory {
         let device_type = device_po.device_type;
         if self.get_type() != device_type {
             return Err(DeviceServerError{
-                code: crate::common::error::ErrorCode::DeviceTypeNotSupport,
+                code: crate::common::error::ServerErrorCode::DeviceTypeNotSupport,
                 msg: format!("当前工厂 {} 不支持该类型：{}", self.get_type(), device_type)
             })
         }

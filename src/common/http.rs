@@ -8,7 +8,7 @@ use super::setting::Settings;
 use lazy_static::lazy_static;
 use serde_json::Value;
 use std::error::Error;
-use super::error::{DeviceServerError, ErrorCode};
+use super::error::{DeviceServerError, ServerErrorCode};
 use crate::{info, warn, error, trace, debug};
 
 const LOG_TAG: &str = "Http-common-module";
@@ -76,6 +76,6 @@ fn get_res_data(resp: Value) -> Result<Value, Box<dyn Error>> {
     if status == 200 {
         Ok(resp["data"].clone())
     } else {
-        Err(Box::new(DeviceServerError {code: ErrorCode::HttpError, msg: format!("http 请求错误: {}", resp["msg"].as_str().unwrap_or(""))}))
+        Err(Box::new(DeviceServerError {code: ServerErrorCode::HttpError, msg: format!("http 请求错误: {}", resp["msg"].as_str().unwrap_or(""))}))
     }
 }
