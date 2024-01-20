@@ -219,6 +219,9 @@ mod tests {
 
     #[test]
     fn test_new() {
-        let device = DmxBus::new(String::from("test_dmx_bus"), String::from("/dev/ttyUSB0"));
+        let dmxbus = DmxBus::new(String::from("test_dmx_bus"), String::from("/dev/ttyUSB0"));
+        println!("dmx 总线启动");
+        dmxbus.start().unwrap();
+        std::thread::sleep(Duration::from_secs(10));
     }
 }

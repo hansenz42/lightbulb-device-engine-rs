@@ -60,7 +60,7 @@ impl AudioOutput {
     }
 
     /// 根据设备名称获取设备对象
-   pub fn get_audio_device(&self, device_name: String) -> Option<rodio::Device> {
+    pub fn get_audio_device(&self, device_name: String) -> Option<rodio::Device> {
         let host = cpal::default_host();
         let devices = host.output_devices().ok()?;
 
@@ -149,48 +149,7 @@ impl Playable for AudioOutput {
             DriverError(format!("文件解码失败，文件名: {}, 异常: {}", &filename, e))
         })?;
         
-        // let source = ChannelVolume::new(decoder, vec![1.0f32, 1.0f32]);
-
-        // // 使用 ChannelVolume，不需要以下代码了
-        // // 创建一个新的迭代器，将两个声道中的数据合并为到左声道，另一个声道写入零
-        // let mut temp: i16 = 0;
-        // let mut start_step: i16 = 0;
-        // let mut start_target_step = 0;
-        
-        // // 声音数据的保存为交错模式
-        // // 如果为左声道，则步长设定为 1 ，如果为右声道，则步长设定为 2
-        // // 左声道输出模式为，首位加一个 0。举例：0 3 0 7 0 11 0 15
-        // // 右声道输出模式为，首位加两个 0，举例：0 0 3 0 7 0 11 0 15
-        // match self.channel {
-        //     Channel::Left => {
-        //         start_target_step = 1;
-        //     },
-        //     Channel::Right => {
-        //         start_target_step = 2;
-        //     }
-        // }
-
-        // let mono_source_iter = decoder.into_iter().map(|data| {
-        //     if start_step < start_target_step {
-        //         // 启动阶段，将数据加到 temp
-        //         start_step += 1;
-        //         temp += data;
-        //         return 0;
-        //     }
-            
-        //     if temp == 0 {
-        //         // temp 无数据，则将数据保存到 temp
-        //         temp = data;
-        //         start_step += 1;
-        //         return 0;  
-        //     } else {
-        //         // temp 有数据，则输出数据
-        //         let ret = temp + data;
-        //         temp = 0;
-        //         start_step = 0;
-        //         return ret;
-        //     }
-        // }); 
+        let source = ChannelVolume::new(decoder, vec![1.0f32, 0.0f32]);
 
         let device = self.get_audio_device(self.soundcard_id.clone()).ok_or_else(|| {
             DriverError(format!("音频设备不存在，设备名: {}", &self.soundcard_id))
@@ -204,7 +163,7 @@ impl Playable for AudioOutput {
             DriverError(format!("获取 sink 失败，设备名: {}, 异常: {}", &device.name().unwrap_or(String::from("unable_to_get_device_name")), e))
         })?;
 
-        sink.append(decoder);
+        sink.append(source);
 
         // 记录到对象存储
         self.sink_map.insert(filename.clone(), sink);
@@ -226,7 +185,10 @@ impl Playable for AudioOutput {
     /// 细节：该函数从 sink_map 中移除 sink，并且销毁 sink
     fn stop(&mut self, filename: String) -> Result<(), DriverError> {
         let sink = self.sink_map.remove(&filename).ok_or_else(|| {
-            DriverError(format!("文件不存在，文件名: {}", &filename))
+            DriverError(format!("移除 sink 失败找不到正在播放的文件名: {}", &filename))
+        })?;
+        let stream = self.stream_map.remove(&filename).ok_or_else(|| {
+            DriverError(format!("移除 stream 失败，找不到正在播放的文件名: {}", &filename))
         })?;
         sink.stop();
         Ok(())
@@ -248,35 +210,13 @@ mod tests {
     #[test]
     fn test_audio_output() {
         let mut audio_output = AudioOutput::new(String::from("test"), String::from("plughw:CARD=PCH,DEV=0"), Channel::Left);
-        audio_output.play(String::from("/home/hansen/repo/lightbulb-device-engine-rs/file/188864511522626_file_example_WAV_2MG_1.wav")).unwrap();
+        let filename = String::from("/home/hansen/repo/lightbulb-device-engine-rs/file/188864511522626_file_example_WAV_2MG_1.wav");
+        audio_output.play(filename.clone()).unwrap();
         std::thread::sleep(std::time::Duration::from_secs(20));
         // audio_output.stop(String::from("/home/hansen/repo/lightbulb-device-engine-rs/file/188864511522626_file_example_WAV_2MG_1.wav")).unwrap();
-    }
 
-    #[test]
-    fn test_audio_output_directly() {
-        // let host = cpal::default_host();
-        // let devices = host.output_devices().unwrap();
-        // let name = "plughw:CARD=PCH,DEV=0";
-        // let mut selected_device: Option<rodio::Device> = None;
-
-        // for device in devices {
-        //     // use device
-        //     if device.name().unwrap().starts_with(&name) {
-        //         selected_device = Some(device)
-        //     }
-        // }
-        // let selected_device = selected_device.unwrap();
-
-        let mut audio_output = AudioOutput::new(String::from("test"), String::from("plughw:CARD=PCH,DEV=0"), Channel::Left);
-
-        let selected_device = audio_output.get_audio_device(String::from("plughw:CARD=PCH,DEV=0")).unwrap();
-
-        let (_stream, stream_handle) = OutputStream::try_from_device(&selected_device).unwrap();
-        let file = BufReader::new(File::open("/home/hansen/repo/lightbulb-device-engine-rs/file/188864511522626_file_example_WAV_2MG_1.wav".to_string()).unwrap());
-        let decoder = Decoder::new(file).unwrap();
-        let sink = rodio::Sink::try_new(&stream_handle).unwrap();
-        sink.append(decoder);
-        std::thread::sleep(std::time::Duration::from_secs(20));
+        audio_output.stop(filename.clone()).unwrap();
+        println!("stream stopped");
+        std::thread::sleep(std::time::Duration::from_secs(5));
     }
 }
