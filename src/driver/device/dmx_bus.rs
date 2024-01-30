@@ -76,6 +76,32 @@ impl Device for DmxBus {
     fn get_device_id(&self) -> String {
         self.device_id.clone()
     }
+
+    /// 新建线程并发送数据
+    /// 新建线程以后，会将当前 data 发送给串口线程，后续修改数据时将通过通道将数据发现给串口线程
+    fn start(&mut self) -> Result<(), DriverError> {
+        let serial_port_str = self.serial_port.clone();
+
+        // 准备线程使用的数据
+        let thread_data = self.data.clone();
+        let mut running_flag_ptr = self.thread_running_flag.lock().unwrap();
+        *running_flag_ptr = true;
+        let running_flag = Arc::clone(&self.thread_running_flag);
+
+        // 创建通信通道
+        let (tx, rx) = mpsc::channel();
+        self.thread_tx = Some(tx);
+
+        // 创建一个线程
+        dmx_send_thread(thread_data, serial_port_str, running_flag, rx);
+
+        info!(
+            "dmx bus: start dmx bus, serial port: {}, data: {:?}",
+            self.serial_port, self.data
+        );
+
+        Ok(())
+    }
 }
 
 /// dmx 发送数据方法
@@ -88,17 +114,17 @@ fn dmx_send_thread(
 ) ->  Option<thread::JoinHandle<()>> {
 
     let handle = thread::spawn(move || {
-        let mut dmx_port = dmx::open_serial(serial_port_str.as_str()).expect(format!("dmx worker thread: cannot open dmx port {serial_port_str}").as_str());
-        debug!("dmx worker thread: open dmx port {}, start trasmitting", serial_port_str);
+        let mut dmx_port = dmx::open_serial(serial_port_str.as_str()).expect(format!("dmx worker 线程，无法打开端口： {serial_port_str}").as_str());
+        debug!("dmx worker 线程启动: 已打开端口 {}, 开始传输", serial_port_str);
         let mut thread_channel_data = Box::new(channel_data);
         loop {
-            dmx_port.send_dmx_packet(thread_channel_data.as_ref()).expect(format!("dmx worker thread: send dmx data error {serial_port_str}").as_str());
+            dmx_port.send_dmx_packet(thread_channel_data.as_ref()).expect(format!("dmx worker 线程: 无法发送数据 {serial_port_str}").as_str());
             thread::sleep(time::Duration::from_millis(10));
 
             // 检查是否停止，如果停止，则退出
-            let running = running_flag.lock().expect("dmx worker thread: get running flag error");
+            let running = running_flag.lock().expect("dmx worker 线程: 同步错误，运行标志位错误，检查代码！");
             if !*running {
-                debug!("dmx worker thread: stopping");
+                debug!("dmx worker 线程停止");
                 break;
             }
 
@@ -106,7 +132,7 @@ fn dmx_send_thread(
             match rx.try_recv() {
                 Ok(data) => {
                     thread_channel_data.copy_from_slice(&data);
-                    debug!("dmx worker thread: get new data")
+                    debug!("dmx worker 线程，接收到数据")
                 },
                 Err(_) => {}  // 没有数据，继续发送
             }
@@ -171,32 +197,6 @@ impl DmxBus {
         Ok(data)
     }
 
-    /// 新建线程并发送数据
-    /// 新建线程以后，会将当前 data 发送给串口线程，后续修改数据时将通过通道将数据发现给串口线程
-    fn start(&mut self) -> Result<(), Box<dyn Error>> {
-        let serial_port_str = self.serial_port.clone();
-
-        // 准备线程使用的数据
-        let thread_data = self.data.clone();
-        let mut running_flag_ptr = self.thread_running_flag.lock().unwrap();
-        *running_flag_ptr = true;
-        let running_flag = Arc::clone(&self.thread_running_flag);
-
-        // 创建通信通道
-        let (tx, rx) = mpsc::channel();
-        self.thread_tx = Some(tx);
-
-        // 创建一个线程
-        dmx_send_thread(thread_data, serial_port_str, running_flag, rx);
-
-        info!(
-            "dmx bus: start dmx bus, serial port: {}, data: {:?}",
-            self.serial_port, self.data
-        );
-
-        Ok(())
-    }
-
     /// 暂停向串口推送数据
     fn stop(&mut self) -> Result<(), Box<dyn Error + '_>> {
         let mut running_flag_ptr = self.thread_running_flag.lock()?;
@@ -215,13 +215,15 @@ impl DmxBus {
 
 #[cfg(test)]
 mod tests {
+    use crate::common;
     use super::*;
 
     #[test]
     fn test_new() {
-        let dmxbus = DmxBus::new(String::from("test_dmx_bus"), String::from("/dev/ttyUSB0"));
-        println!("dmx 总线启动");
+        let _ = common::logger::init_logger();
+        let mut dmxbus = DmxBus::new(String::from("test_dmx_bus"), String::from("/dev/ttyUSB0"));
+        println!("dmx 总线启动");   
         dmxbus.start().unwrap();
-        std::thread::sleep(Duration::from_secs(10));
+        std::thread::sleep(Duration::from_secs(300));
     }
 }

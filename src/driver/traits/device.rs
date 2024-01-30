@@ -15,7 +15,7 @@ pub trait Device {
     fn init(&self, device_config_bo: &ConfigBo) -> Result<(),DriverError> {Ok(())}
 
     /// 设备启动
-    fn start(&self) -> Result<(), DriverError> {Ok(())}
+    fn start(&mut self) -> Result<(), DriverError> {Ok(())}
 
     /// 设备销毁
     fn destroy(&self) -> Result<(), DriverError> {Ok(())}
