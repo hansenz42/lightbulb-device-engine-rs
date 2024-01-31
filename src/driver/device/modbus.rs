@@ -26,7 +26,7 @@ pub struct ModbusBus {
     // 波特率
     baudrate: u32,
     // 已经注册的客户端哈希表
-    slaves: HashMap<u8, Mutex<Context>>,
+    slave_pool: HashMap<u8, Mutex<Context>>,
     // 上报通道
     upward_channel: Option<Sender<DeviceStateBo>>,
 }
@@ -84,7 +84,7 @@ impl ModbusBus {
             device_id,
             serial_port: serial_port,
             baudrate: baudrate,
-            slaves: HashMap::new(),
+            slave_pool: HashMap::new(),
             upward_channel: None
         }
 }
@@ -96,13 +96,13 @@ impl ModbusBus {
         let slave = Slave(unit);
         let mut ctx = rtu::attach_slave(port, slave);
         // 将设备注册到哈希表
-        self.slaves.insert(unit, Mutex::new(ctx));
+        self.slave_pool.insert(unit, Mutex::new(ctx));
         Ok(())
     }
 
     /// 解除一个 slave 设备
     pub async fn drop_slave(&mut self, unit: u8) -> Result<(), Box<dyn Error>> {
-        let slave_option = self.slaves.remove(&unit);
+        let slave_option = self.slave_pool.remove(&unit);
         match slave_option {
             Some(slave) => {
                 let mut ctx = slave.lock().map_err(|e| 
@@ -119,7 +119,7 @@ impl ModbusBus {
 
     /// 写单个线圈
     pub async fn write_coil(&self, unit: u8, address: u16, value: bool) -> Result<(), DriverError> {
-        match self.slaves.get(&unit) {
+        match self.slave_pool.get(&unit) {
             Some(ctx_ref) => {
                 let mut ctx = (*ctx_ref).lock().map_err(|e| 
                     DriverError(format!("modbus 尝试写入失败，无法获取 context 加锁失败，unit: {}, 异常: {}", unit, e))
@@ -137,7 +137,7 @@ impl ModbusBus {
 
     /// 写多个线圈
     pub async fn write_coils(& self, unit: u8, address: u16, values: Vec<bool>) -> Result<(), DriverError> {
-        let ctx_option = self.slaves.get(&unit);
+        let ctx_option = self.slave_pool.get(&unit);
         match ctx_option {
             Some(ctx_ref) => {
                 let mut ctx = (*ctx_ref).lock().map_err(
@@ -156,7 +156,7 @@ impl ModbusBus {
 
     /// 读单个寄存器
     pub async fn read_coil(&self, unit: u8, address: u16) -> Result<bool, DriverError> {
-        match self.slaves.get(&unit) {
+        match self.slave_pool.get(&unit) {
             Some(ctx_ref) => {
                 let mut ctx = (*ctx_ref).lock().map_err(
                     |e| DriverError(format!("modbus 尝试读取失败，无法获取 context 加锁失败，unit: {}, 异常: {}", unit, e))
@@ -174,7 +174,7 @@ impl ModbusBus {
 
     /// 读多个寄存器
     pub async fn read_coils(&self, unit: u8, address: u16, count: u16) -> Result<Vec<bool>, DriverError> {
-        match self.slaves.get(&unit) {
+        match self.slave_pool.get(&unit) {
             Some(ctx_ref) => {
                 let mut ctx = (*ctx_ref).lock().map_err(
                     |e| DriverError(format!("modbus 尝试读取失败，无法获取 context 加锁失败，unit: {}, 异常: {}", unit, e))
@@ -194,9 +194,11 @@ impl ModbusBus {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::common::logger::init_logger;
 
     #[test]
     fn test_new() {
+        let _ = init_logger();
         // let device = ModbusBus::new("test_device_id".to_string(),"/dev/ttyUSB0".to_string(), 9600);
     }
 }

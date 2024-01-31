@@ -15,6 +15,7 @@ pub trait Device {
     fn init(&self, device_config_bo: &ConfigBo) -> Result<(),DriverError> {Ok(())}
 
     /// 设备启动
+    /// 部分设备可能拥有内部状态，例如 dmx 一旦启动之后开始不断发送信号，这种情况下需要调用 start 方法
     fn start(&mut self) -> Result<(), DriverError> {Ok(())}
 
     /// 设备销毁
