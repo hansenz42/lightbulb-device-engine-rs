@@ -9,6 +9,7 @@ use super::setting::Settings;
 pub fn init_logger() -> Result<(), Error> {
     // 检查是否已经初始化
     if log::max_level() != log::LevelFilter::Off {
+        println!("日志管理器尝试重复初始化");
         return Ok(())
     }
 

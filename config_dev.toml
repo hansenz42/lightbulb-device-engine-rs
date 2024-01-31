@@ -8,7 +8,7 @@ server_name = "default_server"
 [env]
 debug = true
 env = "dev"
-log_level = "info"
+log_level = "debug"
 
 # 服务器信息
 [server]

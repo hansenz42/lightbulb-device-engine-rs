@@ -19,6 +19,8 @@ use dotenv::dotenv;
 use mqtt_client::client::MqttClient;
 use tokio;
 
+// #[macro_use] extern crate log;
+
 const LOG_TAG: &str = "main";
 
 fn main() -> Result<(), Box<dyn Error>> {

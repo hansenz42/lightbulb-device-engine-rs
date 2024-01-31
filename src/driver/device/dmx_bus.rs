@@ -8,17 +8,21 @@
 
 use dmx::{self, DmxTransmitter};
 use serde_json::Value;
+use crate::common;
 use std::sync::mpsc::Sender;
 use std::sync::{mpsc, Arc, Mutex};
 use std::{thread, time, error::Error};
 use std::time::Duration;
-use log::{info, error, warn, debug};
 use crate::common::error::DriverError;
+use crate::{info, warn, error, trace, debug};
 use crate::entity::bo::device_state_bo::{StateBoEnum, DeviceStateBo, DmxBusStateBo};
+use crate::common::logger::init_logger;
 
 use super::super::traits::bus::Bus;
 use super::super::traits::master::Master;
 use super::super::traits::device::Device;
+
+const LOG_TAG : &str = "DeviceManager";
 
 pub struct DmxBus {
     device_id: String,
@@ -96,6 +100,7 @@ impl Device for DmxBus {
         dmx_send_thread(thread_data, serial_port_str, running_flag, rx);
 
         info!(
+            LOG_TAG,
             "dmx bus: start dmx bus, serial port: {}, data: {:?}",
             self.serial_port, self.data
         );
@@ -115,16 +120,17 @@ fn dmx_send_thread(
 
     let handle = thread::spawn(move || {
         let mut dmx_port = dmx::open_serial(serial_port_str.as_str()).expect(format!("dmx worker 线程，无法打开端口： {serial_port_str}").as_str());
-        debug!("dmx worker 线程启动: 已打开端口 {}, 开始传输", serial_port_str);
+        info!(LOG_TAG, "dmx worker 线程启动: 已打开端口 {}, 开始传输", serial_port_str);
         let mut thread_channel_data = Box::new(channel_data);
         loop {
+            debug!(LOG_TAG, "sending dmx data...");
             dmx_port.send_dmx_packet(thread_channel_data.as_ref()).expect(format!("dmx worker 线程: 无法发送数据 {serial_port_str}").as_str());
             thread::sleep(time::Duration::from_millis(10));
 
             // 检查是否停止，如果停止，则退出
             let running = running_flag.lock().expect("dmx worker 线程: 同步错误，运行标志位错误，检查代码！");
             if !*running {
-                debug!("dmx worker 线程停止");
+                debug!(LOG_TAG, "dmx worker 线程停止");
                 break;
             }
 
@@ -132,9 +138,11 @@ fn dmx_send_thread(
             match rx.try_recv() {
                 Ok(data) => {
                     thread_channel_data.copy_from_slice(&data);
-                    debug!("dmx worker 线程，接收到数据")
+                    info!(LOG_TAG, "dmx worker 线程，接收到数据 {:?}", &data);
                 },
-                Err(_) => {}  // 没有数据，继续发送
+                Err(_) => {
+                    debug!(LOG_TAG, "no data, skip");
+                }  // 没有数据，继续发送
             }
         }
     });
@@ -162,10 +170,10 @@ impl DmxBus {
         match &self.thread_tx {
             Some(tx) => {
                 tx.send(self.data).expect("dmx bus: send data to thread error");
-                debug!("dmx bus: send data to thread");
+                debug!(LOG_TAG, "dmx bus: send data to thread");
             },
             None => {
-                error!("dmx bus: thread tx is none");
+                error!(LOG_TAG, "dmx bus: thread tx is none");
             }
         }
         Ok(())
@@ -179,10 +187,10 @@ impl DmxBus {
         match &self.thread_tx {
             Some(tx) => {
                 tx.send(self.data).expect("dmx bus: send data to thread error");
-                debug!("dmx bus: send data to thread");
+                debug!(LOG_TAG, "dmx bus: send data to thread");
             },
             None => {
-                error!("dmx bus: thread tx is none");
+                error!(LOG_TAG, "dmx bus: thread tx is none");
             }
         }
         Ok(())
@@ -204,6 +212,7 @@ impl DmxBus {
         self.thread_tx = None;
 
         info!(
+            LOG_TAG,
             "dmx bus: stop dmx bus, serial port: {}, data: {:?}",
             self.serial_port, self.data
         );
@@ -224,6 +233,9 @@ mod tests {
         let mut dmxbus = DmxBus::new(String::from("test_dmx_bus"), String::from("/dev/ttyUSB0"));
         println!("dmx 总线启动");   
         dmxbus.start().unwrap();
-        std::thread::sleep(Duration::from_secs(300));
+        std::thread::sleep(Duration::from_secs(5));
+        println!("修改 channel 的值");
+        dmxbus.set_channel(2, 30);
+        std::thread::sleep(Duration::from_secs(20));
     }
 }
