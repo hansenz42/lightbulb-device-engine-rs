@@ -199,6 +199,13 @@ mod tests {
     #[test]
     fn test_new() {
         let _ = init_logger();
-        // let device = ModbusBus::new("test_device_id".to_string(),"/dev/ttyUSB0".to_string(), 9600);
+
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let mut modbus_device = ModbusBus::new("test_device_id".to_string(),"/dev/ttyUSB1".to_string(), 9600);
+            modbus_device.register_slave(1).unwrap();
+            modbus_device.write_coil(1, 1, true).await.unwrap();
+            let ret = modbus_device.read_coil(1, 1).await.unwrap();
+            assert_eq!(ret, true);
+        });
     }
 }

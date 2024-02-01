@@ -1,10 +1,12 @@
 //! 串口设备总线
 //! 设计
-//! - 
+//! - 侦听端口使用线程循环（和 dmx 类似）
+//! - 写数据直接使用 write 方法
 
 use std::sync::mpsc::Sender;
 use tokio_serial::SerialStream;
 use tokio_util::{codec::{Decoder, Encoder}, bytes::{self, Buf}};
+use tokio_serial::SerialPortBuilderExt;
 
 use crate::{
     driver::traits::{master::Master, device::Device}, 
@@ -19,17 +21,35 @@ pub struct SerialBus {
     serial_port: String,
     baudrate: u32,
     upward_channel: Option<Sender<DeviceStateBo>>,
+
+    
 }
 
 impl SerialBus {
-    pub fn new(device_id: String, serial_port: String, baudrate: u32) -> SerialBus {
+    pub fn new(device_id: &str, serial_port: &str, baudrate: u32) -> SerialBus {
         SerialBus {
-            device_id,
+            device_id: device_id.to_string(),
             device_class: "bus".to_string(),
             device_type: "serial".to_string(),
-            serial_port,
+            serial_port: serial_port.to_string(),
             baudrate,
-            upward_channel: None,
+            upward_channel: None,   
+        }
+    }
+
+    pub async fn open(&mut self) {
+        let mut port = tokio_serial::new(self.serial_port.clone(), self.baudrate).open_native_async()?;
+
+        let mut reader = LineCodec.framed(port);
+        while let Some(line) = reader.next().await {
+            match line {
+                Ok(line) => {
+                    println!("receive line: {}", line);
+                },
+                Err(e) => {
+                    println!("receive error: {}", e);
+                }
+            }
         }
     }
 }
@@ -70,5 +90,17 @@ impl Device for SerialBus {
 
     fn get_upward_channel(&self) -> Option<Sender<DeviceStateBo>> {
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::common::logger::init_logger;
+
+    #[test]
+    fn test_new() {
+        let _ = init_logger();
+        let serial_bus = SerialBus::new("serial_bus_1", "/dev/ttyUSB1", 9600);
     }
 }
