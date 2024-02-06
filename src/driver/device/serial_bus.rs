@@ -1,10 +1,15 @@
 //! 串口设备总线
 //! 设计
 //! - 侦听端口使用线程循环（和 dmx 类似）
-//! - 使用注册侦听的方式向上传递数据
+//! - 多播侦听：一个 serialbus 可以被多个设备同时侦听，数据将被多播
+//! - 将串口中指令和参数提取出来，并返回给侦听设备
 //! - 写数据直接使用 write 方法
+//! 
+//! 串口协议：
+//！ 0xfa   0x02  0x01    0xff ...  0xff  0xed
+//！ 起始位  指令  参数长度     参数数据     结束位
 
-use std::{sync::mpsc::Sender, thread};
+use std::{rc::Rc, sync::mpsc::Sender, thread};
 use actix_web::http::uri::Port;
 use futures::{stream::SplitSink, SinkExt, StreamExt};
 use tokio_serial::SerialStream;
@@ -16,7 +21,7 @@ use tokio_serial::SerialPortBuilderExt;
 use std::collections::HashMap;
 
 use crate::{
-    driver::traits::{master::Master, device::Device}, 
+    driver::traits::{device::Device, master::Master, serial_listener::SerialListener}, 
     entity::bo::{device_state_bo::DeviceStateBo, device_config_bo::ConfigBo},
     common::error::DriverError
 };
@@ -59,10 +64,11 @@ pub struct SerialBus {
     baudrate: u32,
     upward_channel: Option<Sender<DeviceStateBo>>,
 
-    // 串口写数据
+    // 串口写数据对象
     serial_writer: Option<SplitSink<Framed<SerialStream, LineCodec>, String>>,
 
-    event_device_map: HashMap<String, Vec<Box<dyn Device>>>
+    // 侦听中的设备列表
+    device_map: HashMap<String, Rc<dyn SerialListener> >
 }
 
 impl SerialBus {
@@ -74,17 +80,30 @@ impl SerialBus {
             serial_port: serial_port.to_string(),
             baudrate,
             upward_channel: None,
-            event_device_map: HashMap::new(),
+            device_map: HashMap::new(),
             serial_writer: None
         }
     }
 
+    /// 向串口发送数据
     pub async fn send_data(&mut self, data: &str) -> Result<(), DriverError> {
         if let Some(writer) = &mut self.serial_writer {
             writer.send(data.to_string()).await.map_err(|err| DriverError(format!("串口数据发送失败: {}", err)))?;
         } else {
             return Err(DriverError("串口设备未初始化".to_string()));
         }
+        Ok(())
+    }
+
+    /// 注册设备
+    pub fn register_slave(&mut self, device_id: &str, device: Rc<dyn SerialListener>) -> Result<(), DriverError> {
+        self.device_map.insert(device_id.to_string(), device);
+        Ok(())
+    }
+
+    /// 设备解除注册
+    pub fn remote_slave(&mut self, device_id: &str) -> Result<(), DriverError> {
+        self.device_map.remove(device_id).ok_or(DriverError("设备未注册".to_string()))?;
         Ok(())
     }
 }
@@ -127,6 +146,7 @@ impl Device for SerialBus {
                     match line {
                         Ok(data) => {
                             println!("收到串口数据: {}", data);
+                            // TODO 发送并且通知已经注册的设备
                         },
                         Err(err) => {
                             println!("串口数据读取失败: {}", err);
