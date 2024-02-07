@@ -1,7 +1,7 @@
 //! 串口设备总线
 //! 设计
 //! - 侦听端口使用线程循环（和 dmx 类似）
-//! - 多播侦听：一个 serialbus 可以被多个设备同时侦听，数据将被多播
+//! - 多播侦听：一个 serialbus 可以被多个设备同时侦听，数据将被多播。（但是一般来讲，一个串口只接一个设备）
 //! - 将串口中指令和参数提取出来，并返回给侦听设备
 //! - 写数据直接使用 write 方法
 //! 
@@ -9,7 +9,7 @@
 //！ 0xfa   0x02  0x01    0xff ...  0xff  0xed
 //！ 起始位  指令  参数长度     参数数据     结束位
 
-use std::{rc::Rc, sync::mpsc::Sender, thread};
+use std::{rc::Rc, sync::{mpsc::Sender, Arc}, thread};
 use actix_web::http::uri::Port;
 use futures::{stream::SplitSink, SinkExt, StreamExt};
 use tokio_serial::SerialStream;
@@ -26,32 +26,51 @@ use crate::{
     common::error::DriverError
 };
 
+#[derive(Debug)]
+struct SerialCommand {
+    command: u8,
+    data: Vec<u8>
+}
+
 /// 声明串口的处理器
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 struct LineCodec;
 
 impl Decoder for LineCodec {
-    type Item = String;
+    type Item = SerialCommand;
     type Error = std::io::Error;
 
+    // 解码收到的数据，删除前方和后方的 0xfa 0xed 返回完整的指令
     fn decode(&mut self, buf: &mut bytes::BytesMut) -> Result<Option<Self::Item>, Self::Error> {
-        if let Some(n) = buf.iter().position(|b| *b == b'\n') {
+        // 在 0xed 处切割
+        if let Some(n) = buf.iter().position(|b| *b == 0xed) {
             let line = buf.split_to(n);
+            // 去除 Line 之前最开始的 0xfa
+            let (_, line) = line.split_at(1);
             buf.advance(1);
-            Ok(Some(String::from_utf8(line.to_vec()).unwrap()))
+            // 返回解析后的数据
+            let command = line[0];
+            let param_len = line[1] as usize;
+            Ok(Some(SerialCommand {
+                command: line[0],
+                data: line[2..param_len + 2 + 1].to_vec()
+            }))
         } else {
             Ok(None)
         }
     }
 }
 
-impl Encoder<String> for LineCodec {
+impl Encoder<SerialCommand> for LineCodec {
     type Error = std::io::Error;
 
-    fn encode(&mut self, item: String, dst: &mut bytes::BytesMut) -> Result<(), Self::Error> {
-        dst.reserve(item.len() + 1);
-        dst.put(item.as_bytes());
-        dst.put_u8(b'\n');
+    // 传入的完整的指令，在指令的前方和后方加入 0xfa 和 0xed
+    fn encode(&mut self, item: SerialCommand, dst: &mut bytes::BytesMut) -> Result<(), Self::Error> {
+        dst.put_u8(0xfa);
+        dst.put_u8(item.command);
+        dst.put_u8(item.data.len() as u8);
+        dst.put(item.data.as_ref());
+        dst.put_u8(0xed);
         Ok(())
     }
 }
@@ -65,10 +84,10 @@ pub struct SerialBus {
     upward_channel: Option<Sender<DeviceStateBo>>,
 
     // 串口写数据对象
-    serial_writer: Option<SplitSink<Framed<SerialStream, LineCodec>, String>>,
+    serial_writer: Option<SplitSink<Framed<SerialStream, LineCodec>, SerialCommand>>,
 
     // 侦听中的设备列表
-    device_map: HashMap<String, Rc<dyn SerialListener> >
+    device_map: HashMap<String, Arc<dyn SerialListener> >
 }
 
 impl SerialBus {
@@ -86,9 +105,9 @@ impl SerialBus {
     }
 
     /// 向串口发送数据
-    pub async fn send_data(&mut self, data: &str) -> Result<(), DriverError> {
+    pub async fn send_data(&mut self, data: SerialCommand) -> Result<(), DriverError> {
         if let Some(writer) = &mut self.serial_writer {
-            writer.send(data.to_string()).await.map_err(|err| DriverError(format!("串口数据发送失败: {}", err)))?;
+            writer.send(data).await.map_err(|err| DriverError(format!("串口数据发送失败: {}", err)))?;
         } else {
             return Err(DriverError("串口设备未初始化".to_string()));
         }
@@ -96,7 +115,7 @@ impl SerialBus {
     }
 
     /// 注册设备
-    pub fn register_slave(&mut self, device_id: &str, device: Rc<dyn SerialListener>) -> Result<(), DriverError> {
+    pub fn register_slave(&mut self, device_id: &str, device: Arc<dyn SerialListener>) -> Result<(), DriverError> {
         self.device_map.insert(device_id.to_string(), device);
         Ok(())
     }
@@ -145,8 +164,9 @@ impl Device for SerialBus {
                 while let Some(line) = reader.next().await {
                     match line {
                         Ok(data) => {
-                            println!("收到串口数据: {}", data);
-                            // TODO 发送并且通知已经注册的设备
+                            println!("收到串口数据: {:?}", data);
+                            // 接收到数据以后，解析数据，然后将数据发送给侦听设备
+                            // 发送过程，SerialListener 提供不可变引用调用，不可变引用的所属权在当前线程，实现方法为 Arc 引用计数
                         },
                         Err(err) => {
                             println!("串口数据读取失败: {}", err);
@@ -169,5 +189,29 @@ mod tests {
     fn test_new() {
         let _ = init_logger();
         let serial_bus = SerialBus::new("serial_bus_1", "/dev/ttyUSB1", 9600);
+    }
+
+    #[test]
+    fn test_decoder(){
+        let _ = init_logger();
+        let mut codec = LineCodec;
+        let bytes: &[u8] = &[0xfa, 0x02, 0x01, 0xff, 0xff, 0xed];
+        let mut b_mut : bytes::BytesMut = bytes.into();
+        let res = codec.decode(&mut b_mut).unwrap().unwrap();
+        assert_eq!(res.command, 0x02);
+        assert_eq!(res.data, vec![0xff, 0xff]);
+    }
+
+    #[test]
+    fn test_encoder(){
+        let _ = init_logger();
+        let mut codec = LineCodec;
+        let serial_command = SerialCommand {
+            command: 0x02,
+            data: vec![0xff, 0xff]
+        };
+        let mut output = bytes::BytesMut::new();
+        let res = codec.encode(serial_command, &mut output).unwrap();
+        assert_eq!(output, vec![0xfa, 0x02, 0x02, 0xff, 0xff, 0xed]);
     }
 }
