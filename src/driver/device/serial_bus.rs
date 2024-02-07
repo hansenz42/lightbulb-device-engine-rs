@@ -22,22 +22,16 @@ use std::collections::HashMap;
 
 use crate::{
     driver::traits::{device::Device, master::Master, serial_listener::SerialListener}, 
-    entity::bo::{device_state_bo::DeviceStateBo, device_config_bo::ConfigBo},
+    entity::bo::{device_state_bo::DeviceStateBo, device_config_bo::ConfigBo, serial_command_bo::SerialCommandBo},
     common::error::DriverError
 };
-
-#[derive(Debug)]
-struct SerialCommand {
-    command: u8,
-    data: Vec<u8>
-}
 
 /// 声明串口的处理器
 #[derive(Clone, Debug, Eq, PartialEq, Ord, PartialOrd, Hash)]
 struct LineCodec;
 
 impl Decoder for LineCodec {
-    type Item = SerialCommand;
+    type Item = SerialCommandBo;
     type Error = std::io::Error;
 
     // 解码收到的数据，删除前方和后方的 0xfa 0xed 返回完整的指令
@@ -51,7 +45,7 @@ impl Decoder for LineCodec {
             // 返回解析后的数据
             let command = line[0];
             let param_len = line[1] as usize;
-            Ok(Some(SerialCommand {
+            Ok(Some(SerialCommandBo {
                 command: line[0],
                 data: line[2..param_len + 2 + 1].to_vec()
             }))
@@ -61,11 +55,11 @@ impl Decoder for LineCodec {
     }
 }
 
-impl Encoder<SerialCommand> for LineCodec {
+impl Encoder<SerialCommandBo> for LineCodec {
     type Error = std::io::Error;
 
     // 传入的完整的指令，在指令的前方和后方加入 0xfa 和 0xed
-    fn encode(&mut self, item: SerialCommand, dst: &mut bytes::BytesMut) -> Result<(), Self::Error> {
+    fn encode(&mut self, item: SerialCommandBo, dst: &mut bytes::BytesMut) -> Result<(), Self::Error> {
         dst.put_u8(0xfa);
         dst.put_u8(item.command);
         dst.put_u8(item.data.len() as u8);
@@ -84,7 +78,7 @@ pub struct SerialBus {
     upward_channel: Option<Sender<DeviceStateBo>>,
 
     // 串口写数据对象
-    serial_writer: Option<SplitSink<Framed<SerialStream, LineCodec>, SerialCommand>>,
+    serial_writer: Option<SplitSink<Framed<SerialStream, LineCodec>, SerialCommandBo>>,
 
     // 侦听中的设备列表
     device_map: HashMap<String, Arc<dyn SerialListener> >
@@ -105,7 +99,7 @@ impl SerialBus {
     }
 
     /// 向串口发送数据
-    pub async fn send_data(&mut self, data: SerialCommand) -> Result<(), DriverError> {
+    pub async fn send_data(&mut self, data: SerialCommandBo) -> Result<(), DriverError> {
         if let Some(writer) = &mut self.serial_writer {
             writer.send(data).await.map_err(|err| DriverError(format!("串口数据发送失败: {}", err)))?;
         } else {
@@ -206,7 +200,7 @@ mod tests {
     fn test_encoder(){
         let _ = init_logger();
         let mut codec = LineCodec;
-        let serial_command = SerialCommand {
+        let serial_command = SerialCommandBo {
             command: 0x02,
             data: vec![0xff, 0xff]
         };
