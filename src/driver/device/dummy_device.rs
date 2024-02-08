@@ -3,18 +3,14 @@ use std::sync::mpsc::Sender;
 
 use crate::{entity::bo::{device_config_bo::{DummyConfigBo, ConfigBo}, device_state_bo::DeviceStateBo}, common::error::DriverError};
 use super::super::traits::device::Device;
-use async_trait::async_trait;
 use serde_json::Value;
 use crate::{info};
 
 const LOG_TAG: &str = "main";
 
 #[derive(Debug)]
-pub struct DummyDevice {
+pub struct DummyDevice {}
 
-}
-
-#[async_trait]
 impl Device for DummyDevice {
     fn set_upward_channel(&mut self, sender: Sender<DeviceStateBo>) -> Result<(), DriverError> {
         Ok(())

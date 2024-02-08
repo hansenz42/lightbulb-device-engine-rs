@@ -17,7 +17,7 @@ use crate::entity::bo::device_state_bo::{DeviceStateBo, StateBoEnum};
 use crate::entity::bo::device_command_bo::DeviceCommandBo;
 use crate::{info, warn, error, trace, debug};
 use std::thread;
-use std::sync::{mpsc, Arc};
+use std::sync::{mpsc, Arc, Mutex};
 use crate::driver::traits::device::Device;
 use crate::driver::device::device_enum::DeviceEnum;
 use crate::driver::factory::device_factory::DeviceFactory;
@@ -66,29 +66,44 @@ impl DeviceManager {
     /// - 设备管理 + 下行线程：从 mqtt 服务器接收到的消息，给设备的指令。下行传递线程也是设备操作的主线程，负责初始化并管理所有设备
     /// - 上行传递：接收从 device 来的消息，推送到 mqtt
     /// - 所有权关系：该函数将拿走 self 的所有权，因为需要在线程中调用访问 self 中的设备对象
-    pub fn start_worker(self, downward_rx: mpsc::Receiver<DeviceCommandBo>, mqtt_client: Arc<MqttClient>, rt: &tokio::runtime::Runtime) {
+    pub fn start_worker(self, downward_rx: mpsc::Receiver<DeviceCommandBo>, mqtt_client: Arc<MqttClient>) {
         
+        info!(LOG_TAG, "根据配置文件初始化设备");
+
+        // 初始化所有设备并做成 HashMap，因为设备需要在多线程中传递，而且在多处保持引用，所以需要使用 Arc<Mutex<Device>>
+        let mut device_map: HashMap<String, Arc<Mutex<Box<dyn Device + Sync + Send>>> > = init_devices_by_config_map(self.config_map.clone(), DeviceFactory::new());
+
+
         // 下行传递线程
         // - 向设备下达指令
         thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().expect("下行传递线程：无法创建 tokio 运行时");
             rt.block_on( async move {
                 loop {
-                    info!(LOG_TAG, "根据配置文件初始化设备");
-                    let mut device_map: HashMap<String, Box<dyn Device + Sync + Send>> = init_devices_by_config_map(self.config_map.clone(), DeviceFactory::new());
-    
                     info!(LOG_TAG, "等待下行指令");
                     let recv_message = downward_rx.recv();
                     match recv_message {
                         Ok(commnad) => {
                             let device_id = &commnad.device_id;
-                            let device_ref = device_map.get(device_id).expect("获取设备失败");
-                            if let Some(device_ref) = device_map.get_mut(device_id) {
-                                info!(LOG_TAG, "下行指令：向设备 {} 发送指令：{:?}", device_id, commnad);
-                                let _ = device_ref.cmd(commnad.action, commnad.params);
-                            } else {
-                                warn!(LOG_TAG, "下行指令：给设备发送指令失败，请求的设备 {} 不存在", device_id)
+
+                            match device_map.get_mut(device_id) {
+                                Some(device_ref) => {
+
+                                    info!(LOG_TAG, "下行指令：向设备 {} 发送指令：{:?}", device_id, commnad);
+                                    match device_ref.lock() {
+                                        Ok(mut device) => {
+                                            let _ = device.cmd(commnad.action, commnad.params);
+                                        }
+                                        Err(e) => {
+                                            warn!(LOG_TAG, "下行指令：获取设备锁失败，错误信息：{}", e);
+                                        }
+                                    }
+                                }
+                                None => {
+                                    warn!(LOG_TAG, "下行指令：无法找到 device_id {}", device_id);
+                                }
                             }
+
                         }
                         Err(e) => {
                             warn!(LOG_TAG, "下行指令通道关闭，即将退出，错误信息：{}", e);
@@ -190,14 +205,15 @@ impl DeviceManager {
 
 /// 根据配置文件初始化设备
 /// - 返回带有设备的 map
-fn init_devices_by_config_map(config_map: HashMap<String, DevicePo>, device_factory: DeviceFactory) -> HashMap<String, Box<dyn Device + Sync + Send>> {
-    let mut device_map: HashMap<String, Box<dyn Device + Sync + Send>> = HashMap::new();
+fn init_devices_by_config_map(config_map: HashMap<String, DevicePo>, device_factory: DeviceFactory) -> HashMap<String, Arc<Mutex<Box<dyn Device + Sync + Send>>>> {
+    let mut device_map: HashMap<String, Arc<Mutex<Box<dyn Device + Sync + Send>>> > = HashMap::new();
         for (device_id, device_po) in config_map {
         let device_type = device_po.device_type.clone();
         let device_class = device_po.device_class.clone();
         match device_factory.create_device(device_po.clone()) {
             Ok(device) => {
-                device_map.insert(device_id.clone(), device);
+                let device_arc = Arc::new(Mutex::new(device));
+                device_map.insert(device_id.clone(), device_arc);
             }
             Err(e) => {
                 warn!(LOG_TAG, "无法初始化设备，设备类型：{}，设备类别：{}，错误信息：{}", device_type, device_class, e);
@@ -267,7 +283,7 @@ mod tests {
             mqtt_client.start().await;
             let mqtt_client_arc = Arc::new(mqtt_client);
 
-            manager.start_worker(rx, mqtt_client_arc.clone(), &rt);
+            manager.start_worker(rx, mqtt_client_arc.clone());
         });
         tx.send(DeviceCommandBo{
             server_id: "this".to_string(),
@@ -304,7 +320,7 @@ mod tests {
             let mut mqtt_client = MqttClient::new();
             let _ = mqtt_client.start().await;
             let mqtt_client_arc = Arc::new(mqtt_client);
-            manager.start_worker(rx, mqtt_client_arc.clone(), &rt);
+            manager.start_worker(rx, mqtt_client_arc.clone());
         });
 
         thread::sleep(std::time::Duration::from_secs(1));
@@ -337,7 +353,7 @@ mod tests {
             let mut mqtt_client = MqttClient::new();
             let _ = mqtt_client.start().await;        
             let mqtt_client_arc = Arc::new(mqtt_client);
-            manager.start_worker(rx, mqtt_client_arc.clone(), &rt);
+            manager.start_worker(rx, mqtt_client_arc.clone());
         });
 
         let do_controller_bo = StateBoEnum::DoController(DoControllerStateBo{
