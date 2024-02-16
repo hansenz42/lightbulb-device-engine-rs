@@ -79,10 +79,10 @@ impl Bus for ModbusBus {
 }
 
 impl ModbusBus {
-    pub fn new(device_id: String, serial_port: String, baudrate: u32) -> Self {
+    pub fn new(device_id: &str, serial_port: &str, baudrate: u32) -> Self {
         Self {
-            device_id,
-            serial_port: serial_port,
+            device_id: device_id.to_string(),
+            serial_port: serial_port.to_string(),
             baudrate: baudrate,
             slave_pool: HashMap::new(),
             upward_channel: None
@@ -201,7 +201,7 @@ mod tests {
         let _ = init_logger();
 
         tokio::runtime::Runtime::new().unwrap().block_on(async {
-            let mut modbus_device = ModbusBus::new("test_device_id".to_string(),"/dev/ttyUSB1".to_string(), 9600);
+            let mut modbus_device = ModbusBus::new("test_device_id","/dev/ttyUSB1", 9600);
             modbus_device.register_slave(1).unwrap();
             modbus_device.write_coil(1, 1, true).await.unwrap();
             let ret = modbus_device.read_coil(1, 1).await.unwrap();

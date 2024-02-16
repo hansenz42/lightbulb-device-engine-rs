@@ -14,14 +14,15 @@ pub trait Factory {
         }
 
         let config_bo = self.transform_config(device_po.config)?;
-        self.create_obj(device_po.device_id, config_bo)
+        self.create_obj(device_po.device_id.as_str(), config_bo)
     }
 
-    fn create_obj(&self, device_id: String, config_bo: ConfigBo) -> Result<Box<dyn Device + Sync + Send>, DeviceServerError> ;
+    fn create_obj(&self, device_id: &str, config_bo: ConfigBo) -> Result<Box<dyn Device + Sync + Send>, DeviceServerError> ;
 
     // 获取当前设备的支持类型
     fn get_type(&self) -> String;
 
     // 将 json 格式的 config 对象转换为 ConfigBo
+    // 不同的设备应该返回不同的 ConfigBo
     fn transform_config(&self, device_config_json: String) -> Result<ConfigBo, DeviceServerError>;
 }

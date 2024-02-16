@@ -153,10 +153,10 @@ fn dmx_send_thread(
 impl DmxBus {
 
     /// 创建一个新的 dmx 总线设备
-    pub fn new(device_id: String, serial_port: String) -> Self {
+    pub fn new(device_id: &str, serial_port: &str) -> Self {
         Self {
-            device_id,
-            serial_port,
+            device_id: device_id.to_string(),
+            serial_port: serial_port.to_string(),
             data: [0; 512],
             thread_running_flag: Arc::new(Mutex::new(false)),
             thread_tx: None,
@@ -230,7 +230,7 @@ mod tests {
     #[test]
     fn test_new() {
         let _ = common::logger::init_logger();
-        let mut dmxbus = DmxBus::new(String::from("test_dmx_bus"), String::from("/dev/ttyUSB0"));
+        let mut dmxbus = DmxBus::new("test_dmx_bus", "/dev/ttyUSB0");
         println!("dmx 总线启动");   
         dmxbus.start().unwrap();
         std::thread::sleep(Duration::from_secs(5));

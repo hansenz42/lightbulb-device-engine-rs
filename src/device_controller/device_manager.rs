@@ -205,6 +205,8 @@ impl DeviceManager {
 
 /// 根据配置文件初始化设备
 /// - 返回带有设备的 map
+/// 
+/// 这是设备初始化的第一步：将设备初始化为设备实例
 fn init_devices_by_config_map(config_map: HashMap<String, DevicePo>, device_factory: DeviceFactory) -> HashMap<String, Arc<Mutex<Box<dyn Device + Sync + Send>>>> {
     let mut device_map: HashMap<String, Arc<Mutex<Box<dyn Device + Sync + Send>>> > = HashMap::new();
         for (device_id, device_po) in config_map {
@@ -212,6 +214,7 @@ fn init_devices_by_config_map(config_map: HashMap<String, DevicePo>, device_fact
         let device_class = device_po.device_class.clone();
         match device_factory.create_device(device_po.clone()) {
             Ok(device) => {
+                // 注意初始化设备需要 Arc Mutex Box
                 let device_arc = Arc::new(Mutex::new(device));
                 device_map.insert(device_id.clone(), device_arc);
             }

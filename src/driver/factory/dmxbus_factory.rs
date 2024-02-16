@@ -1,27 +1,41 @@
 //! modbus 控制器工厂
 use super::super::device::dmx_bus::DmxBus;
 use super::traits::Factory;
+use crate::driver::traits::device::Device;
 use crate::entity::bo::device_config_bo::{ConfigBo};
-use crate::common::error::{DeviceServerError, ErrorCode};
+use crate::common::error::{DeviceServerError, ServerErrorCode};
 
 pub struct DmxBusFactory {}
 
 impl Factory for DmxBusFactory {
-    type Product = DmxBus;
-
-    fn create_obj(&self, device_id: String, config_bo: ConfigBo) -> Result<Self::Product, DeviceServerError> {
+    fn create_obj(&self, device_id: &str, config_bo: ConfigBo) -> Result<Box<dyn Device + Sync + Send>, DeviceServerError> {
         match config_bo {
             ConfigBo::DmxBus(config) => {
                 let serial_port = config.ftdi_serial;
-                Ok(DmxBus::new(device_id, serial_port))
+                Ok(Box::new(DmxBus::new(device_id, serial_port.as_str())))
             }
             _ => {
                 Err(DeviceServerError{
-                    code: ErrorCode::DeviceConfigError,
+                    code: ServerErrorCode::DeviceConfigError,
                     msg: "创建 dmx 设备失败，配置类型错误".to_string()
                 })
             }
         }
+    }
+
+    fn get_type(&self) -> String {
+        "dmx".to_string()
+    }
+
+    fn transform_config(&self, device_config_json: String) -> Result<ConfigBo, DeviceServerError> {
+        let config_bo: crate::entity::bo::device_config_bo::DmxBusConfigBo = serde_json::from_str(&device_config_json).map_err(
+            |err| DeviceServerError {
+                code: ServerErrorCode::DeviceConfigError,
+                msg: format!("设备配置文件错误: {}", err)
+            }
+        )?;
+        Ok(ConfigBo::DmxBus(config_bo))
+    
     }
 }
 

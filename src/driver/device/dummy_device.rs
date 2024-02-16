@@ -35,7 +35,7 @@ impl Device for DummyDevice {
 }
 
 impl DummyDevice {
-    pub fn new(device_id: String) -> Self {
+    pub fn new(device_id: &str) -> Self {
         Self{}
     }
 }

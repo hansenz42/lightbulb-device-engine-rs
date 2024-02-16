@@ -10,33 +10,41 @@ use crate::driver::device::device_enum::DeviceEnum;
 use super::{
     modbus_factory::ModbusFactory,
     dummy_factory::DummyFactory,
+    serial_factory::SerialFactory
 };
 
 
 pub struct DeviceFactory{
-    factory_map: HashMap<String, Box<dyn Factory>>,
+    // 工厂实例原型池
+    factory_pool: HashMap<String, Box<dyn Factory>>,
 }
 
 impl DeviceFactory {
     // 实例化工厂对象，同时也实例化所有的工厂类
     pub fn new() -> Self {
-        let mut factory_map: HashMap<String, Box<dyn Factory>> = HashMap::new();
-        factory_map.insert("modbus".to_string(), Box::new(ModbusFactory::new()));
-        factory_map.insert("dummy".to_string(), Box::new(DummyFactory::new()));
-        // factory_map.insert("serial".to_string(), Box::new(SerialFactory::new()));
+        let mut factory_pool: HashMap<String, Box<dyn Factory>> = HashMap::new();
+        factory_pool.insert("modbus".to_string(), Box::new(ModbusFactory::new()));
+        factory_pool.insert("dummy".to_string(), Box::new(DummyFactory::new()));
+        factory_pool.insert("serial".to_string(), Box::new(SerialFactory::new()));
         DeviceFactory{
-            factory_map: factory_map
+            factory_pool
         }
     }
 
-    /// 从 DevicePo 创建设备
+    /// 第一步： 从 DevicePo 创建设备，初始化设备对象
     pub fn create_device(&self, device_po: DevicePo) -> Result<Box<dyn Device + Sync + Send>, DeviceServerError> {
         let device_type = device_po.device_type.clone();
-        let factory = self.factory_map.get(&device_type).ok_or(DeviceServerError{
+        let factory = self.factory_pool.get(&device_type).ok_or(DeviceServerError{
             code: ServerErrorCode::DeviceTypeNotSupport,
             msg: format!("不支持的设备类型：{}", device_type)
         })?;
         Ok(factory.create(device_po)?)
+    }
+
+    /// TODO 第二步：将设备对象相互连接
+    /// - 将从设备链接到主设备上，不同的设备有不同的链接和注册方式，需要注意
+    pub fn link_device(&self) -> Result<(), DeviceServerError> {
+        Ok(())
     }
 }
 

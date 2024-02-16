@@ -9,10 +9,10 @@ pub struct ModbusFactory {}
 
 impl Factory for ModbusFactory {
 
-    fn create_obj(&self, device_id: String, config_bo: ConfigBo) -> Result<Box<dyn Device + Sync + Send>, DeviceServerError> {
+    fn create_obj(&self, device_id: &str, config_bo: ConfigBo) -> Result<Box<dyn Device + Sync + Send>, DeviceServerError> {
         match config_bo {
             ConfigBo::Modbus(config) => {
-                Ok(Box::new(ModbusBus::new(device_id, config.serial_port, config.baudrate)))
+                Ok(Box::new(ModbusBus::new(device_id, config.serial_port.as_str(), config.baudrate)))
             }
             _ => {
                 Err(DeviceServerError{

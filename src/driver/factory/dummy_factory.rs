@@ -9,7 +9,7 @@ pub struct DummyFactory {}
 
 impl Factory for DummyFactory {
 
-    fn create_obj(&self, device_id: String, config_bo: ConfigBo) -> Result<Box<dyn Device + Sync + Send>, DeviceServerError> {
+    fn create_obj(&self, device_id: &str, config_bo: ConfigBo) -> Result<Box<dyn Device + Sync + Send>, DeviceServerError> {
         match config_bo {
             ConfigBo::Dummy(config) => {
                 Ok(Box::new(DummyDevice::new(device_id)))

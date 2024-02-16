@@ -115,7 +115,7 @@ impl SerialBus {
     }
 
     /// 设备解除注册
-    pub fn remote_slave(&mut self, device_id: &str) -> Result<(), DriverError> {
+    pub fn remove_slave(&mut self, device_id: &str) -> Result<(), DriverError> {
         self.device_map.remove(device_id).ok_or(DriverError("设备未注册".to_string()))?;
         Ok(())
     }
