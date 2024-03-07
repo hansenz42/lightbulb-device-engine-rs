@@ -18,7 +18,7 @@ use crate::{info, warn, error, trace, debug};
 use crate::entity::bo::device_state_bo::{StateBoEnum, DeviceStateBo, DmxBusStateBo};
 use crate::common::logger::init_logger;
 
-use super::super::traits::bus::Bus;
+use super::super::traits::interface::Interface;
 use super::super::traits::master::Master;
 use super::super::traits::device::Device;
 
@@ -40,7 +40,7 @@ pub struct DmxBus {
 
 impl Master for DmxBus {}
 
-impl Bus for DmxBus {
+impl Interface for DmxBus {
     /// 检查当前的总线状态
     fn check(&self) -> Result<bool, Box<dyn Error>> {
         Ok(true)

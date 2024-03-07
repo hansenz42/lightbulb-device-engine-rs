@@ -7,7 +7,7 @@
 
 use std::{error::Error, rc::Rc, borrow::BorrowMut, cell::RefCell, sync::{Arc, Mutex, mpsc::Sender}};
 
-use super::super::traits::bus::Bus;
+use super::super::traits::interface::Interface;
 use super::super::traits::device::Device;
 use super::super::traits::master::Master;
 use tokio_serial::SerialStream;
@@ -29,6 +29,8 @@ pub struct ModbusBus {
     slave_pool: HashMap<u8, Mutex<Context>>,
     // 上报通道
     upward_channel: Option<Sender<DeviceStateBo>>,
+    // 串口上下文实例
+    context: Option<Context>
 }
 
 impl Master for ModbusBus {}
@@ -61,7 +63,7 @@ impl Device for ModbusBus {
     }
 }
 
-impl Bus for ModbusBus {
+impl Interface for ModbusBus {
     /// 检查当前的总线状态
     fn check(&self) -> Result<bool, Box<dyn Error>> {
         Ok(true)
@@ -85,34 +87,56 @@ impl ModbusBus {
             serial_port: serial_port.to_string(),
             baudrate: baudrate,
             slave_pool: HashMap::new(),
-            upward_channel: None
+            upward_channel: None,
+            context: None
         }
 }
 
-    /// 注册一个 slave 设备
-    pub fn register_slave(&mut self, unit: u8) -> Result<(), Box<dyn Error>> {
+    /// 初始化 slave 模块并挂载到 SerialStream
+    /// - 注意：一开始的挂载的 slave 默认为广播 slave
+    pub fn init(&mut self) -> Result<(), DriverError> {
         let builder = tokio_serial::new(self.serial_port.as_str(), self.baudrate);
-        let port = SerialStream::open(&builder)?;
-        let slave = Slave(unit);
+        let port = SerialStream::open(&builder).map_err(|e| {
+            DriverError(format!("串口打开失败，serial_port {}, baudrate {}, 异常：{}", self.serial_port.as_str(), self.baudrate, e))
+        })?;
+        let slave = Slave::broadcast();
         let mut ctx = rtu::attach_slave(port, slave);
-        // 将设备注册到哈希表
-        self.slave_pool.insert(unit, Mutex::new(ctx));
+        self.context = Some(ctx);
+
+        Ok(())
+    }
+
+    /// 检查当前 slave 并设置新的 slave_id
+    pub fn set_slave(&mut self, slave_id: i16) -> Result<(), DriverError> {
+        let mut ctx = self.context.as_mut().ok_or(DriverError("调用配置 slave 错误：modbus 上下文未初始化".to_string()))?;
+        
+        Ok(())
+    }
+
+    pub fn create_serial_stream(&mut self) -> Result<(), DriverError> {
+        let builder = tokio_serial::new(self.serial_port.as_str(), self.baudrate);
+        let port = SerialStream::open(&builder).map_err(|e| {
+            DriverError(format!("串口打开失败，serial_port {}, baud_rate{}, 异常: {}", self.serial_port.as_str(), self.baudrate, e))
+        })?;
         Ok(())
     }
 
     /// 解除一个 slave 设备
-    pub async fn drop_slave(&mut self, unit: u8) -> Result<(), Box<dyn Error>> {
+    pub async fn drop_slave(&mut self, unit: u8) -> Result<(), DriverError> {
         let slave_option = self.slave_pool.remove(&unit);
         match slave_option {
             Some(slave) => {
                 let mut ctx = slave.lock().map_err(|e| 
                     DriverError(format!("设备解除失败，unit: {}, 异常: {}", unit, e))
                 )?;
-                (* ctx).disconnect().await?;
+                (* ctx).disconnect().await.map_err(|e| 
+                    DriverError(format!("设备解除失败，unit: {}, 异常: {}", unit, e))
+                )?;
                 Ok(())
             },
             None => {
-                Err("设备未注册".into())
+                // Err("设备未注册".into())
+                Err(DriverError(format!("设备解除失败，unit: {}, 异常: {}", unit, "设备未注册")))
             }
         }
     }
@@ -202,8 +226,8 @@ mod tests {
 
         tokio::runtime::Runtime::new().unwrap().block_on(async {
             let mut modbus_device = ModbusBus::new("test_device_id","/dev/ttyUSB1", 9600);
-            modbus_device.register_slave(1).unwrap();
             modbus_device.write_coil(1, 1, true).await.unwrap();
+            // modbus_device.write_coil(2, 1, True).unwrap();
             let ret = modbus_device.read_coil(1, 1).await.unwrap();
             assert_eq!(ret, true);
         });

@@ -1,5 +1,5 @@
 /// 驱动程序工厂模块
-/// - 创建驱动程序实例并组装
+/// - 根据配置文件信息，创建驱动程序
 
 pub mod modbus_factory;
 pub mod dmxbus_factory;
