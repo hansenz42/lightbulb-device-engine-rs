@@ -1,11 +1,12 @@
 //! modbus 总线设备类
 //! modbus 上可以挂载多个输入输出单元，使用 unit 标识
 //! 本类可以按照 unit 的顺序操作 modbus 设备。
-//! 功能
-//! - 支持读写 dmx 数据
-//! - 多线程控制 dmx 写入
+//! 功能：
+//! - 维护一个线程：线程中跑一个 tokio 环境，用于设备调度
+//! - 线程在空闲时会轮询所有的输入设备（如有），一旦发现数据变化，则通知后面的上行接口
+//! - 写操作优先于读操作
 
-use std::{error::Error, rc::Rc, borrow::BorrowMut, cell::RefCell, sync::{Arc, Mutex, mpsc::Sender}};
+use std::{borrow::BorrowMut, cell::RefCell, error::Error, rc::Rc, sync::{mpsc::Sender, Arc, Mutex}, thread};
 
 use super::super::traits::interface::Interface;
 use super::super::traits::device::Device;
@@ -29,8 +30,6 @@ pub struct ModbusBus {
     slave_pool: HashMap<u8, Mutex<Context>>,
     // 上报通道
     upward_channel: Option<Sender<DeviceStateBo>>,
-    // 串口上下文实例
-    context: Option<Context>
 }
 
 impl Master for ModbusBus {}
@@ -63,24 +62,29 @@ impl Device for ModbusBus {
     }
 }
 
-impl Interface for ModbusBus {
-    /// 检查当前的总线状态
-    fn check(&self) -> Result<bool, Box<dyn Error>> {
-        Ok(true)
-    }
-
-    /// 关闭当前的总线
-    fn close(&self) -> Result<(), Box<dyn Error>> {
-        Ok(())
-    }
-
-    /// 重置总线
-    fn reset(&self) -> Result<(), Box<dyn Error>> {
-        Ok(())
-    }
-}
-
 impl ModbusBus {
+
+    /// 打开端口，开始收发数据
+    pub fn start_thread(&self) -> Result<(), DriverError> {
+        // 创建通信端口
+
+        // 创建一个线程，运行 tokio 实例
+        // 该线程根据通信通道中的数据，操作 Context 收发数据
+
+        let handle = thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                // 打开端口
+                let builder = tokio_serial::new(self.serial_port.as_str(), self.baudrate);
+                let port = SerialStream::open(&builder).expect("Modbus 新线程中接口打开失败");
+                // let slave = Slave::broadcast();
+                // let mut ctx = rtu::attach_slave(port, slave);
+            });
+        });
+        
+        Ok(())
+    }
+
     pub fn new(device_id: &str, serial_port: &str, baudrate: u32) -> Self {
         Self {
             device_id: device_id.to_string(),
@@ -88,7 +92,6 @@ impl ModbusBus {
             baudrate: baudrate,
             slave_pool: HashMap::new(),
             upward_channel: None,
-            context: None
         }
 }
 
