@@ -14,7 +14,7 @@ use super::super::traits::master::Master;
 use tokio_serial::SerialStream;
 use tokio_modbus::{prelude::*, client::Context, Slave};
 use std::collections::HashMap;
-use crate::entity::bo::{device_config_bo::{ConfigBo}, device_state_bo::DeviceStateBo, device_state_bo::StateBoEnum};
+use crate::entity::bo::{device_command_bo::DeviceCommandBo, device_config_bo::ConfigBo, device_state_bo::{DeviceStateBo, StateBoEnum}};
 use crate::common::error::DriverError;
 use serde_json::Value;
 
@@ -66,7 +66,11 @@ impl ModbusBus {
 
     /// 打开端口，开始收发数据
     pub fn start_thread(&self) -> Result<(), DriverError> {
-        // 创建通信端口
+        // 创建设备执行下行通道
+        let (tx_down, rx_down) = std::sync::mpsc::channel::<DeviceCommandBo>();
+
+        // 创建消息上行通道
+        let (tx_up, rx_up) = std::sync::mpsc::channel::<DeviceStateBo>();
 
         // 创建一个线程，运行 tokio 实例
         // 该线程根据通信通道中的数据，操作 Context 收发数据
@@ -79,6 +83,8 @@ impl ModbusBus {
                 let port = SerialStream::open(&builder).expect("Modbus 新线程中接口打开失败");
                 // let slave = Slave::broadcast();
                 // let mut ctx = rtu::attach_slave(port, slave);
+
+                
             });
         });
         
