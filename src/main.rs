@@ -12,7 +12,7 @@ use common::setting::Settings;
 use common::logger::init_logger;
 use common::sqlite::SqliteConnection;
 use std::error::Error;
-use crate::device_controller::device_manager::DeviceManager;
+// use crate::device_controller::device_manager::DeviceManager;
 use crate::file_controller::file_manager::FileManager;
 use log;
 use dotenv::dotenv;
@@ -23,49 +23,51 @@ use tokio;
 
 const LOG_TAG: &str = "main";
 
-fn main() -> Result<(), Box<dyn Error>> {
-    // 检查 env 文件
-    dotenv().ok();
+fn main() {}
 
-    // 加载 config
-    let settings = Settings::get();
+// fn main() -> Result<(), Box<dyn Error>> {
+//     // 检查 env 文件
+//     dotenv().ok();
 
-    // 设置 logger
-    init_logger()?;
-    info!(LOG_TAG, "配置已加载，环境: {:?}", settings.env.env);
-    debug!(LOG_TAG, "配置: {:?}", settings);
+//     // 加载 config
+//     let settings = Settings::get();
 
-    let rt = tokio::runtime::Runtime::new().unwrap();
+//     // 设置 logger
+//     init_logger()?;
+//     info!(LOG_TAG, "配置已加载，环境: {:?}", settings.env.env);
+//     debug!(LOG_TAG, "配置: {:?}", settings);
 
-    rt.block_on(async move {
-        // 设备管理器
-        let mut device_manager = DeviceManager::new();
-        device_manager.startup().await.expect("设备管理器启动失败");
+//     let rt = tokio::runtime::Runtime::new().unwrap();
 
-        // 文件管理器 fileManager
-        let mut file_manager = FileManager::new();
-        file_manager.startup().await.expect("文件管理器启动失败");
+//     rt.block_on(async move {
+//         // 设备管理器
+//         let mut device_manager = DeviceManager::new();
+//         device_manager.startup().await.expect("设备管理器启动失败");
 
-        // 执行 http 服务器
-        CustomHttpServer::start().await.unwrap();
+//         // 文件管理器 fileManager
+//         let mut file_manager = FileManager::new();
+//         file_manager.startup().await.expect("文件管理器启动失败");
 
-        // 执行 mqtt 服务器
-        let mut client = MqttClient::new();
-        client.start().await.unwrap();
-    });
+//         // 执行 http 服务器
+//         CustomHttpServer::start().await.unwrap();
 
-    ctrlc::set_handler(move || {
-        info!(LOG_TAG, "收到退出信号，退出进程");
-        std::process::exit(0);
-    });
+//         // 执行 mqtt 服务器
+//         let mut client = MqttClient::new();
+//         client.start().await.unwrap();
+//     });
 
-    info!(LOG_TAG, "deviceserver 启动完成，进入循环");
-    // loop 主线程
-    loop {}
+//     ctrlc::set_handler(move || {
+//         info!(LOG_TAG, "收到退出信号，退出进程");
+//         std::process::exit(0);
+//     });
 
-    Ok(())
-}
+//     info!(LOG_TAG, "deviceserver 启动完成，进入循环");
+//     // loop 主线程
+//     loop {}
 
-fn playground() {
+//     Ok(())
+// }
 
-}
+// fn playground() {
+
+// }

@@ -80,11 +80,11 @@ pub struct RemoteStateBo {
 /// Di 输入设备状态
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DiStateBo {
-    pub on: u8
+    pub on: bool
 }
 
 /// Do 输出设备状态
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DoStateBo {
-    pub on: u8
+    pub on: bool
 }

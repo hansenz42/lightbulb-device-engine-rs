@@ -4,6 +4,7 @@ use super::traits::{ModbusDigitalInputMountable, ModbusControllerMountable};
 use super::prelude::*;
 
 pub struct ModbusDiController {
+    device_id: String,
     unit: ModbusUnitSize,
     // modbus 的端口数量
     input_num: ModbusAddrSize, 
@@ -58,19 +59,52 @@ impl ModbusDigitalInputMountable for ModbusDiController {
         }
 
         // 向设备发送消息
-        let port = self.mount_port_map.get(&address).ok_or(DriverError("DiController 向端口发送消息失败，没有找到对应的端口".to_string()))?;
+        let port: &Box<dyn ModbusControllerMountable> = self.mount_port_map.get(&address).ok_or(DriverError("DiController 向端口发送消息失败，没有找到对应的端口".to_string()))?;
         port.notify(message)?;
         Ok(())
     }
 }
 
 impl ModbusDiController {
-    fn new(unit: ModbusUnitSize, input_num: ModbusAddrSize) -> Self {
+    fn new(device_id: &str, unit: ModbusUnitSize, input_num: ModbusAddrSize) -> Self {
         Self {
+            device_id: device_id.to_string(),
             unit,
             input_num,
             mount_port_map: HashMap::new(),
             port_state_vec: vec![false; input_num as usize],
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::modbus_di_port::ModbusDigitalInputPort;
+    use crate::entity::bo::device_state_bo::{DeviceStateBo, DiStateBo, StateBoEnum};
+
+    // 测试实例化并向上发送消息
+    #[test]
+    fn test_controller_notify_message() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut modbus_di_controller = ModbusDiController::new("test_controller", 1, 8);
+        // 创建一个 port 设备
+        let modbus_di_port = ModbusDigitalInputPort::new("test_di_port", 1, tx);
+
+        modbus_di_controller.mount_port(1, Box::new(modbus_di_port)).unwrap();
+
+        modbus_di_controller.notify_from_bus(1, vec![true, false, true, false, true, false, true, false]).unwrap();
+
+        let state_bo = rx.recv().unwrap();
+
+        match state_bo.state {
+            StateBoEnum::Di(di_state) => {
+                assert_eq!(di_state.on, true);
+            }
+            _ => {
+                assert!(false);
+            }
+        }
+
     }
 }

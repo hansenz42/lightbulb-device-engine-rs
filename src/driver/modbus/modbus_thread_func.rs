@@ -9,7 +9,7 @@ use crate::common::error::DriverError;
 use super::{modbus_entity::ModbusThreadCommandBo, traits::ModbusDigitalInputMountable};
 use tokio_serial::SerialStream;
 use tokio_modbus::{prelude::*, client::Context, Slave};
-use std::{collections::HashMap, sync::mpsc::Receiver};
+use std::{cell::RefCell, collections::HashMap, sync::mpsc::Receiver};
 use crate::{info, warn, error, trace, debug};
 
 const LOG_TAG: &str = "modbus_thread";
@@ -21,7 +21,8 @@ pub async fn run_loop(
     baudrate: u32,
     command_rx: Receiver<ModbusThreadCommandBo>,
     // di 控制器注册表，用于不间断轮询
-    di_controller_map: HashMap<u8, Box<dyn ModbusDigitalInputMountable>>
+    // 内部可变：因为需要调用 ModbusDigitalInputMountable 对象
+    di_controller_map: HashMap<u8, RefCell<Box<dyn ModbusDigitalInputMountable>>>
 ) -> Result<(), DriverError> {
 
     // 打开端口
@@ -41,9 +42,10 @@ pub async fn run_loop(
 
         // 对 controller_map 轮询
         for key in di_controller_map.keys() {
-            let controller = di_controller_map.get(key).ok_or(
+            let controller_cell = di_controller_map.get(key).ok_or(
                 DriverError(format!("modbus worker 线程，获取 controller 失败，异常: {}", key))
             )?;
+            let mut controller = controller_cell.borrow_mut();
             let unit = controller.get_unit();
             let port_num = controller.get_port_num();
             
@@ -54,9 +56,7 @@ pub async fn run_loop(
             match result {
                 Ok(ret) => {
                     // 如果读取成功，就通知 controller
-                    for (i, status) in ret.iter().enumerate() {
-                        controller.notify_port(i, *status as u8)?;
-                    }
+                    controller.notify_from_bus(0, ret)?;
                 },
                 Err(e) => {
                     error!(LOG_TAG, "modbus worker 线程，读取 modbus 端口失败 {}", e)

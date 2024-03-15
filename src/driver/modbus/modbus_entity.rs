@@ -16,14 +16,14 @@ enum ModbusThreadCommandEnum {
     Stop,
 }
 
-// 写单个线圈
+// 指令：写单个线圈
 pub struct WriteSingleBo {
     unit: ModbusUnitSize,
     address: ModbusAddrSize,
     value: bool,
 }
 
-// 写多个线圈一起写
+// 指令：写多个线圈一起写
 pub struct WriteMultipleBo {
     unit: ModbusUnitSize,
     start_address: ModbusAddrSize,
