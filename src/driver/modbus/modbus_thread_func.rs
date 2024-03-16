@@ -6,7 +6,7 @@
 
 use crate::common::error::DriverError;
 
-use super::{modbus_entity::{ModbusThreadCommandEnum}, traits::ModbusDigitalInputMountable};
+use super::{modbus_entity::{ModbusThreadCommandEnum}, traits::ModbusDiMountable};
 use tokio_serial::SerialStream;
 use tokio_modbus::{prelude::*, client::Context, Slave};
 use std::{cell::RefCell, collections::HashMap, sync::mpsc::Receiver};
@@ -25,7 +25,7 @@ pub async fn run_loop(
 
     // di 控制器注册表，用于不间断轮询
     // 内部可变：因为需要调用 ModbusDigitalInputMountable 对象
-    di_controller_map: HashMap<u8, RefCell<Box<dyn ModbusDigitalInputMountable + Send>>>
+    di_controller_map: HashMap<u8, RefCell<Box<dyn ModbusDiMountable + Send>>>
 
 ) -> Result<(), DriverError> {
     let mut context: Option<Context> = None;
@@ -61,10 +61,10 @@ pub async fn run_loop(
                 },
                 ModbusThreadCommandEnum::WriteMultiple(write_multiple_bo) => {
                     if env_dummy == "true"  {
-                        write_multiple_to_modbus_dummy(write_multiple_bo.unit, write_multiple_bo.start_address, write_multiple_bo.values.as_ref())?;
+                        write_multi_to_modbus_dummy(write_multiple_bo.unit, write_multiple_bo.start_address, write_multiple_bo.values.as_ref())?;
                     } else {
                         let context_ref = context.as_mut();
-                        write_multiple_to_modbus(&mut context_ref.unwrap(), write_multiple_bo.unit, write_multiple_bo.start_address, write_multiple_bo.values.as_ref()).await?;
+                        write_multi_to_modbus(&mut context_ref.unwrap(), write_multiple_bo.unit, write_multiple_bo.start_address, write_multiple_bo.values.as_ref()).await?;
                     }
                 },
                 ModbusThreadCommandEnum::Stop => {
@@ -112,7 +112,7 @@ pub async fn run_loop(
 }
 
 
-/// 从 modbus 端口读取数据
+/// 从 modbus 端口一次性读取多个数据
 pub async fn read_from_modbus(ctx: &mut Context, unit: ModbusUnitSize, address: ModbusAddrSize, count: ModbusAddrSize) -> Result<Vec<bool>, DriverError> {
     let slave = Slave(unit);
     ctx.set_slave(slave);
@@ -143,7 +143,7 @@ pub fn write_to_modbus_dummy(unit: ModbusUnitSize, address: ModbusAddrSize, valu
 }
 
 /// 向 modbus 写多个数据
-pub async fn write_multiple_to_modbus(ctx: &mut Context, unit: ModbusUnitSize, start_address: ModbusAddrSize, values: &[bool]) -> Result<(), DriverError> {
+pub async fn write_multi_to_modbus(ctx: &mut Context, unit: ModbusUnitSize, start_address: ModbusAddrSize, values: &[bool]) -> Result<(), DriverError> {
     let slave = Slave(unit);
     ctx.set_slave(slave);
     ctx.write_multiple_coils(start_address, values).await.map_err(
@@ -152,7 +152,7 @@ pub async fn write_multiple_to_modbus(ctx: &mut Context, unit: ModbusUnitSize, s
     Ok(())
 }
 
-pub fn write_multiple_to_modbus_dummy(unit: ModbusUnitSize, start_address: ModbusAddrSize, values: &[bool]) -> Result<(), DriverError> {
+pub fn write_multi_to_modbus_dummy(unit: ModbusUnitSize, start_address: ModbusAddrSize, values: &[bool]) -> Result<(), DriverError> {
     info!(LOG_TAG, "模拟写入多个 modbus 端口，unit: {}, start_address: {}, values: {:?}", unit, start_address, values);
     Ok(())
 }
@@ -181,7 +181,7 @@ mod tests {
                 let serial_port = "/dev/ttyUSB0";
                 let baudrate = 9600;
                 let (tx, rx) = std::sync::mpsc::channel();
-                let mut controller_map: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusDigitalInputMountable + Send>>> = HashMap::new();
+                let mut controller_map: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusDiMountable + Send>>> = HashMap::new();
                 controller_map.insert(1, RefCell::new(Box::new(di_controller)));
                 let result = run_loop(serial_port, baudrate, rx, controller_map).await;
                 assert!(result.is_ok());
@@ -207,7 +207,7 @@ mod tests {
                 let serial_port = "/dev/ttyUSB0";
                 let baudrate = 9600;
                 
-                let mut controller_map: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusDigitalInputMountable + Send>>> = HashMap::new();
+                let mut controller_map: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusDiMountable + Send>>> = HashMap::new();
                 controller_map.insert(1, RefCell::new(Box::new(di_controller)));
                 let result = run_loop(serial_port, baudrate, rx, controller_map).await;
                 

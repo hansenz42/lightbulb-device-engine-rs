@@ -2,6 +2,7 @@
 use super::prelude::*;
 
 // Modbus 线程指令对象，用于给线程下达指令用
+#[derive(Debug)]
 pub enum ModbusThreadCommandEnum {
 
     // 向端口下发数据
@@ -13,6 +14,7 @@ pub enum ModbusThreadCommandEnum {
 }
 
 // 指令：写单个线圈
+#[derive(Debug)]
 pub struct WriteSingleBo {
     pub unit: ModbusUnitSize,
     pub address: ModbusAddrSize,
@@ -20,6 +22,7 @@ pub struct WriteSingleBo {
 }
 
 // 指令：写多个线圈一起写
+#[derive(Debug)]
 pub struct WriteMultipleBo {
     pub unit: ModbusUnitSize,
     pub start_address: ModbusAddrSize,

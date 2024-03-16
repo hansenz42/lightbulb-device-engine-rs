@@ -1,6 +1,6 @@
 use std::{collections::HashMap, hash::Hash};
 use crate::common::error::DriverError;
-use super::traits::{ModbusDigitalInputMountable, ModbusControllerMountable};
+use super::traits::{ModbusDiMountable, ModbusDiControllerMountable};
 use super::prelude::*;
 use crate::{info, warn, error, trace, debug};
 
@@ -15,12 +15,12 @@ pub struct ModbusDiController {
     // modbus 的端口数量
     input_num: ModbusAddrSize, 
     // modbus 控制器上搭载的接口信息
-    mount_port_map:  HashMap<ModbusAddrSize, Box<dyn ModbusControllerMountable + Send>>,
+    mount_port_map:  HashMap<ModbusAddrSize, Box<dyn ModbusDiControllerMountable + Send>>,
     // 当前状态缓存
     port_state_vec: Vec<bool>,
 }
 
-impl ModbusDigitalInputMountable for ModbusDiController {
+impl ModbusDiMountable for ModbusDiController {
     fn get_unit(&self) -> u8 {
         self.unit
     }
@@ -30,7 +30,7 @@ impl ModbusDigitalInputMountable for ModbusDiController {
     }
 
     /// 挂载定义的端口
-    fn mount_port(&mut self, address: ModbusAddrSize, port_to_mount: Box<dyn ModbusControllerMountable + Send>) -> Result<(), DriverError> {
+    fn mount_port(&mut self, address: ModbusAddrSize, port_to_mount: Box<dyn ModbusDiControllerMountable + Send>) -> Result<(), DriverError> {
         // 将 ModbusControllerMounable 记录到 map 中
         self.mount_port_map.insert(address, port_to_mount);
         info!(LOG_TAG, "端口已挂载 address: {}", &address);
@@ -71,7 +71,7 @@ impl ModbusDigitalInputMountable for ModbusDiController {
         }
 
         // 向设备发送消息
-        let port: &Box<dyn ModbusControllerMountable + Send> = self.mount_port_map.get(&address).ok_or(DriverError("DiController 向端口发送消息失败，没有找到对应的端口".to_string()))?;
+        let port: &Box<dyn ModbusDiControllerMountable + Send> = self.mount_port_map.get(&address).ok_or(DriverError("DiController 向端口发送消息失败，没有找到对应的端口".to_string()))?;
         port.notify(message)?;
         Ok(())
     }
@@ -92,7 +92,7 @@ impl ModbusDiController {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::modbus_di_port::ModbusDigitalInputPort;
+    use super::super::modbus_di_port::ModbusDiPort;
     use crate::entity::bo::device_state_bo::{DeviceStateBo, DiStateBo, StateBoEnum};
 
     // 测试实例化并向上发送消息
@@ -101,7 +101,7 @@ mod tests {
         let (tx, rx) = std::sync::mpsc::channel();
         let mut modbus_di_controller = ModbusDiController::new("test_controller", 1, 8);
         // 创建一个 port 设备
-        let modbus_di_port = ModbusDigitalInputPort::new("test_di_port", 1, tx);
+        let modbus_di_port = ModbusDiPort::new("test_di_port", 1, tx);
 
         modbus_di_controller.mount_port(1, Box::new(modbus_di_port)).unwrap();
         modbus_di_controller.notify_from_bus(1, vec![true, false, true, false, true, false, true, false]).unwrap();

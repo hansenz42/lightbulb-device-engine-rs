@@ -1,4 +1,4 @@
-use super::traits::ModbusControllerMountable;
+use super::traits::ModbusDiControllerMountable;
 use std::sync::mpsc;
 use super::prelude::*;
 use crate::common::error::DriverError;
@@ -14,14 +14,14 @@ const LOG_TAG: &str = "modbus_di_port";
 /// modbus 上挂载的单个数字量输入接口
 /// - 拥有一个上行通道，可以发送信息给 DeviceManager
 /// - 挂载到 controller 对象的一个接口上，当 controller 对象接收到信号以后，下发给此对象，对象将消息继续向上传递
-pub struct ModbusDigitalInputPort {
+pub struct ModbusDiPort {
     device_id: String,
     address: ModbusAddrSize,
     upward_channel: mpsc::Sender<DeviceStateBo>,
 }
 
 /// 对接口实现对控制器的可挂载特征
-impl ModbusControllerMountable for ModbusDigitalInputPort {
+impl ModbusDiControllerMountable for ModbusDiPort {
     fn get_address(&self) -> ModbusAddrSize {
         self.address
     }
@@ -41,16 +41,16 @@ impl ModbusControllerMountable for ModbusDigitalInputPort {
     }
 }
 
-impl UpwardDevice for ModbusDigitalInputPort {
+impl UpwardDevice for ModbusDiPort {
     fn get_upward_channel(&self) -> &mpsc::Sender<DeviceStateBo> {
         return &self.upward_channel;
     }
 }
 
 
-impl ModbusDigitalInputPort {
+impl ModbusDiPort {
     pub fn new(device_id: &str, address: ModbusAddrSize, upward_channel: mpsc::Sender<DeviceStateBo>) -> Self {
-        ModbusDigitalInputPort {
+        ModbusDiPort {
             device_id: device_id.to_string(),
             address,
             upward_channel,
@@ -67,7 +67,7 @@ mod tests {
     #[test]
     fn test_di_device() {
         let (tx, rx) = mpsc::channel();
-        let device_port = ModbusDigitalInputPort::new("di_1", 0, tx);
+        let device_port = ModbusDiPort::new("di_1", 0, tx);
         device_port.notify(true).unwrap();
         let state_bo: DeviceStateBo = rx.recv().unwrap();
         match state_bo.state {
