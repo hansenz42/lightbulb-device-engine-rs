@@ -80,6 +80,23 @@ impl ModbusDoMountable for ModbusDoController {
     }
 }
 
+impl ModbusDoController {
+    pub fn new(
+        device_id: &str,
+        unit: ModbusUnitSize, 
+        output_num: ModbusAddrSize, 
+        modbus_bus_command_tx: mpsc::Sender<ModbusThreadCommandEnum>
+    ) -> Self {
+        ModbusDoController {
+            device_id: device_id.to_string(),
+            unit,
+            output_num,
+            mount_port_map: HashMap::new(),
+            port_state_vec: vec![false; output_num as usize],
+            modbus_bus_command_tx
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests {
