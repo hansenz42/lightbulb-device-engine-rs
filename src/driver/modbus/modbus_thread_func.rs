@@ -6,71 +6,220 @@
 
 use crate::common::error::DriverError;
 
-use super::{modbus_entity::ModbusThreadCommandBo, traits::ModbusDigitalInputMountable};
+use super::{modbus_entity::{ModbusThreadCommandEnum}, traits::ModbusDigitalInputMountable};
 use tokio_serial::SerialStream;
 use tokio_modbus::{prelude::*, client::Context, Slave};
 use std::{cell::RefCell, collections::HashMap, sync::mpsc::Receiver};
+use super::prelude::*;
 use crate::{info, warn, error, trace, debug};
 
 const LOG_TAG: &str = "modbus_thread";
 
-/// 发起一个循环执行的线程
-/// 参数：port，向下调用的 device 接口，
+/// 一个循环执行的端口守护线程
+/// - 当有指令进入时，向下发送指令
+/// - 当指令发送完毕或者没有指令时，则不断轮询接口提交给 Controller 对象，再由 Controller 对象向上游发送消息
 pub async fn run_loop(
     serial_port: &str,
     baudrate: u32,
-    command_rx: Receiver<ModbusThreadCommandBo>,
+    command_rx: Receiver<ModbusThreadCommandEnum>,
+
     // di 控制器注册表，用于不间断轮询
     // 内部可变：因为需要调用 ModbusDigitalInputMountable 对象
-    di_controller_map: HashMap<u8, RefCell<Box<dyn ModbusDigitalInputMountable>>>
-) -> Result<(), DriverError> {
+    di_controller_map: HashMap<u8, RefCell<Box<dyn ModbusDigitalInputMountable + Send>>>
 
-    // 打开端口
-    let builder = tokio_serial::new(serial_port, baudrate);
-    let port = SerialStream::open(&builder).map_err(|e| {
-        DriverError(format!("modbus worker 线程，串口打开失败，serial_port {}, baud_rate{}, 异常: {}", serial_port, baudrate, e))
-    })?;
-    // 注册默认 Slave 以获得 Contenxt 对象
-    let slave = Slave::broadcast();
-    let mut context = rtu::attach_slave(port, slave);
+) -> Result<(), DriverError> {
+    let mut context: Option<Context> = None;
+
+    let env_dummy = std::env::var("dummy").unwrap_or("false".to_string());
+
+    if env_dummy == "true" {
+        info!(LOG_TAG, "模拟模式，不打开串口");
+    } else {
+        // 打开端口
+        let builder = tokio_serial::new(serial_port, baudrate);
+        let port = SerialStream::open(&builder).map_err(|e| {
+            DriverError(format!("modbus worker 线程，串口打开失败，serial_port {}, baud_rate{}, 异常: {}", serial_port, baudrate, e))
+        })?;
+        // 注册默认 Slave 以获得 Contenxt 对象
+        let slave = Slave::broadcast();
+        context = Some(rtu::attach_slave(port, slave));
+    }
 
     loop {
-        // 接收来自 rx 的消息，如果有消息，就指挥 modbus 控制器下发
-        let command = command_rx.try_recv();
+        // 接收来自 rx 的消息，如果有消息，向下发送 modbus 指令
+        if let Ok(command_enum) = command_rx.try_recv() {
+            match command_enum {
+                ModbusThreadCommandEnum::WriteSingle(write_single_bo) => {
+                    
+                    if env_dummy == "true"  {
+                        write_to_modbus_dummy(write_single_bo.unit, write_single_bo.address, write_single_bo.value)?;
+                    } else {
+                        let context_ref = context.as_mut();
+                        write_to_modbus(&mut context_ref.unwrap(), write_single_bo.unit, write_single_bo.address, write_single_bo.value).await?;
+                    }
+                    
+                },
+                ModbusThreadCommandEnum::WriteMultiple(write_multiple_bo) => {
+                    if env_dummy == "true"  {
+                        write_multiple_to_modbus_dummy(write_multiple_bo.unit, write_multiple_bo.start_address, write_multiple_bo.values.as_ref())?;
+                    } else {
+                        let context_ref = context.as_mut();
+                        write_multiple_to_modbus(&mut context_ref.unwrap(), write_multiple_bo.unit, write_multiple_bo.start_address, write_multiple_bo.values.as_ref()).await?;
+                    }
+                },
+                ModbusThreadCommandEnum::Stop => {
+                    info!(LOG_TAG, "modbus worker 线程，收到停止指令，线程即将退出");
+                    return Ok(())
+                }
+            }
+        } else {
+            debug!(LOG_TAG, "modbus worker 线程，未收到线程指令");
+        }
 
         // 如果暂时没有消息，则对当前已经注册的设备轮询。
-
         // 对 controller_map 轮询
-        for key in di_controller_map.keys() {
-            let controller_cell = di_controller_map.get(key).ok_or(
-                DriverError(format!("modbus worker 线程，获取 controller 失败，异常: {}", key))
+        for address in di_controller_map.keys() {
+            let controller_cell = di_controller_map.get(address).ok_or(
+                DriverError(format!("modbus worker 线程，获取 controller 失败，异常: {}", address))
             )?;
             let mut controller = controller_cell.borrow_mut();
             let unit = controller.get_unit();
             let port_num = controller.get_port_num();
             
-            // 读取端口状态
-            let slave = Slave(unit);
-            context.set_slave(slave);
-            let result = read_from_modbus(&mut context, 0, port_num).await;
+            let mut result = Ok(vec![]);
+
+            if env_dummy == "true" {
+                result = read_from_modbus_dummy(unit, *address as ModbusAddrSize, port_num);
+            } else {
+                let context_ref = context.as_mut();
+                // 读取端口状态，将状态传递给 controller
+                result = read_from_modbus(&mut context_ref.unwrap(), unit,  *address as ModbusAddrSize, port_num).await;
+            }
+            
             match result {
                 Ok(ret) => {
                     // 如果读取成功，就通知 controller
-                    controller.notify_from_bus(0, ret)?;
+                    controller.notify_from_bus(*address as ModbusAddrSize, ret)?;
                 },
                 Err(e) => {
                     error!(LOG_TAG, "modbus worker 线程，读取 modbus 端口失败 {}", e)
                 }
             }
         }
+
+        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
     }
 }
 
 
 /// 从 modbus 端口读取数据
-pub async fn read_from_modbus(ctx: &mut Context, address: u16, count: u16) -> Result<Vec<bool>, DriverError> {
+pub async fn read_from_modbus(ctx: &mut Context, unit: ModbusUnitSize, address: ModbusAddrSize, count: ModbusAddrSize) -> Result<Vec<bool>, DriverError> {
+    let slave = Slave(unit);
+    ctx.set_slave(slave);
     let ret = ctx.read_coils(address, count).await.map_err(
         |e| DriverError(format!("modbus worker 线程，读取 modbus 端口失败，异常: {}", e))
     )?;
     Ok(ret)
+}
+
+pub fn read_from_modbus_dummy(unit: ModbusUnitSize, address: ModbusAddrSize, count: ModbusAddrSize) -> Result<Vec<bool>, DriverError>{
+    info!(LOG_TAG, "模拟读取 modbus 端口，unit: {}, address: {}, count: {}", unit, address, count);
+    Ok(vec![true; count as usize])
+}
+
+/// 向 modbus 端口写一个数据
+pub async fn write_to_modbus(ctx: &mut Context, unit: ModbusUnitSize, address: ModbusAddrSize, value: bool) -> Result<(), DriverError> {
+    let slave = Slave(unit);
+    ctx.set_slave(slave);
+    ctx.write_single_coil(address, value).await.map_err(
+        |e| DriverError(format!("modbus worker 线程，写入 modbus 端口失败，异常: {}", e))
+    )?;
+    Ok(())
+}
+
+pub fn write_to_modbus_dummy(unit: ModbusUnitSize, address: ModbusAddrSize, value: bool) -> Result<(), DriverError> {
+    info!(LOG_TAG, "模拟写入单个 modbus 端口，unit: {}, address: {}, value: {}", unit, address, value);
+    Ok(())
+}
+
+/// 向 modbus 写多个数据
+pub async fn write_multiple_to_modbus(ctx: &mut Context, unit: ModbusUnitSize, start_address: ModbusAddrSize, values: &[bool]) -> Result<(), DriverError> {
+    let slave = Slave(unit);
+    ctx.set_slave(slave);
+    ctx.write_multiple_coils(start_address, values).await.map_err(
+        |e| DriverError(format!("modbus worker 线程，写入 modbus 端口失败，异常: {}", e))
+    )?;
+    Ok(())
+}
+
+pub fn write_multiple_to_modbus_dummy(unit: ModbusUnitSize, start_address: ModbusAddrSize, values: &[bool]) -> Result<(), DriverError> {
+    info!(LOG_TAG, "模拟写入多个 modbus 端口，unit: {}, start_address: {}, values: {:?}", unit, start_address, values);
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use super::super::modbus_di_controller::ModbusDiController;
+    use std::thread;
+    use std::env;
+    use crate::common::logger::init_logger;
+    use crate::driver::modbus::modbus_entity::WriteSingleBo;
+
+    // 测试读
+    #[test]
+    fn test_read() {
+        env::set_var("dummy", "true");
+        let _ = init_logger();
+
+        // 设置一个虚拟的 di 设备控制器
+        let di_controller = ModbusDiController::new("test_controller", 1, 8);
+        
+        let handle = thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                let serial_port = "/dev/ttyUSB0";
+                let baudrate = 9600;
+                let (tx, rx) = std::sync::mpsc::channel();
+                let mut controller_map: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusDigitalInputMountable + Send>>> = HashMap::new();
+                controller_map.insert(1, RefCell::new(Box::new(di_controller)));
+                let result = run_loop(serial_port, baudrate, rx, controller_map).await;
+                assert!(result.is_ok());
+            });
+        });
+
+        handle.join().unwrap();
+    }
+
+    // 测试写
+    #[test]
+    fn test_write() {
+        env::set_var("dummy", "true");
+        let _ = init_logger();
+
+        // 设置一个虚拟的 di 设备控制器
+        let di_controller = ModbusDiController::new("test_controller", 1, 8);
+        let (tx, rx) = std::sync::mpsc::channel();
+
+        let handle = thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            rt.block_on(async {
+                let serial_port = "/dev/ttyUSB0";
+                let baudrate = 9600;
+                
+                let mut controller_map: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusDigitalInputMountable + Send>>> = HashMap::new();
+                controller_map.insert(1, RefCell::new(Box::new(di_controller)));
+                let result = run_loop(serial_port, baudrate, rx, controller_map).await;
+                
+            });
+        });
+
+        tx.send(ModbusThreadCommandEnum::WriteSingle(WriteSingleBo{
+            unit: 1,
+            address: 1,
+            value: true
+        })).unwrap();
+
+        handle.join().unwrap();
+    }
 }

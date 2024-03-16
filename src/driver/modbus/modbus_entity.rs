@@ -1,12 +1,8 @@
 //! modbus 有关的内部使用实体
 use super::prelude::*;
 
-pub struct ModbusThreadCommandBo {
-    command: ModbusThreadCommandEnum,
-}
-
 // Modbus 线程指令对象，用于给线程下达指令用
-enum ModbusThreadCommandEnum {
+pub enum ModbusThreadCommandEnum {
 
     // 向端口下发数据
     WriteSingle(WriteSingleBo),
@@ -18,14 +14,14 @@ enum ModbusThreadCommandEnum {
 
 // 指令：写单个线圈
 pub struct WriteSingleBo {
-    unit: ModbusUnitSize,
-    address: ModbusAddrSize,
-    value: bool,
+    pub unit: ModbusUnitSize,
+    pub address: ModbusAddrSize,
+    pub value: bool,
 }
 
 // 指令：写多个线圈一起写
 pub struct WriteMultipleBo {
-    unit: ModbusUnitSize,
-    start_address: ModbusAddrSize,
-    values: Vec<u8>
+    pub unit: ModbusUnitSize,
+    pub start_address: ModbusAddrSize,
+    pub values: Vec<bool>
 }

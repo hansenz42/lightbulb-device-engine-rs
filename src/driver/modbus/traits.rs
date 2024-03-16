@@ -10,7 +10,7 @@ pub trait ModbusDigitalInputMountable {
     fn get_port_num(&self) -> u16;
 
     /// 将端口挂载到 modbus 控制器上
-    fn mount_port(&mut self, address: ModbusAddrSize, di_port: Box<dyn ModbusControllerMountable>) -> Result<(), DriverError>;
+    fn mount_port(&mut self, address: ModbusAddrSize, di_port: Box<dyn ModbusControllerMountable + Send>) -> Result<(), DriverError>;
 
     /// 从总线获取数据
     fn notify_from_bus(&mut self, address: ModbusAddrSize, messages: Vec<bool>) -> Result<(), DriverError>;

@@ -4,12 +4,16 @@ use super::prelude::*;
 use crate::common::error::DriverError;
 use crate::driver::traits::UpwardDevice;
 use crate::entity::bo::device_state_bo::{DeviceStateBo, DiStateBo, StateBoEnum};
+use crate::{info, warn, error, trace, debug};
 
 const DEVICE_TYPE: &str = "di";
 const DEVICE_CLASS: &str = "operable";
 
+const LOG_TAG: &str = "modbus_di_port";
+
 /// modbus 上挂载的单个数字量输入接口
 /// - 拥有一个上行通道，可以发送信息给 DeviceManager
+/// - 挂载到 controller 对象的一个接口上，当 controller 对象接收到信号以后，下发给此对象，对象将消息继续向上传递
 pub struct ModbusDigitalInputPort {
     device_id: String,
     address: ModbusAddrSize,
@@ -32,6 +36,7 @@ impl ModbusControllerMountable for ModbusDigitalInputPort {
             state: state,
         };
         let _ = self.notify_upward(device_state_bo)?;
+        debug!(LOG_TAG, "端口状态发生变化，转发到上游 address: {}, message: {}", &self.address, state_value);
         Ok(())
     }
 }
