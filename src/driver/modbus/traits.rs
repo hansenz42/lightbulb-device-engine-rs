@@ -27,7 +27,7 @@ pub trait ModbusDiControllerMountable {
 }
 
 /// 可挂载到 modbus 总线上的输出控制器
-pub trait ModbusDoMountable {
+pub trait ModbusDoCaller {
     fn get_unit(&self) -> ModbusUnitSize;
 
     fn get_port_num(&self) -> ModbusAddrSize;
@@ -38,8 +38,8 @@ pub trait ModbusDoMountable {
 }
 
 /// 可挂在到 modbus do controller 的设备
-pub trait ModbusDoControllerMountable {
+pub trait ModbusDoControllerCaller {
     fn get_address(&self) -> ModbusAddrSize;
 
-    fn write_to_controller(&self, message: bool) -> Result<(), DriverError>;
+    fn write(&self, value: bool) -> Result<(), DriverError>;
 }

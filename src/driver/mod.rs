@@ -5,3 +5,4 @@ pub mod traits_dir;
 pub mod device;
 pub mod factory;
 pub mod modbus;
+pub mod dmx;

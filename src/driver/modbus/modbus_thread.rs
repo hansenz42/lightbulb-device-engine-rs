@@ -6,7 +6,7 @@
 
 use crate::common::error::DriverError;
 
-use super::{modbus_entity::{ModbusThreadCommandEnum}, traits::ModbusDiMountable};
+use super::{entity::{ModbusThreadCommandEnum}, traits::ModbusDiMountable};
 use tokio_serial::SerialStream;
 use tokio_modbus::{prelude::*, client::Context, Slave};
 use std::{cell::RefCell, collections::HashMap, sync::mpsc::Receiver};
@@ -25,14 +25,14 @@ pub async fn run_loop(
 
     // di 控制器注册表，用于不间断轮询
     // 内部可变：因为需要调用 ModbusDigitalInputMountable 对象
-    di_controller_map: HashMap<u8, RefCell<Box<dyn ModbusDiMountable + Send>>>
+    di_controller_map: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusDiMountable + Send>>>
 
 ) -> Result<(), DriverError> {
     let mut context: Option<Context> = None;
 
-    let env_dummy = std::env::var("dummy").unwrap_or("false".to_string());
+    let env_mode = std::env::var("mode").unwrap_or("real".to_string());
 
-    if env_dummy == "true" {
+    if env_mode == "dummy" {
         info!(LOG_TAG, "模拟模式，不打开串口");
     } else {
         // 打开端口
@@ -51,7 +51,7 @@ pub async fn run_loop(
             match command_enum {
                 ModbusThreadCommandEnum::WriteSingle(write_single_bo) => {
                     
-                    if env_dummy == "true"  {
+                    if env_mode == "dummy"  {
                         write_to_modbus_dummy(write_single_bo.unit, write_single_bo.address, write_single_bo.value)?;
                     } else {
                         let context_ref = context.as_mut();
@@ -59,8 +59,8 @@ pub async fn run_loop(
                     }
                     
                 },
-                ModbusThreadCommandEnum::WriteMultiple(write_multiple_bo) => {
-                    if env_dummy == "true"  {
+                ModbusThreadCommandEnum::WriteMulti(write_multiple_bo) => {
+                    if env_mode == "dummy"  {
                         write_multi_to_modbus_dummy(write_multiple_bo.unit, write_multiple_bo.start_address, write_multiple_bo.values.as_ref())?;
                     } else {
                         let context_ref = context.as_mut();
@@ -88,7 +88,7 @@ pub async fn run_loop(
             
             let mut result = Ok(vec![]);
 
-            if env_dummy == "true" {
+            if env_mode == "dummy" {
                 result = read_from_modbus_dummy(unit, *address as ModbusAddrSize, port_num);
             } else {
                 let context_ref = context.as_mut();
@@ -164,12 +164,12 @@ mod tests {
     use std::thread;
     use std::env;
     use crate::common::logger::init_logger;
-    use crate::driver::modbus::modbus_entity::WriteSingleBo;
+    use crate::driver::modbus::entity::WriteSingleBo;
 
-    // 测试读
+    // test reading, use di controller and port
     #[test]
     fn test_read() {
-        env::set_var("dummy", "true");
+        env::set_var("mode", "dummy");
         let _ = init_logger();
 
         // 设置一个虚拟的 di 设备控制器
@@ -191,10 +191,10 @@ mod tests {
         handle.join().unwrap();
     }
 
-    // 测试写
+    // testing writing, use command object
     #[test]
     fn test_write() {
-        env::set_var("dummy", "true");
+        env::set_var("mode", "dummy");
         let _ = init_logger();
 
         // 设置一个虚拟的 di 设备控制器

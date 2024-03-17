@@ -2,7 +2,6 @@ use crate::{common::error::DriverError, entity::bo::device_state_bo::DeviceState
 use std::sync::mpsc;
 
 /// 提供上行数据的设备
-/// 泛型 T 表示可以向上传递的数据
 pub trait UpwardDevice {
     fn get_upward_channel(&self) -> &mpsc::Sender<DeviceStateBo> ;
 

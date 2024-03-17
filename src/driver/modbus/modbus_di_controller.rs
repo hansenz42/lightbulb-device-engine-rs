@@ -21,11 +21,11 @@ pub struct ModbusDiController {
 }
 
 impl ModbusDiMountable for ModbusDiController {
-    fn get_unit(&self) -> u8 {
+    fn get_unit(&self) -> ModbusUnitSize {
         self.unit
     }
 
-    fn get_port_num(&self) -> u16 {
+    fn get_port_num(&self) -> ModbusAddrSize {
         self.input_num
     }
 

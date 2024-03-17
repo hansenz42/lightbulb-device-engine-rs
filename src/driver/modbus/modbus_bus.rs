@@ -6,88 +6,63 @@
 //! - 线程在空闲时会轮询所有的输入设备（如有），一旦发现数据变化，则通知后面的上行接口
 //! - 写操作优先于读操作
 
-use std::{borrow::BorrowMut, cell::RefCell, error::Error, rc::Rc, sync::{mpsc::Sender, Arc, Mutex}, thread};
+use std::{
+    borrow::BorrowMut,
+    cell::RefCell,
+    error::Error,
+    rc::Rc,
+    sync::{mpsc::Sender, Arc, Mutex},
+    thread,
+};
 
-use super::super::traits::interface::Interface;
-use super::super::traits::device::Device;
-use super::super::traits::master::Master;
-use tokio_serial::SerialStream;
-use tokio_modbus::{prelude::*, client::Context, Slave};
-use std::collections::HashMap;
-use crate::entity::bo::{device_command_bo::DeviceCommandBo, device_config_bo::ConfigBo, device_state_bo::{DeviceStateBo, StateBoEnum}};
+use super::{entity::{ModbusThreadCommandEnum, WriteMultiBo, WriteSingleBo}, modbus_thread::*, prelude::ModbusAddrSize, traits::ModbusDiMountable};
 use crate::common::error::DriverError;
+use crate::entity::bo::{
+    device_command_bo::DeviceCommandBo,
+    device_config_bo::ConfigBo,
+    device_state_bo::{DeviceStateBo, StateBoEnum},
+};
 use serde_json::Value;
+use std::collections::HashMap;
+use tokio_modbus::{client::Context, prelude::*, Slave};
+use tokio_serial::SerialStream;
+use super::prelude::*;
+use std::sync::mpsc;
 
-
-/// Modbus 总线
 pub struct ModbusBus {
     device_id: String,
-    // 串口文件标识符
     serial_port: String,
-    // 波特率
     baudrate: u32,
-    // 已经注册的客户端哈希表
-    slave_pool: HashMap<u8, Mutex<Context>>,
-    // 上报通道
-    upward_channel: Option<Sender<DeviceStateBo>>,
-}
-
-impl Master for ModbusBus {}
-
-impl Device for ModbusBus {
-    fn init(&self, device_config_bo: &ConfigBo) -> Result<(), DriverError> {
-        // 检查串口是否可以打开
-        let builder = tokio_serial::new(self.serial_port.as_str(), self.baudrate);
-        let port = SerialStream::open(&builder).map_err(|e| {
-            DriverError(format!("串口打开失败，serial_port {}, baud_rate{}, 异常: {}", self.serial_port.as_str(), self.baudrate, e))
-        })?;
-        Ok(())
-    }
-
-    fn get_category(&self) -> (String, String) {
-        (String::from("bus"), String::from("modbus"))
-    }
-
-    fn get_device_id(&self) -> String {
-        self.device_id.clone()
-    }
-
-    fn set_upward_channel(&mut self, sender: Sender<DeviceStateBo>) -> Result<(), DriverError> {
-        self.upward_channel = Some(sender);
-        Ok(())
-    }
-
-    fn get_upward_channel(&self) -> Option<Sender<DeviceStateBo>> {
-        self.upward_channel.clone()
-    }
+    // Controller hashmap for modbus digital input
+    di_controller_vec: Vec<Box<dyn ModbusDiMountable + Send>>,
+    // sender to send command to modbus outputing thread
+    tx_down: Option<Sender<ModbusThreadCommandEnum>>
 }
 
 impl ModbusBus {
+    /// opens port and start the thread 
+    pub fn start(&mut self) -> Result<(), DriverError> {
+        // create downward channel 
+        let (tx_down, rx_down) = mpsc::channel();
 
-    /// 打开端口，开始收发数据
-    pub fn start_thread(&self) -> Result<(), DriverError> {
-        // 创建设备执行下行通道
-        let (tx_down, rx_down) = std::sync::mpsc::channel::<DeviceCommandBo>();
+        let serial_port_clone = self.serial_port.clone();
+        let baudrate = self.baudrate;
+        let mut di_controller_map_ref_cell: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusDiMountable + Send>>> = HashMap::new();
 
-        // 创建消息上行通道
-        let (tx_up, rx_up) = std::sync::mpsc::channel::<DeviceStateBo>();
+        // drop all controller form di_controller_vec and push to ref_cell
+        for controller in self.di_controller_vec.pop() {
+            let unit = controller.get_unit();
+            di_controller_map_ref_cell.insert(unit, RefCell::new(controller));
+        } 
 
-        // 创建一个线程，运行 tokio 实例
-        // 该线程根据通信通道中的数据，操作 Context 收发数据
-
+        // start running loop 
         let handle = thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
+            let mut rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
-                // 打开端口
-                let builder = tokio_serial::new(self.serial_port.as_str(), self.baudrate);
-                let port = SerialStream::open(&builder).expect("Modbus 新线程中接口打开失败");
-                // let slave = Slave::broadcast();
-                // let mut ctx = rtu::attach_slave(port, slave);
-
-                
+                run_loop(serial_port_clone.as_str(), baudrate, rx_down, di_controller_map_ref_cell).await;
             });
         });
-        
+
         Ok(())
     }
 
@@ -96,133 +71,55 @@ impl ModbusBus {
             device_id: device_id.to_string(),
             serial_port: serial_port.to_string(),
             baudrate: baudrate,
-            slave_pool: HashMap::new(),
-            upward_channel: None,
+            di_controller_vec: Vec::new(),
+            tx_down: None
         }
-}
-
-    /// 初始化 slave 模块并挂载到 SerialStream
-    /// - 注意：一开始的挂载的 slave 默认为广播 slave
-    pub fn init(&mut self) -> Result<(), DriverError> {
-        let builder = tokio_serial::new(self.serial_port.as_str(), self.baudrate);
-        let port = SerialStream::open(&builder).map_err(|e| {
-            DriverError(format!("串口打开失败，serial_port {}, baudrate {}, 异常：{}", self.serial_port.as_str(), self.baudrate, e))
-        })?;
-        let slave = Slave::broadcast();
-        let mut ctx = rtu::attach_slave(port, slave);
-        self.context = Some(ctx);
-
-        Ok(())
     }
 
-    /// 检查当前 slave 并设置新的 slave_id
-    pub fn set_slave(&mut self, slave_id: i16) -> Result<(), DriverError> {
-        let mut ctx = self.context.as_mut().ok_or(DriverError("调用配置 slave 错误：modbus 上下文未初始化".to_string()))?;
+    /// add a di controller the modbus
+    /// but remember, you can only add new di controller before the thread starts
+    pub fn add_di_controller(&mut self, unit: ModbusUnitSize, controller: Box<dyn ModbusDiMountable + Send>) {
+        self.di_controller_vec.push(controller);
+    }
+
+    pub fn write_single_port(&self, unit: ModbusUnitSize, addr: ModbusAddrSize, value: bool) -> Result<(), DriverError> {
+        let command = ModbusThreadCommandEnum::WriteSingle(WriteSingleBo{
+            unit: unit,
+            address: addr,
+            value: value
+        });
+        
+       let _ = self.send_command_to_thread(command)?; 
         
         Ok(())
     }
 
-    pub fn create_serial_stream(&mut self) -> Result<(), DriverError> {
-        let builder = tokio_serial::new(self.serial_port.as_str(), self.baudrate);
-        let port = SerialStream::open(&builder).map_err(|e| {
-            DriverError(format!("串口打开失败，serial_port {}, baud_rate{}, 异常: {}", self.serial_port.as_str(), self.baudrate, e))
-        })?;
+    /// write multiple port at one time
+    pub fn write_multi_port(&self, unit: ModbusUnitSize, addr: ModbusAddrSize, values: &[bool])-> Result<(), DriverError> {
+        let command = ModbusThreadCommandEnum::WriteMulti(WriteMultiBo{
+            unit: unit,
+            start_address: addr,
+            values: Vec::from(values),
+        });
+        let _ = self.send_command_to_thread(command)?;
         Ok(())
     }
 
-    /// 解除一个 slave 设备
-    pub async fn drop_slave(&mut self, unit: u8) -> Result<(), DriverError> {
-        let slave_option = self.slave_pool.remove(&unit);
-        match slave_option {
-            Some(slave) => {
-                let mut ctx = slave.lock().map_err(|e| 
-                    DriverError(format!("设备解除失败，unit: {}, 异常: {}", unit, e))
-                )?;
-                (* ctx).disconnect().await.map_err(|e| 
-                    DriverError(format!("设备解除失败，unit: {}, 异常: {}", unit, e))
-                )?;
+    /// private function, send command to modbus thread
+    fn send_command_to_thread(&self, command: ModbusThreadCommandEnum) -> Result<(), DriverError> {
+        match self.tx_down.as_ref() {
+            Some(tx) => {
+                let _ = tx.send(command).map_err(|e| DriverError(format!("ModbusBus send_command_to_thread error: {}", e)));
                 Ok(())
             },
             None => {
-                // Err("设备未注册".into())
-                Err(DriverError(format!("设备解除失败，unit: {}, 异常: {}", unit, "设备未注册")))
+                return Err(DriverError(format!("ModbusBus send_command_to_thread tx_down is None")));
             }
         }
     }
 
-    /// 写单个线圈
-    pub async fn write_coil(&self, unit: u8, address: u16, value: bool) -> Result<(), DriverError> {
-        match self.slave_pool.get(&unit) {
-            Some(ctx_ref) => {
-                let mut ctx = (*ctx_ref).lock().map_err(|e| 
-                    DriverError(format!("modbus 尝试写入失败，无法获取 context 加锁失败，unit: {}, 异常: {}", unit, e))
-                )?;
-                (* ctx).write_single_coil(address, value).await.map_err(|e| 
-                    DriverError(format!("modbus 写入失败，unit: {}, 异常: {}", unit, e))
-                )?;
-                Ok(())
-            },
-            None => {
-                Err(DriverError(format!("modbus 写入失败，unit: {}, 异常: {}", unit, "设备未注册")))
-            }
-        }
-    }
-
-    /// 写多个线圈
-    pub async fn write_coils(& self, unit: u8, address: u16, values: Vec<bool>) -> Result<(), DriverError> {
-        let ctx_option = self.slave_pool.get(&unit);
-        match ctx_option {
-            Some(ctx_ref) => {
-                let mut ctx = (*ctx_ref).lock().map_err(
-                    |e| DriverError(format!("modbus 尝试写入失败，无法获取 context 加锁失败，unit: {}, 异常: {}", unit, e))
-                )?;
-                ctx.write_multiple_coils(address, &values).await.map_err(
-                    |e| DriverError(format!("modbus 写入失败，unit: {}, 异常: {}", unit, e))
-                )?;
-                Ok(())
-            },
-            None => {
-                Err(DriverError(format!("modbus 写入失败，unit: {}, 异常: {}", unit, "设备未注册")))
-            }
-        }
-    }
-
-    /// 读单个寄存器
-    pub async fn read_coil(&self, unit: u8, address: u16) -> Result<bool, DriverError> {
-        match self.slave_pool.get(&unit) {
-            Some(ctx_ref) => {
-                let mut ctx = (*ctx_ref).lock().map_err(
-                    |e| DriverError(format!("modbus 尝试读取失败，无法获取 context 加锁失败，unit: {}, 异常: {}", unit, e))
-                )?;
-                let ret = ctx.read_coils(address, 1).await.map_err(
-                    |e| DriverError(format!("modbus 读取失败，unit: {}, 异常: {}", unit, e))
-                )?[0];
-                Ok(ret)
-            },
-            None => {
-                Err(DriverError(format!("modbus 读取失败，unit: {}, 异常: {}", unit, "设备未注册")))
-            }
-        }
-    }
-
-    /// 读多个寄存器
-    pub async fn read_coils(&self, unit: u8, address: u16, count: u16) -> Result<Vec<bool>, DriverError> {
-        match self.slave_pool.get(&unit) {
-            Some(ctx_ref) => {
-                let mut ctx = (*ctx_ref).lock().map_err(
-                    |e| DriverError(format!("modbus 尝试读取失败，无法获取 context 加锁失败，unit: {}, 异常: {}", unit, e))
-                )?;
-                let ret = ctx.read_coils(address, count).await.map_err(
-                    |e| DriverError(format!("modbus 读取失败，unit: {}, 异常: {}", unit, e))
-                )?;
-                Ok(ret)
-            },
-            None => {
-                Err(DriverError(format!("modbus 读取失败，unit: {}, 异常: {}", unit, "设备未注册")))
-            }
-        }
-    }
 }
+
 
 #[cfg(test)]
 mod tests {
@@ -233,12 +130,5 @@ mod tests {
     fn test_new() {
         let _ = init_logger();
 
-        tokio::runtime::Runtime::new().unwrap().block_on(async {
-            let mut modbus_device = ModbusBus::new("test_device_id","/dev/ttyUSB1", 9600);
-            modbus_device.write_coil(1, 1, true).await.unwrap();
-            // modbus_device.write_coil(2, 1, True).unwrap();
-            let ret = modbus_device.read_coil(1, 1).await.unwrap();
-            assert_eq!(ret, true);
-        });
     }
 }

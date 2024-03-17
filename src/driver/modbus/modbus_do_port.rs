@@ -1,12 +1,12 @@
 use super::prelude::*;
 use super::modbus_do_controller::ModbusDoController;
-use super::traits::{ModbusDoControllerMountable, ModbusDoMountable};
+use super::traits::{ModbusDoControllerCaller, ModbusDoCaller};
 use crate::common::error::DriverError;
 
 pub struct ModbusDoPort <'a> {
     device_id: String,
     address: ModbusAddrSize,
-    controller_ref: &'a ModbusDoController
+    controller_ref: &'a ModbusDoController<'a>
 }
 
 impl <'a> ModbusDoPort <'a> {
@@ -19,12 +19,12 @@ impl <'a> ModbusDoPort <'a> {
     }
 }
 
-impl <'a> ModbusDoControllerMountable for ModbusDoPort <'a> {
+impl <'a> ModbusDoControllerCaller for ModbusDoPort <'a> {
     fn get_address(&self) -> ModbusAddrSize {
         self.address
     }
     
-    fn write_to_controller(&self, value: bool) -> Result<(), DriverError> {
+    fn write(&self, value: bool) -> Result<(), DriverError> {
         self.controller_ref.write_one_port(self.address, value)
     }
 }
@@ -33,15 +33,18 @@ impl <'a> ModbusDoControllerMountable for ModbusDoPort <'a> {
 mod test {
     use super::*;
     use std::sync::mpsc;
+    use super::super::modbus_bus::ModbusBus;
+    use std::env;
 
     #[test]
     fn test_modbus_do_port_new() {
-        let (tx, rx) = mpsc::channel();
-        let controller = ModbusDoController::new("test", 1, 8, tx);
+        env::set_var("mode", "dummy");
+        let modbus = ModbusBus::new("test", "/dev/null", 9600);
+        let controller = ModbusDoController::new(
+            "test", 1, 8, &modbus
+        );
         let port = ModbusDoPort::new("test", 1, &controller);
 
-        port.write_to_controller(true).unwrap();
-        let result = rx.recv().unwrap();
-        println!("{:?}", result);
+        port.write(true).unwrap();
     }
 }

@@ -7,7 +7,7 @@ pub enum ModbusThreadCommandEnum {
 
     // 向端口下发数据
     WriteSingle(WriteSingleBo),
-    WriteMultiple(WriteMultipleBo),
+    WriteMulti(WriteMultiBo),
 
     // 停止线程并关闭端口
     Stop,
@@ -23,7 +23,7 @@ pub struct WriteSingleBo {
 
 // 指令：写多个线圈一起写
 #[derive(Debug)]
-pub struct WriteMultipleBo {
+pub struct WriteMultiBo {
     pub unit: ModbusUnitSize,
     pub start_address: ModbusAddrSize,
     pub values: Vec<bool>
