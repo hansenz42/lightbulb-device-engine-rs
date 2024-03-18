@@ -63,6 +63,8 @@ impl ModbusBus {
             });
         });
 
+        self.tx_down = Some(tx_down);
+
         Ok(())
     }
 

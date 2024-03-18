@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-
 use super::modbus_bus::ModbusBus;
 use super::prelude::*;
 use super::traits::{ModbusDoCaller, ModbusDoControllerCaller};
@@ -92,12 +91,17 @@ mod tests {
     use super::*;
     use std::env;
     use super::super::modbus_bus::ModbusBus;
+    use crate::common::logger::init_logger;
 
     // write single port 
     #[test]
     fn test_write() {
         env::set_var("mode", "dummy");
-        let modbus = ModbusBus::new("test_device_id", "/dev/null", 9600);
+        let _ = init_logger();
+        
+        let mut modbus = ModbusBus::new("test_device_id", "/dev/null", 9600);
+
+        modbus.start().unwrap();
 
         let mut controller = ModbusDoController {
             device_id: "test".to_string(),
@@ -110,13 +114,19 @@ mod tests {
 
         let result = controller.write_one_port(0, true);
 
+        println!("{:?}", result);
+
+        // wait for 10 sec
+        std::thread::sleep(std::time::Duration::from_secs(10));
     }
 
     #[test]
     // write multiple ports
     fn test_write_multi() {
         env::set_var("mode", "dummy");
-        let modbus = ModbusBus::new("test_device_id", "/dev/null", 9600);
+        let mut modbus = ModbusBus::new("test_device_id", "/dev/null", 9600);
+
+        modbus.start().unwrap();
 
         let mut controller = ModbusDoController {
             device_id: "test".to_string(),
@@ -128,5 +138,9 @@ mod tests {
         };
 
         let result = controller.write_multi_port(0, &[true, false, true]);
+        println!("{:?}", result);
+
+        // wait for 10 sec
+        std::thread::sleep(std::time::Duration::from_secs(10));
     }
 }

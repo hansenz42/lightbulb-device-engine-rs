@@ -14,6 +14,7 @@ use super::prelude::*;
 use crate::{info, warn, error, trace, debug};
 
 const LOG_TAG: &str = "modbus_thread";
+const MODBUS_POLLING_INTERVAL: u64 = 100;
 
 /// 一个循环执行的端口守护线程
 /// - 当有指令进入时，向下发送指令
@@ -33,12 +34,12 @@ pub async fn run_loop(
     let env_mode = std::env::var("mode").unwrap_or("real".to_string());
 
     if env_mode == "dummy" {
-        info!(LOG_TAG, "模拟模式，不打开串口");
+        info!(LOG_TAG, "dummy mode, modbus port will not be open");
     } else {
         // 打开端口
         let builder = tokio_serial::new(serial_port, baudrate);
         let port = SerialStream::open(&builder).map_err(|e| {
-            DriverError(format!("modbus worker 线程，串口打开失败，serial_port {}, baud_rate{}, 异常: {}", serial_port, baudrate, e))
+            DriverError(format!("modbus worker, error, serial port cannot open, serial_port {}, baud_rate{}, exception: {}", serial_port, baudrate, e))
         })?;
         // 注册默认 Slave 以获得 Contenxt 对象
         let slave = Slave::broadcast();
@@ -68,19 +69,19 @@ pub async fn run_loop(
                     }
                 },
                 ModbusThreadCommandEnum::Stop => {
-                    info!(LOG_TAG, "modbus worker 线程，收到停止指令，线程即将退出");
+                    info!(LOG_TAG, "modbus worker, stop command received, quitting");
                     return Ok(())
                 }
             }
         } else {
-            debug!(LOG_TAG, "modbus worker 线程，未收到线程指令");
+            debug!(LOG_TAG, "modbus worker, no command received");
         }
 
         // 如果暂时没有消息，则对当前已经注册的设备轮询。
         // 对 controller_map 轮询
         for address in di_controller_map.keys() {
             let controller_cell = di_controller_map.get(address).ok_or(
-                DriverError(format!("modbus worker 线程，获取 controller 失败，异常: {}", address))
+                DriverError(format!("modbus worker，cannot get controller, exception: {}", address))
             )?;
             let mut controller = controller_cell.borrow_mut();
             let unit = controller.get_unit();
@@ -107,7 +108,7 @@ pub async fn run_loop(
             }
         }
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(MODBUS_POLLING_INTERVAL)).await;
     }
 }
 
