@@ -9,14 +9,14 @@ pub trait ModbusDiMountable {
 
     fn get_port_num(&self) -> ModbusAddrSize;
 
-    /// 将端口挂载到 modbus 控制器上
+    /// mount controller to modbus 
     fn mount_port(&mut self, address: ModbusAddrSize, di_port: Box<dyn ModbusDiControllerMountable + Send>) -> Result<(), DriverError>;
 
-    /// 从总线获取数据
-    fn notify_from_bus(&mut self, address: ModbusAddrSize, messages: Vec<bool>) -> Result<(), DriverError>;
+    /// get data from modbus
+    fn notify_from_bus(&mut self, address: ModbusAddrSize, values: Vec<bool>) -> Result<(), DriverError>;
 
-    /// 向 modbus 端口发送指令
-    fn notify_port(&self, address: ModbusAddrSize, message: bool) -> Result<(), DriverError>;
+    /// relay data to port device object
+    fn notify_port(&self, address: ModbusAddrSize, values: bool) -> Result<(), DriverError>;
 }
 
 /// 可挂载到 modbus Controller 上的设备，支持向上对 DeviceManager 上报数据
