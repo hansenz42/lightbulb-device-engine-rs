@@ -3,7 +3,8 @@ use super::traits::SerialMountable;
 use crate::common::error::DriverError;
 use crate::{debug, error, info, trace, warn};
 use std::cell::RefCell;
-use std::sync::mpsc::Receiver;
+use futures::{SinkExt, StreamExt, TryStreamExt};
+use tokio::sync::mpsc::Receiver;
 use std::sync::Arc;
 use tokio_util::{
     codec::{Decoder, Encoder, Framed},
@@ -11,9 +12,10 @@ use tokio_util::{
 };
 use tokio_serial::SerialPortBuilderExt;
 use tokio_serial::SerialStream;
-use super::entity::SerialCommandBo;
+use super::entity::SerialDataBo;
 
 const LOG_TAG: &str = "serial_thread.rs | serial threading";
+
 const LOOP_INTERVAL: u64 = 100;
 
 /// start the serial thread
@@ -24,15 +26,15 @@ pub fn run_loop(
     serial_port: &str,
     baudrate: u32,
     // the sending command channel
-    command_rx: Receiver<SerialThreadCommand>,
+    mut command_rx: Receiver<SerialThreadCommand>,
     // listeners
-    listener_map: Vec<RefCell<Box<dyn SerialMountable + Send>>>,
+    listener_vec: Vec<RefCell<Box<dyn SerialMountable + Send>>>,
 ) -> Result<(), DriverError> {
     
-    let port = Arc::new(tokio_serial::new(serial_port, baudrate).open_native_async()
+    let port = tokio_serial::new(serial_port, baudrate).open_native_async()
         .map_err(|e| {
             DriverError(format!("PANIC: thread thread, cannot open serial port: {}, err: {}", serial_port, e))
-    })?);
+    })?;
 
     let (writer, reader) = LineCodec.framed(port).split();
     
@@ -49,21 +51,26 @@ pub fn run_loop(
                 Some(command) = command_rx.recv() => {
                     match command {
                         SerialThreadCommand::Write(data) => {
-                            trace!(LOG_TAG, "write data: {}", data);
+                            trace!(LOG_TAG, "write data: {:?}", data);
                             if let Err(e) = writer.send(data).await {
                                 error!(LOG_TAG, "write data error: {:?}", e);
                             }
+                        },
+                        SerialThreadCommand::Stop => {
+                            info!(LOG_TAG, "stop signal received, exiting");
+                            break;
                         }
                     }
                 }
+
                 // if there is no data to write, read data
                 _ = interval.tick() => {
                     let mut buf = bytes::BytesMut::new();
-                    match reader.try_next() {
+                    match reader.try_next().await {
                         Ok(Some(data)) => {
-                            trace!(LOG_TAG, "read data: {:?}", data);
-                            for listener in listener_map.iter() {
-                                listener.borrow_mut().on_data_received(data);
+                            trace!(LOG_TAG, "read data: {:?}", &data);
+                            for listener in listener_vec.iter() {
+                                listener.borrow_mut().notify(data.clone());
                             }
                         }
                         Ok(None) => {
@@ -86,7 +93,7 @@ struct LineCodec;
 
 
 impl Decoder for LineCodec {
-	type Item = SerialCommandBo;
+	type Item = SerialDataBo;
 	type Error = std::io::Error;
 
 	// decode received data, remove leading 0xfa and tailing 0xed, return data
@@ -100,7 +107,7 @@ impl Decoder for LineCodec {
 			// return data after parsing
 			let command = line[0];
 			let param_len = line[1] as usize;
-			Ok(Some(SerialCommandBo {
+			Ok(Some(SerialDataBo {
 				command: line[0],
 				data: line[2..param_len + 2 + 1].to_vec()
 			}))
@@ -110,11 +117,11 @@ impl Decoder for LineCodec {
 	}
 }
 
-impl Encoder<SerialCommandBo> for LineCodec {
+impl Encoder<SerialDataBo> for LineCodec {
 	type Error = std::io::Error;
 
 	// input command and param，adding leading 0xfa and tailing 0xed
-	fn encode(&mut self, item: SerialCommandBo, dst: &mut bytes::BytesMut) -> Result<(), Self::Error> {
+	fn encode(&mut self, item: SerialDataBo, dst: &mut bytes::BytesMut) -> Result<(), Self::Error> {
 		dst.put_u8(0xfa);
 		dst.put_u8(item.command);
 		dst.put_u8(item.data.len() as u8);

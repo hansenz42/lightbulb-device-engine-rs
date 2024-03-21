@@ -1,11 +1,11 @@
 pub enum SerialThreadCommand {
-    WriteData(Vec<u8>),
+    Write(SerialDataBo),
     Stop
 }
 
 
 #[derive(Debug, Clone)]
-pub struct SerialCommandBo {
+pub struct SerialDataBo {
     pub command: u8,
     pub data: Vec<u8>
 }
