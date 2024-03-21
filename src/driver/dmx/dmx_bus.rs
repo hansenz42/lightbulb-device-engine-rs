@@ -22,7 +22,7 @@ use super::prelude::{DmxValue, DmxChannelLen};
 use super::dmx_thread::*;
 use super::entity::*;
 
-const LOG_TAG : &str = "DeviceManager";
+const LOG_TAG : &str = "DmxBus";
 
 pub struct DmxBus {
     device_id: String,
@@ -49,19 +49,19 @@ impl DmxBus {
         }
     }
 
-    /// 新建线程并发送数据
+    /// start new data sending thread 
     /// 新建线程以后，会将当前 data 发送给串口线程，后续修改数据时将通过通道将数据发现给串口线程
-    fn start(&mut self) -> Result<(), DriverError> {
-        // 准备线程使用的数据
+    pub fn start(&mut self) -> Result<(), DriverError> {
+        // prepare data for thread
         let thread_data = self.data.clone();
 
-        // 创建通信通道
+        // create channel
         let (tx, rx) = mpsc::channel();
         self.thread_tx = Some(tx);
 
         let serial_port_str = self.serial_port.clone();
 
-        // 创建一个线程
+        // create a thread loop
         let handle = thread::spawn(move || {
             run_loop(serial_port_str.as_str(), thread_data, rx);
         });
@@ -98,7 +98,7 @@ impl DmxBus {
                     SetChannelBo {
                         channels: self.data.clone()
                     }
-                )).expect("dmx bus: send data to thread error");
+                )).map_err(|e| DriverError(format!("dmx bus: send data to thread error {:?}", e)))?;
                 debug!(LOG_TAG, "dmx bus: send data to thread");
                 Ok(())
             },
@@ -108,7 +108,7 @@ impl DmxBus {
         }
     }
 
-    /// 获取当前正在发送的数据
+    /// get the sending data of dmx bus
     fn get_data(&self, address: u8, length: u8) -> Result<Vec<DmxValue>, DriverError> {
         let mut data = Vec::new();
         for i in address..address+length {
@@ -116,8 +116,7 @@ impl DmxBus {
         }
         Ok(data)
     }
-
-    /// 向串口发送停止指令
+    ///  stop the sending thread
     fn stop(&mut self) -> Result<(), DriverError> {
         match &self.thread_tx {
             Some(tx) => {
@@ -141,9 +140,12 @@ impl DmxBus {
 mod tests {
     use crate::common;
     use super::*;
+    use std::env;
 
     #[test]
     fn test_new() {
+        env::set_var("dummy", "true");
+
         let _ = common::logger::init_logger();
         let mut dmxbus = DmxBus::new("test_dmx_bus", "/dev/ttyUSB0");
         println!("dmx 总线启动");   

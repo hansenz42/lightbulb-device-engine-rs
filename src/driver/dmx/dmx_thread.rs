@@ -10,6 +10,7 @@ use std::{
 };
 
 const LOG_TAG: &str = "dmx_thread.rs | dmx worker";
+const LOOP_INTERVAL: u64 = 100;
 
 pub fn run_loop(
     serial_port_str: &str,
@@ -72,8 +73,7 @@ pub fn run_loop(
             }
         }
         
-        // sleep for 1 sec
-        thread::sleep(time::Duration::from_millis(1000));
+        thread::sleep(time::Duration::from_millis(LOOP_INTERVAL));
     }
     Ok(())
 }
