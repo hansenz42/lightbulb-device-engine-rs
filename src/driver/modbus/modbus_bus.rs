@@ -50,7 +50,7 @@ impl ModbusBus {
         let mut di_controller_map_ref_cell: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusDiMountable + Send>>> = HashMap::new();
 
         // drop all controller form di_controller_vec and push to ref_cell
-        for controller in self.di_controller_vec.pop() {
+        while let Some(controller) = self.di_controller_vec.pop() {
             let unit = controller.get_unit();
             di_controller_map_ref_cell.insert(unit, RefCell::new(controller));
         } 
