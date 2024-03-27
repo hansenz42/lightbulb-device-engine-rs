@@ -16,7 +16,7 @@ use std::{
 };
 
 use super::{entity::{ModbusThreadCommandEnum, WriteMultiBo, WriteSingleBo}, modbus_thread::*, prelude::ModbusAddrSize, traits::ModbusDiMountable};
-use crate::common::error::DriverError;
+use crate::{common::error::DriverError};
 use crate::entity::bo::{
     device_command_bo::DeviceCommandBo,
     device_config_bo::ConfigBo,
@@ -38,6 +38,7 @@ pub struct ModbusBus {
     // sender to send command to modbus outputing thread
     tx_down: Option<Sender<ModbusThreadCommandEnum>>
 }
+
 
 impl ModbusBus {
     /// opens port and start the thread 

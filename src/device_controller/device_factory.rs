@@ -1,5 +1,4 @@
-//! 设备初始化工厂，根据设备配置初始化设备
-//! - 维护可以初始化的设备类列表，根据传入的参数选择要初始化的设备
+//! device factory registery
 
 use std::collections::HashMap;
 

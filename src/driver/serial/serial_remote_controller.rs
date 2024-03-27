@@ -1,5 +1,5 @@
 use std::sync::mpsc::Sender;
-use crate::driver::traits::UpwardDevice;
+use crate::driver::traits::UpwardSendable;
 use crate::entity::bo::device_state_bo::{DeviceStateBo, RemoteStateBo, StateBoEnum};
 use crate::common::error::DriverError;
 use super::traits::SerialMountable;
@@ -52,7 +52,7 @@ impl SerialMountable for SerialRemoteController {
     }
 }
 
-impl UpwardDevice for SerialRemoteController {
+impl UpwardSendable for SerialRemoteController {
     fn get_upward_channel(&self) -> &Sender<DeviceStateBo> {
         return &self.upward_channel;
     }

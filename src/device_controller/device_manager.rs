@@ -12,6 +12,9 @@ use std::error::Error;
 use serde_json::{Value, Map};
 
 use crate::common::dao::Dao;
+use crate::driver::dmx::dmx_bus::DmxBus;
+use crate::driver::serial::serial_bus::SerialBus;
+use crate::driver::traits::Operable;
 use crate::entity::bo::device_config_bo::{ConfigBo};
 use crate::mqtt_client::client::MqttClient;
 use super::device_dao::DeviceDao;
@@ -22,51 +25,61 @@ use crate::entity::bo::device_command_bo::DeviceCommandBo;
 use crate::{info, warn, error, trace, debug};
 use std::thread;
 use std::sync::{mpsc, Arc, Mutex};
-use crate::driver::traits::device::Device;
-use crate::driver::device::device_enum::DeviceEnum;
-use crate::driver::factory::device_factory::DeviceFactory;
+use crate::driver::modbus::modbus_bus::ModbusBus;
 
-
-// 设备列表更新地址
+// url to update device config
 const UPDATE_CONFIG_URL: &str = "api/v1.2/device";
 const LOG_TAG : &str = "DeviceManager";
 
-/// 设备管理器
-/// - 管理设备列表
-/// - 管理设备与外部变量的通信
-/// - 双线程架构，一个线程负责上行通信（到 mqtt），一个线程负责下行通信（到设备）
+/// device manager
+/// - manage device list
+/// - manage device incoming and outgoing data
+/// - double thread architecture, one thread for outgoing data, one thread for incoming data
 pub struct DeviceManager {
     device_dao: DeviceDao,
+    // configuration map of devices
     pub config_map: HashMap<String, DevicePo>,
     
-    // 上行：接收从 device 来的消息，发送到 mqtt
+    // upward thread: receive from device, send to mqtt
     upward_rx: mpsc::Receiver<DeviceStateBo>,
     
-    // manager 名下的设备，clone 该 tx 即可向上发送数据
-    upward_tx: mpsc::Sender<DeviceStateBo>,
+    // the device can clone this rx channel to send data to upward thread
+    upward_rx_dummy: mpsc::Sender<DeviceStateBo>,
     
-    // 下行：从 mqtt 服务器接收到的消息，给设备的指令
+    // downward receive channel from mqtt
     downward_rx: Option<mpsc::Receiver<DeviceCommandBo>>,
+
+    // device maps:
+    // map for dmx bus
+    dmx_bus_map: HashMap<String, Arc<Mutex<DmxBus>>>,
+
+    // map for serial bus
+    serial_bus_map: HashMap<String, Arc<Mutex<SerialBus>>>,
+
+    // map for modbus bus
+    modbus_bus_map: HashMap<String, Arc<Mutex<ModbusBus>>>,
+
+    // map for operable device
+    operable_device_map: HashMap<String, Arc<Mutex<dyn Operable>>>,
 }
 
 impl DeviceManager {
     pub fn new() -> Self {
-        let (upward_tx, upward_rx) = mpsc::channel();
+        let (upward_rx_dummy, upward_rx) = mpsc::channel();
         DeviceManager{
             device_dao: DeviceDao::new(),
             config_map: HashMap::new(),
             upward_rx: upward_rx,
-            upward_tx: upward_tx,
-            downward_rx: None
+            upward_rx_dummy: upward_rx_dummy,
+            downward_rx: None,
+            dmx_bus_map: HashMap::new(),
+            serial_bus_map: HashMap::new(),
+            modbus_bus_map: HashMap::new(),
+            operable_device_map: HashMap::new(),
         }
     }
 
-    /// 添加单个设备
-    pub fn add_device(&mut self) {
-        
-    }
-
-    /// 开启双向线程
+    /// start bidirectional communication
     /// - 设备管理 + 下行线程：从 mqtt 服务器接收到的消息，给设备的指令。下行传递线程也是设备操作的主线程，负责初始化并管理所有设备
     /// - 上行传递：接收从 device 来的消息，推送到 mqtt
     /// - 所有权关系：该函数将拿走 self 的所有权，因为需要在线程中调用访问 self 中的设备对象
@@ -74,12 +87,8 @@ impl DeviceManager {
         
         info!(LOG_TAG, "根据配置文件初始化设备");
 
-        // 初始化所有设备并做成 HashMap，因为设备需要在多线程中传递，而且在多处保持引用，所以需要使用 Arc<Mutex<Device>>
-        let mut device_map: HashMap<String, Arc<Mutex<Box<dyn Device + Sync + Send>>> > = init_devices_by_config_map(self.config_map.clone(), DeviceFactory::new());
 
-
-        // 下行传递线程
-        // - 向设备下达指令
+        // downward thread, send command to device
         thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().expect("下行传递线程：无法创建 tokio 运行时");
             rt.block_on( async move {
@@ -89,24 +98,6 @@ impl DeviceManager {
                     match recv_message {
                         Ok(commnad) => {
                             let device_id = &commnad.device_id;
-
-                            match device_map.get_mut(device_id) {
-                                Some(device_ref) => {
-
-                                    info!(LOG_TAG, "下行指令：向设备 {} 发送指令：{:?}", device_id, commnad);
-                                    match device_ref.lock() {
-                                        Ok(mut device) => {
-                                            let _ = device.cmd(commnad.action, commnad.params);
-                                        }
-                                        Err(e) => {
-                                            warn!(LOG_TAG, "下行指令：获取设备锁失败，错误信息：{}", e);
-                                        }
-                                    }
-                                }
-                                None => {
-                                    warn!(LOG_TAG, "下行指令：无法找到 device_id {}", device_id);
-                                }
-                            }
 
                         }
                         Err(e) => {
@@ -149,18 +140,18 @@ impl DeviceManager {
     }
 
     pub fn clone_upward_tx(&self) -> mpsc::Sender<DeviceStateBo> {
-        self.upward_tx.clone()
+        self.upward_rx_dummy.clone()
     }
 
-    /// 系统初始化
-    /// - 从远程配置文件中加载设备
-    /// - 更新本地数据
+    /// init device manager
+    /// - read config from remote server
+    /// - update local data
     pub async fn startup(&mut self) -> Result<(), Box<dyn Error>> {
         self.device_dao.ensure_table_exist().await?;
 
         match self.get_remote().await {
             Ok(json_data) => {
-                // 清空已有数据，并保存当前数据
+                // clear all data
                 self.device_dao.clear_table().await?;
                 self.write_to_db(json_data).await?;
                 info!(LOG_TAG, "远程设备配置加载成功！");
@@ -175,12 +166,12 @@ impl DeviceManager {
         Ok(())
     }
 
-    /// 从远程获取设备配置文件
+    /// get config data from remote
     async fn get_remote(&mut self) -> Result<Value, Box<dyn Error>>{
         http::api_get(UPDATE_CONFIG_URL).await
     }
 
-    /// 将远程设备文件写入数据库
+    /// svae device config to db
     async fn write_to_db(&self, json_data: Value) -> Result<(), Box<dyn Error>>{
         let device_list = json_data.get("list").unwrap().as_array().expect("list 未找到");
         for device in device_list {
@@ -193,7 +184,7 @@ impl DeviceManager {
         Ok(())
     }
 
-    /// 从数据库中读取设备配置文件
+    /// load config from database
     async fn load_from_db(&mut self) -> Result<(), Box<dyn Error>> {
         let device_config_po_list: Vec<DevicePo> = self.device_dao.get_all().await?;
         for device_config_po in device_config_po_list {
@@ -353,7 +344,7 @@ mod tests {
         println!("上行传递测试");
         let manager = DeviceManager::new();
         let (tx, rx) = mpsc::channel();
-        let upward_tx = manager.clone_upward_tx();
+        let upward_rx_dummy = manager.clone_upward_tx();
         let rt = tokio::runtime::Runtime::new().unwrap();
 
         rt.block_on(async {
@@ -367,7 +358,7 @@ mod tests {
             port: vec![1, 2, 3, 4]
         });
 
-        upward_tx.send(DeviceStateBo{
+        upward_rx_dummy.send(DeviceStateBo{
             device_class: "test_class".to_string(),
             device_type: "test_type".to_string(),
             device_id: "123".to_string(),

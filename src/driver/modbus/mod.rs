@@ -1,10 +1,9 @@
-// pub mod modbus_bus;
 mod entity;
 mod modbus_thread;
-mod modbus_di_controller;
-mod modbus_do_controller;
-mod modbus_di_port;
-mod modbus_do_port;
+pub mod modbus_di_controller;
+pub mod modbus_do_controller;
+pub mod modbus_di_port;
+pub mod modbus_do_port;
 mod traits;
 mod prelude;
-mod modbus_bus;
+pub mod modbus_bus;

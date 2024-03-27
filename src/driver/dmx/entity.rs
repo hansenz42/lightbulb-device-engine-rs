@@ -1,17 +1,17 @@
 use super::prelude::*;
 
 
-// dmx 线程指令对象，用于给线程下达指令用
+// dmx thread command enum, for sending command to dmx thread 
 #[derive(Debug)]
 pub enum DmxThreadCommandEnum {
-    // 向端口下发数据
+    // set channel for the thread
     SetChannel(SetChannelBo),
 
-    // 停止线程并关闭端口
+    // stop the thread
     Stop,
 }
 
-// 指令：写单个线圈
+
 #[derive(Debug)]
 pub struct SetChannelBo {
     pub channels: [DmxValue; DmxChannelLen]

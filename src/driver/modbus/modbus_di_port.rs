@@ -1,7 +1,7 @@
 use super::prelude::*;
 use super::traits::ModbusDiControllerMountable;
 use crate::common::error::DriverError;
-use crate::driver::traits::UpwardDevice;
+use crate::driver::traits::UpwardSendable;
 use crate::entity::bo::device_state_bo::{DeviceStateBo, DiStateBo, StateBoEnum};
 use crate::{debug, error, info, trace, warn};
 use std::env;
@@ -53,7 +53,7 @@ impl ModbusDiControllerMountable for ModbusDiPort {
     }
 }
 
-impl UpwardDevice for ModbusDiPort {
+impl UpwardSendable for ModbusDiPort {
     fn get_upward_channel(&self) -> &mpsc::Sender<DeviceStateBo> {
         return &self.upward_channel;
     }

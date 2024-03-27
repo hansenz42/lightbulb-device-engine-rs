@@ -26,11 +26,10 @@ const LOG_TAG : &str = "DmxBus";
 
 pub struct DmxBus {
     device_id: String,
-    // 串口文件标识符
     serial_port: String,
-    // 当前数据数组 512 u8 长度
+    // data channel is 512 u8 length
     data: [DmxValue; DmxChannelLen],
-    // thread 发送通道句柄，只有在线程创建以后才可使用
+    // thread command sending channel
     thread_tx: Option<mpsc::Sender<DmxThreadCommandEnum>>,
 
     upward_channel: Option<Sender<DeviceStateBo>>,
@@ -38,7 +37,7 @@ pub struct DmxBus {
 
 impl DmxBus {
 
-    /// 创建一个新的 dmx 总线设备
+    /// create a new dmx bus device
     pub fn new(device_id: &str, serial_port: &str) -> Self {
         Self {
             device_id: device_id.to_string(),
@@ -50,7 +49,7 @@ impl DmxBus {
     }
 
     /// start new data sending thread 
-    /// 新建线程以后，会将当前 data 发送给串口线程，后续修改数据时将通过通道将数据发现给串口线程
+    /// after thread start, the data will be send to serial port through channel
     pub fn start(&mut self) -> Result<(), DriverError> {
         // prepare data for thread
         let thread_data = self.data.clone();
