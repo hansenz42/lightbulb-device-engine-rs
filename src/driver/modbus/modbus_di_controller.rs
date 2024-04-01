@@ -6,17 +6,17 @@ use crate::{info, warn, error, trace, debug};
 
 const LOG_TAG: &str = "Modbus Di Controller";
 
-/// Modbus 输入量控制器对象，属于上行对象，由 Modbus 线程持有
-/// - 记录 Modbus 端口上的设备信息
-/// - 接受来自 modbus 接口的消息，如有消息则下发给端口上的设备。
+/// Modbus Digital Input Controller
+/// - Cache data on the controller
+/// - read data from modbus and relay to selector port object
 pub struct ModbusDiController {
     device_id: String,
     unit: ModbusUnitSize,
-    // modbus 的端口数量
+    // modbus input port number
     input_num: ModbusAddrSize, 
-    // modbus 控制器上搭载的接口信息
+    // modbus controller port object map
     mount_port_map:  HashMap<ModbusAddrSize, Box<dyn ModbusDiControllerMountable + Send>>,
-    // 当前状态缓存
+    // port state cache
     port_state_vec: Vec<bool>,
 }
 
@@ -29,17 +29,16 @@ impl ModbusDiMountable for ModbusDiController {
         self.input_num
     }
 
-    /// 挂载定义的端口
+    /// mount port object 
     fn mount_port(&mut self, address: ModbusAddrSize, port_to_mount: Box<dyn ModbusDiControllerMountable + Send>) -> Result<(), DriverError> {
-        // 将 ModbusControllerMounable 记录到 map 中
         self.mount_port_map.insert(address, port_to_mount);
         info!(LOG_TAG, "端口已挂载 address: {}", &address);
         Ok(())
     }
 
-    /// 接收从接口传来的数据
-    /// - 比对，如果完全一样，则不动
-    /// - 如果有地方不一样，则通知下游 port
+    /// read data from modbus and relay to port object
+    /// - if data not change, do nothing
+    /// - if data changed, notify port object
     /// - TODO 优化：可将缓存的数据和传入的数据保存为按位的整型，然后按位比较，可更快找到差异位置，然后通知下游
     fn notify_from_bus(&mut self, address: ModbusAddrSize, messages: Vec<bool>) -> Result<(), DriverError> {
 
@@ -51,11 +50,11 @@ impl ModbusDiMountable for ModbusDiController {
             return Ok(())
         }
 
-        // 比对数据
+        // check if data changed
         let port = self.mount_port_map.get(&address).ok_or(DriverError("DiController 接收到的消息，没有找到对应的端口".to_string()))?;
         for (i, message) in messages.iter().enumerate() {
             if self.port_state_vec[i] != *message {
-                // 发现不同，按照地址通知下游
+                // if data changed, notify port object
                 self.notify_port(address, *message)?;
                 debug!(LOG_TAG, "端口状态发生变化，通知下游 address: {}, message: {}", &address, *message);
             }
@@ -65,12 +64,12 @@ impl ModbusDiMountable for ModbusDiController {
     }
 
     fn notify_port(&self, address: ModbusAddrSize, message: bool) -> Result<(), DriverError> {
-        // 检查 address 是否有设备存在，如果没有设备，则忽略该条消息
+        // check if the port exists
         if !self.mount_port_map.contains_key(&address) {
             return Ok(())
         }
 
-        // 向设备发送消息
+        // send message to port
         let port: &Box<dyn ModbusDiControllerMountable + Send> = self.mount_port_map.get(&address).ok_or(DriverError("DiController 向端口发送消息失败，没有找到对应的端口".to_string()))?;
         port.notify(message)?;
         Ok(())

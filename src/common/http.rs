@@ -1,5 +1,5 @@
-//! 网络请求模块
-//! 功能：
+//! networking module
+//! function:
 //! - 处理远程服务器错误：如果远程发生错误，code 不为 200，那么返回 HttpError
 //! - 保证输入输出均为 json object
 

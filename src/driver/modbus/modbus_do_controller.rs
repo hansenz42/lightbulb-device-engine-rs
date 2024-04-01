@@ -31,7 +31,7 @@ impl<'a> ModbusDoCaller for ModbusDoController<'a> {
     fn write_one_port(&self, address: ModbusAddrSize, value:bool) -> Result<(), DriverError> {
         // check address range 
         if address >= self.output_num {
-            return Err(DriverError(format!("ModbusDoController: 写入的地址超出范围， device_id: {}, address: {}, value: {}", self.device_id, address, value)));
+            return Err(DriverError(format!("ModbusDoController: writing address out of range, device_id: {}, address: {}, value: {}", self.device_id, address, value)));
         }
 
         // check if the value is different 
@@ -45,7 +45,7 @@ impl<'a> ModbusDoCaller for ModbusDoController<'a> {
     fn write_multi_port(&self, address: ModbusAddrSize, values: &[bool]) -> Result<(), DriverError> {
         // check address range 
         if address + values.len() as ModbusAddrSize > self.output_num {
-            return Err(DriverError(format!("ModbusDoController: 写入的地址超出范围， device_id: {}, address: {}, values: {:?}", self.device_id, address, values)));
+            return Err(DriverError(format!("ModbusDoController: writing address out of range, device_id: {}, address: {}, values: {:?}", self.device_id, address, values)));
         }
         
         // check if the values are different 
