@@ -6,7 +6,7 @@
 
 use crate::common::error::DriverError;
 
-use super::{entity::{ModbusThreadCommandEnum}, traits::ModbusDiMountable};
+use super::{entity::{ModbusThreadCommandEnum}, traits::ModbusListener};
 use tokio_serial::SerialStream;
 use tokio_modbus::{prelude::*, client::Context, Slave};
 use std::{cell::RefCell, collections::HashMap, sync::mpsc::Receiver};
@@ -26,7 +26,7 @@ pub async fn run_loop(
 
     // di 控制器注册表，用于不间断轮询
     // 内部可变：因为需要调用 ModbusDigitalInputMountable 对象
-    di_controller_map: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusDiMountable + Send>>>
+    di_controller_map: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusListener + Send>>>
 
 ) -> Result<(), DriverError> {
     let mut context: Option<Context> = None;
@@ -182,7 +182,7 @@ mod tests {
                 let serial_port = "/dev/ttyUSB0";
                 let baudrate = 9600;
                 let (tx, rx) = std::sync::mpsc::channel();
-                let mut controller_map: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusDiMountable + Send>>> = HashMap::new();
+                let mut controller_map: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusListener + Send>>> = HashMap::new();
                 controller_map.insert(1, RefCell::new(Box::new(di_controller)));
                 let result = run_loop(serial_port, baudrate, rx, controller_map).await;
                 assert!(result.is_ok());
@@ -208,7 +208,7 @@ mod tests {
                 let serial_port = "/dev/ttyUSB0";
                 let baudrate = 9600;
                 
-                let mut controller_map: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusDiMountable + Send>>> = HashMap::new();
+                let mut controller_map: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusListener + Send>>> = HashMap::new();
                 controller_map.insert(1, RefCell::new(Box::new(di_controller)));
                 let result = run_loop(serial_port, baudrate, rx, controller_map).await;
                 

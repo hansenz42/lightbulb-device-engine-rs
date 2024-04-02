@@ -1,5 +1,5 @@
 use crate::{common::error::DriverError, entity::bo::{device_command_bo::DeviceCommandBo, device_state_bo::DeviceStateBo}};
-use std::sync::mpsc;
+use std::{rc::Rc, sync::mpsc};
 
 /// the device that can send data to upward channel
 pub trait UpwardSendable {
@@ -22,3 +22,11 @@ pub trait Operable {
 pub trait RootBus {
     fn start(&mut self) -> Result<(), DriverError>;
 }
+
+/// device that can mount to other device
+pub trait SetRef {
+    fn set_ref(&mut self, value: Rc<dyn Refable>);
+}
+
+/// device that can be mounted by other device
+pub trait Refable {}

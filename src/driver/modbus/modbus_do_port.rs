@@ -1,16 +1,18 @@
+use std::rc::Rc;
+
 use super::prelude::*;
 use super::modbus_do_controller::ModbusDoController;
-use super::traits::{ModbusDoControllerCaller, ModbusDoCaller};
+use super::traits::{ModbusDoControllerCaller, ModbusCaller};
 use crate::common::error::DriverError;
 
-pub struct ModbusDoPort <'a> {
+pub struct ModbusDoPort  {
     device_id: String,
     address: ModbusAddrSize,
-    controller_ref: &'a ModbusDoController<'a>
+    controller_ref: Rc<ModbusDoController>
 }
 
-impl <'a> ModbusDoPort <'a> {
-    pub fn new(device_id: &str, address: ModbusAddrSize, controller_ref: &'a ModbusDoController) -> Self {
+impl  ModbusDoPort  {
+    pub fn new(device_id: &str, address: ModbusAddrSize, controller_ref: Rc<ModbusDoController>) -> Self {
         ModbusDoPort {
             device_id: device_id.to_string(),
             address,
@@ -19,7 +21,7 @@ impl <'a> ModbusDoPort <'a> {
     }
 }
 
-impl <'a> ModbusDoControllerCaller for ModbusDoPort <'a> {
+impl  ModbusDoControllerCaller for ModbusDoPort  {
     fn get_address(&self) -> ModbusAddrSize {
         self.address
     }
@@ -41,9 +43,9 @@ mod test {
         env::set_var("mode", "dummy");
         let modbus = ModbusBus::new("test", "/dev/null", 9600);
         let controller = ModbusDoController::new(
-            "test", 1, 8, &modbus
+            "test", 1, 8, Rc::new(modbus)
         );
-        let port = ModbusDoPort::new("test", 1, &controller);
+        let port = ModbusDoPort::new("test", 1, Rc::new(controller));
 
         port.write(true).unwrap();
     }

@@ -1,24 +1,26 @@
+use std::{borrow::Borrow, rc::Rc};
+
 use serde_json::Value;
-use crate::{common::error::DriverError, driver::modbus::{modbus_bus::ModbusBus, modbus_do_controller::ModbusDoController}};
-use super::util;
+use crate::{common::error::DriverError, device_controller::entity::device_enum::DeviceRefEnum, driver::modbus::{modbus_bus::ModbusBus, modbus_do_controller::ModbusDoController}};
+use crate::util::json;
 
 const DEVICE_IDENTIFIER: &str = "modbus_do_controller";
 
-pub fn make<'a>( json_data: &Value, modbus_ref: &'a ModbusBus) -> Result<ModbusDoController<'a>, DriverError> {
-    let _ = util::check_type(json_data, DEVICE_IDENTIFIER)?;
+pub fn make(json_data: &Value, modbus_ref: &Rc<ModbusBus>) -> Result<ModbusDoController, DriverError> {
+    let _ = json::check_type(json_data, DEVICE_IDENTIFIER)?;
 
-    let device_id = util::get_str(json_data, "device_id")?;
-    let unit = util::get_config_int(json_data, "unit")?;
-    let output_num = util::get_config_int(json_data, "output_num")?;
+    let device_id = json::get_str(json_data, "device_id")?;
+    let unit = json::get_config_int(json_data, "unit")?;
+    let output_num = json::get_config_int(json_data, "output_num")?;
     let obj = ModbusDoController::new(
-        device_id, 
+        device_id.as_str(), 
         unit.try_into().map_err(
             |e| DriverError(format!("device factory: cannot convert unit to int, err: {e}"))
         )?, 
         output_num.try_into().map_err(
             |e| DriverError(format!("device factory: cannot convert output_num to int, err: {e}"))
         )?, 
-        modbus_ref
+        Rc::clone(modbus_ref)
     ); 
     Ok(obj)
 }

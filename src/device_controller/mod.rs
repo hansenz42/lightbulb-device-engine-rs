@@ -10,3 +10,4 @@ mod device_factory;
 mod factory;
 mod traits;
 // pub mod device_manager;
+pub mod entity;

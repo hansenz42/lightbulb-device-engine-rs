@@ -18,7 +18,7 @@ lazy_static! {
     static ref BASEURL: String = format!("http://{}:{}", SETTINGS.upstream.host, SETTINGS.upstream.port);
 }
 
-/// GET 方法请求 api
+/// wrapper for get api
 pub async fn api_get(api_url: &str) -> Result<Value, Box<dyn Error>> {
     let resp: serde_json::Value  = reqwest::get(format!("{}/{}", BASEURL.as_str(), api_url).as_str())
         .await?
@@ -28,7 +28,7 @@ pub async fn api_get(api_url: &str) -> Result<Value, Box<dyn Error>> {
     Ok(res)
 }
 
-/// POST 方法请求 api
+/// wrapper for post api
 pub async fn api_post(api_url: &str, data: Value) -> Result<Value, Box<dyn Error>> {
     let resp: serde_json::Value = reqwest::Client::new()
         .post(format!("{}/{}", BASEURL.as_str(), api_url).as_str())
@@ -41,7 +41,6 @@ pub async fn api_post(api_url: &str, data: Value) -> Result<Value, Box<dyn Error
     Ok(res)
 }
 
-/// 下载文件
 pub async fn download_file(api_url: &str, folder_path: &str) -> Result<(), Box<dyn Error>> {
     let mut resp = reqwest::get(format!("{}/{}", BASEURL.as_str(), api_url)).await?;
     // 从 response Content-Disposition 中获取文件名

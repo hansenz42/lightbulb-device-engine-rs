@@ -15,8 +15,8 @@ use std::{
     thread,
 };
 
-use super::{entity::{ModbusThreadCommandEnum, WriteMultiBo, WriteSingleBo}, modbus_thread::*, prelude::ModbusAddrSize, traits::ModbusDiMountable};
-use crate::{common::error::DriverError};
+use super::{entity::{ModbusThreadCommandEnum, WriteMultiBo, WriteSingleBo}, modbus_thread::*, prelude::ModbusAddrSize, traits::ModbusListener};
+use crate::{common::error::DriverError, driver::traits::Refable};
 use crate::entity::bo::{
     device_command_bo::DeviceCommandBo,
     device_config_bo::ConfigBo,
@@ -34,11 +34,12 @@ pub struct ModbusBus {
     serial_port: String,
     baudrate: u32,
     // Controller hashmap for modbus digital input
-    di_controller_vec: Vec<Box<dyn ModbusDiMountable + Send>>,
+    di_controller_vec: Vec<Box<dyn ModbusListener + Send>>,
     // sender to send command to modbus outputing thread
     tx_down: Option<Sender<ModbusThreadCommandEnum>>
 }
 
+impl Refable for ModbusBus {}
 
 impl ModbusBus {
     /// opens port and start the thread 
@@ -48,7 +49,7 @@ impl ModbusBus {
 
         let serial_port_clone = self.serial_port.clone();
         let baudrate = self.baudrate;
-        let mut di_controller_map_ref_cell: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusDiMountable + Send>>> = HashMap::new();
+        let mut di_controller_map_ref_cell: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusListener + Send>>> = HashMap::new();
 
         // drop all controller form di_controller_vec and push to ref_cell
         while let Some(controller) = self.di_controller_vec.pop() {
@@ -81,7 +82,7 @@ impl ModbusBus {
 
     /// add a di controller the modbus
     /// but remember, you can only add new di controller before the thread starts
-    pub fn add_di_controller(&mut self, unit: ModbusUnitSize, controller: Box<dyn ModbusDiMountable + Send>) {
+    pub fn add_di_controller(&mut self, unit: ModbusUnitSize, controller: Box<dyn ModbusListener + Send>) {
         self.di_controller_vec.push(controller);
     }
 

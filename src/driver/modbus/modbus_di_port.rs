@@ -1,5 +1,5 @@
 use super::prelude::*;
-use super::traits::ModbusDiControllerMountable;
+use super::traits::ModbusDiControllerListener;
 use crate::common::error::DriverError;
 use crate::driver::traits::UpwardSendable;
 use crate::entity::bo::device_state_bo::{DeviceStateBo, DiStateBo, StateBoEnum};
@@ -21,7 +21,7 @@ pub struct ModbusDiPort {
     upward_channel: mpsc::Sender<DeviceStateBo>,
 }
 
-impl ModbusDiControllerMountable for ModbusDiPort {
+impl ModbusDiControllerListener for ModbusDiPort {
     fn get_address(&self) -> ModbusAddrSize {
         self.address
     }

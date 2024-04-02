@@ -1,16 +1,17 @@
 use crate::common::error::DriverError;
 use super::prelude::*;
 
+// ================= di ====================
 
 /// 可挂载到 modbus 上的特征，一般是一个输入控制器
 /// 可将 modbus 挂载到控制器上，并对端口发送指令
-pub trait ModbusDiMountable {
+pub trait ModbusListener {
     fn get_unit(&self) -> ModbusUnitSize;
 
     fn get_port_num(&self) -> ModbusAddrSize;
 
     /// mount controller to modbus 
-    fn mount_port(&mut self, address: ModbusAddrSize, di_port: Box<dyn ModbusDiControllerMountable + Send>) -> Result<(), DriverError>;
+    fn mount_port(&mut self, address: ModbusAddrSize, di_port: Box<dyn ModbusDiControllerListener + Send>) -> Result<(), DriverError>;
 
     /// get data from modbus
     fn notify_from_bus(&mut self, address: ModbusAddrSize, values: Vec<bool>) -> Result<(), DriverError>;
@@ -20,14 +21,16 @@ pub trait ModbusDiMountable {
 }
 
 /// 可挂载到 modbus Controller 上的设备，支持向上对 DeviceManager 上报数据
-pub trait ModbusDiControllerMountable {
+pub trait ModbusDiControllerListener {
     fn get_address(&self) -> ModbusAddrSize;
 
     fn notify(&self, message: bool) -> Result<(), DriverError>;
 }
 
+// ================= do ====================
+
 /// 可挂载到 modbus 总线上的输出控制器
-pub trait ModbusDoCaller {
+pub trait ModbusCaller {
     fn get_unit(&self) -> ModbusUnitSize;
 
     fn get_port_num(&self) -> ModbusAddrSize;
@@ -43,3 +46,4 @@ pub trait ModbusDoControllerCaller {
 
     fn write(&self, value: bool) -> Result<(), DriverError>;
 }
+

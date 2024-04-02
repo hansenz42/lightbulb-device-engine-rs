@@ -1,6 +1,6 @@
 use std::{collections::HashMap, hash::Hash};
 use crate::common::error::DriverError;
-use super::traits::{ModbusDiMountable, ModbusDiControllerMountable};
+use super::traits::{ModbusListener, ModbusDiControllerListener};
 use super::prelude::*;
 use crate::{info, warn, error, trace, debug};
 
@@ -15,12 +15,12 @@ pub struct ModbusDiController {
     // modbus input port number
     input_num: ModbusAddrSize, 
     // modbus controller port object map
-    mount_port_map:  HashMap<ModbusAddrSize, Box<dyn ModbusDiControllerMountable + Send>>,
+    mount_port_map:  HashMap<ModbusAddrSize, Box<dyn ModbusDiControllerListener + Send>>,
     // port state cache
     port_state_vec: Vec<bool>,
 }
 
-impl ModbusDiMountable for ModbusDiController {
+impl ModbusListener for ModbusDiController {
     fn get_unit(&self) -> ModbusUnitSize {
         self.unit
     }
@@ -30,7 +30,7 @@ impl ModbusDiMountable for ModbusDiController {
     }
 
     /// mount port object 
-    fn mount_port(&mut self, address: ModbusAddrSize, port_to_mount: Box<dyn ModbusDiControllerMountable + Send>) -> Result<(), DriverError> {
+    fn mount_port(&mut self, address: ModbusAddrSize, port_to_mount: Box<dyn ModbusDiControllerListener + Send>) -> Result<(), DriverError> {
         self.mount_port_map.insert(address, port_to_mount);
         info!(LOG_TAG, "端口已挂载 address: {}", &address);
         Ok(())
@@ -70,7 +70,7 @@ impl ModbusDiMountable for ModbusDiController {
         }
 
         // send message to port
-        let port: &Box<dyn ModbusDiControllerMountable + Send> = self.mount_port_map.get(&address).ok_or(DriverError("DiController 向端口发送消息失败，没有找到对应的端口".to_string()))?;
+        let port: &Box<dyn ModbusDiControllerListener + Send> = self.mount_port_map.get(&address).ok_or(DriverError("DiController 向端口发送消息失败，没有找到对应的端口".to_string()))?;
         port.notify(message)?;
         Ok(())
     }
