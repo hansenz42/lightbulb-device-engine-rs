@@ -1,10 +1,11 @@
-//! modbus 总线设备类
-//! modbus 上可以挂载多个输入输出单元，使用 unit 标识
-//! 本类可以按照 unit 的顺序操作 modbus 设备。
-//! 功能：
-//! - 维护一个线程：线程中跑一个 tokio 环境，用于设备调度
-//! - 线程在空闲时会轮询所有的输入设备（如有），一旦发现数据变化，则通知后面的上行接口
-//! - 写操作优先于读操作
+//! Modbus bus device class
+//! Multiple input and output units can be mounted on modbus, using unit to identify
+//! This class can operate modbus devices in the order of units.
+//! function:
+//! - Maintain a thread: a tokio environment runs in the thread for device scheduling
+//! - When the thread is idle, it will poll all input devices (if any), and once the data changes, it will notify the upstream interface
+//! - Write operation takes precedence over read operation   
+
 
 use std::{
     borrow::BorrowMut,

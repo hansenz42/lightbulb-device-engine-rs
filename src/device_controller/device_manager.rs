@@ -48,19 +48,6 @@ pub struct DeviceManager {
     
     // downward receive channel from mqtt
     downward_rx: Option<mpsc::Receiver<DeviceCommandBo>>,
-
-    // device maps:
-    // map for dmx bus
-    dmx_bus_map: HashMap<String, Arc<Mutex<DmxBus>>>,
-
-    // map for serial bus
-    serial_bus_map: HashMap<String, Arc<Mutex<SerialBus>>>,
-
-    // map for modbus bus
-    modbus_bus_map: HashMap<String, Arc<Mutex<ModbusBus>>>,
-
-    // map for operable device
-    operable_device_map: HashMap<String, Arc<Mutex<dyn Operable>>>,
 }
 
 impl DeviceManager {

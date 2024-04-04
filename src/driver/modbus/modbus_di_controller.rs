@@ -86,6 +86,10 @@ impl ModbusDiController {
             port_state_vec: vec![false; input_num as usize],
         }
     }
+
+    pub fn get_unit(&self) -> ModbusUnitSize {
+        self.unit
+    }
 }
 
 #[cfg(test)]

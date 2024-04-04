@@ -1,4 +1,5 @@
 use std::borrow::Borrow;
+use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use super::modbus_bus::ModbusBus;
@@ -21,7 +22,7 @@ pub struct ModbusDoController {
     mount_port_map: HashMap<ModbusAddrSize, Box<dyn ModbusDoControllerCaller + Send>>,
     port_state_vec: Vec<bool>,
     // the type here should be modbus
-    modbus_ref: Rc<ModbusBus>
+    modbus_ref: Rc<RefCell<ModbusBus>>
 }
 
 impl Refable for ModbusDoController{}
@@ -44,7 +45,11 @@ impl ModbusCaller for ModbusDoController {
         // check if the value is different 
         let port_state = self.port_state_vec[address as usize];
         if port_state != value {
-            self.modbus_ref.write_single_port(self.unit, address, value)?;
+            if let Ok(modbus_ref )= self.modbus_ref.try_borrow() {
+                let _ = modbus_ref.write_single_port(self.unit, address, value)?;
+            } else {
+                return Err(DriverError(format!("ModbusDoController: failed to borrow modbus_ref")));
+            }
         }
         Ok(())
     }
@@ -67,7 +72,11 @@ impl ModbusCaller for ModbusDoController {
         }
 
         if is_diff {
-            let _ = self.modbus_ref.write_multi_port(self.unit, address, values)?;
+            if let Ok(modbus_ref) = self.modbus_ref.try_borrow() {
+                let _ = modbus_ref.write_multi_port(self.unit, address, values)?;
+            } else {
+                return Err(DriverError(format!("ModbusDoController: failed to borrow modbus_ref")));
+            }
         }
 
         Ok(())
@@ -80,7 +89,7 @@ impl ModbusDoController {
         device_id: &str,
         unit: ModbusUnitSize, 
         output_num: ModbusAddrSize, 
-        modbus_ref: Rc<ModbusBus>,
+        modbus_ref: Rc<RefCell<ModbusBus>>,
     ) -> Self {
         ModbusDoController {
             device_id: device_id.to_string(),
