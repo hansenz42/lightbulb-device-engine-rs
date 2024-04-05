@@ -11,7 +11,7 @@ pub trait ModbusListener {
     fn get_port_num(&self) -> ModbusAddrSize;
 
     /// mount controller to modbus 
-    fn mount_port(&mut self, address: ModbusAddrSize, di_port: Box<dyn ModbusDiControllerListener + Send>) -> Result<(), DriverError>;
+    fn add_di_port(&mut self, address: ModbusAddrSize, di_port: Box<dyn ModbusDiControllerListener + Send>) -> Result<(), DriverError>;
 
     /// get data from modbus
     fn notify_from_bus(&mut self, address: ModbusAddrSize, values: Vec<bool>) -> Result<(), DriverError>;

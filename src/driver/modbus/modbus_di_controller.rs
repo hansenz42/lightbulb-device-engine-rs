@@ -30,9 +30,9 @@ impl ModbusListener for ModbusDiController {
     }
 
     /// mount port object 
-    fn mount_port(&mut self, address: ModbusAddrSize, port_to_mount: Box<dyn ModbusDiControllerListener + Send>) -> Result<(), DriverError> {
+    fn add_di_port(&mut self, address: ModbusAddrSize, port_to_mount: Box<dyn ModbusDiControllerListener + Send>) -> Result<(), DriverError> {
         self.mount_port_map.insert(address, port_to_mount);
-        info!(LOG_TAG, "端口已挂载 address: {}", &address);
+        info!(LOG_TAG, "port mounted, device_id: {} address: {}", &self.device_id, &address);
         Ok(())
     }
 
@@ -106,7 +106,7 @@ mod tests {
         // 创建一个 port 设备
         let modbus_di_port = ModbusDiPort::new("test_di_port", 1, tx);
 
-        modbus_di_controller.mount_port(1, Box::new(modbus_di_port)).unwrap();
+        modbus_di_controller.add_di_port(1, Box::new(modbus_di_port)).unwrap();
         modbus_di_controller.notify_from_bus(1, vec![true, false, true, false, true, false, true, false]).unwrap();
 
         let state_bo = rx.recv().unwrap();

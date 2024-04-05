@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use super::prelude::*;
@@ -8,11 +9,11 @@ use crate::common::error::DriverError;
 pub struct ModbusDoPort  {
     device_id: String,
     address: ModbusAddrSize,
-    controller_ref: Rc<ModbusDoController>
+    controller_ref: Rc<RefCell<ModbusDoController>>
 }
 
 impl  ModbusDoPort  {
-    pub fn new(device_id: &str, address: ModbusAddrSize, controller_ref: Rc<ModbusDoController>) -> Self {
+    pub fn new(device_id: &str, address: ModbusAddrSize, controller_ref: Rc<RefCell<ModbusDoController>>) -> Self {
         ModbusDoPort {
             device_id: device_id.to_string(),
             address,
@@ -27,7 +28,11 @@ impl  ModbusDoControllerCaller for ModbusDoPort  {
     }
     
     fn write(&self, value: bool) -> Result<(), DriverError> {
-        self.controller_ref.write_one_port(self.address, value)
+        if let Ok(controller) = self.controller_ref.try_borrow() {
+            return controller.write_one_port(self.address, value)
+        } else {
+            return Err(DriverError(format!("ModbusDoPort: controller borrow failed, cannot write data, device_id={}", &self.device_id)))
+        }
     }
 }
 
