@@ -5,7 +5,7 @@ use std::result::Result;
 use rusqlite::params;
 
 use crate::common::sqlite::SqliteConnection;
-use crate::entity::po::device_po::DevicePo;
+use super::entity::device_po::DevicePo;
 use async_trait::async_trait;
 
 pub struct DeviceDao {

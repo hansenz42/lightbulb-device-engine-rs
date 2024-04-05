@@ -19,7 +19,7 @@ use crate::entity::bo::device_config_bo::{ConfigBo};
 use crate::mqtt_client::client::MqttClient;
 use super::device_dao::DeviceDao;
 use crate::common::http;
-use crate::entity::po::device_po::DevicePo;
+use super::entity::device_po::DevicePo;
 use crate::entity::bo::device_state_bo::{DeviceStateBo, StateBoEnum};
 use crate::entity::bo::device_command_bo::DeviceCommandBo;
 use crate::{info, warn, error, trace, debug};
@@ -59,10 +59,6 @@ impl DeviceManager {
             upward_rx: upward_rx,
             upward_rx_dummy: upward_rx_dummy,
             downward_rx: None,
-            dmx_bus_map: HashMap::new(),
-            serial_bus_map: HashMap::new(),
-            modbus_bus_map: HashMap::new(),
-            operable_device_map: HashMap::new(),
         }
     }
 
@@ -184,29 +180,6 @@ impl DeviceManager {
     
 }
 
-
-/// 根据配置文件初始化设备
-/// - 返回带有设备的 map
-/// 
-/// 这是设备初始化的第一步：将设备初始化为设备实例
-fn init_devices_by_config_map(config_map: HashMap<String, DevicePo>, device_factory: DeviceFactory) -> HashMap<String, Arc<Mutex<Box<dyn Device + Sync + Send>>>> {
-    let mut device_map: HashMap<String, Arc<Mutex<Box<dyn Device + Sync + Send>>> > = HashMap::new();
-        for (device_id, device_po) in config_map {
-        let device_type = device_po.device_type.clone();
-        let device_class = device_po.device_class.clone();
-        match device_factory.create_device(device_po.clone()) {
-            Ok(device) => {
-                // 注意初始化设备需要 Arc Mutex Box
-                let device_arc = Arc::new(Mutex::new(device));
-                device_map.insert(device_id.clone(), device_arc);
-            }
-            Err(e) => {
-                warn!(LOG_TAG, "无法初始化设备，设备类型：{}，设备类别：{}，错误信息：{}", device_type, device_class, e);
-            }
-        }
-    }
-    device_map
-}
 
 // 将 json 转换为 po
 fn transform_json_data_to_po(json_object: Value) -> Option<DevicePo> {

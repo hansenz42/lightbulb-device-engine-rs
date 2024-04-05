@@ -97,7 +97,7 @@ impl DeviceFactory {
                 }
             }
 
-            let _ = self.make_device(device_config.1)?;
+            let _ = self.create_device(device_config.1)?;
         }
 
         Ok(())
@@ -105,7 +105,7 @@ impl DeviceFactory {
 
     /// make device by one device info bo
     /// this function will make the device and change device_enum map
-    fn make_device(&mut self, bo: &DeviceInfoBo) -> Result<(), DriverError> {
+    fn create_device(&mut self, bo: &DeviceInfoBo) -> Result<(), DriverError> {
         if bo.device_type == "modbus_bus" {
             self.make_modbus(bo)?
         } else if bo.device_type == "serial_bus" {
