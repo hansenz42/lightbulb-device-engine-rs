@@ -1,7 +1,7 @@
 //! networking module
 //! function:
-//! - 处理远程服务器错误：如果远程发生错误，code 不为 200，那么返回 HttpError
-//! - 保证输入输出均为 json object
+//! - if return code is not 200, return HttpError
+//! - make input and output are json format
 
 use std::{collections::HashMap, fs::File, io::Write};
 use super::setting::Settings;
@@ -19,31 +19,32 @@ lazy_static! {
 }
 
 /// wrapper for get api
-pub async fn api_get(api_url: &str) -> Result<Value, Box<dyn Error>> {
+pub async fn api_get(api_url: &str) -> Result<Value, DeviceServerError> {
     let resp: serde_json::Value  = reqwest::get(format!("{}/{}", BASEURL.as_str(), api_url).as_str())
-        .await?
+        .await.map_err(|e| DeviceServerError {code: ServerErrorCode::HttpError, msg: format!("http GET error: {e}")})?
         .json()
-        .await?;
+        .await.map_err(|e| DeviceServerError {code: ServerErrorCode::HttpError, msg: format!("http GET error, cannot transform return value to json: {e}")})?;
     let res = get_res_data(resp)?;
     Ok(res)
 }
 
 /// wrapper for post api
-pub async fn api_post(api_url: &str, data: Value) -> Result<Value, Box<dyn Error>> {
+pub async fn api_post(api_url: &str, data: Value) -> Result<Value, DeviceServerError> {
     let resp: serde_json::Value = reqwest::Client::new()
         .post(format!("{}/{}", BASEURL.as_str(), api_url).as_str())
         .json(&data)
         .send()
-        .await?
+        .await.map_err(|e| DeviceServerError {code: ServerErrorCode::HttpError, msg: format!("http POST error: {e}")})?
         .json()
-        .await?;
+        .await.map_err(|e| DeviceServerError {code: ServerErrorCode::HttpError, msg: format!("http POST error, cannot transform return value to json: {e}")})?;
     let res = get_res_data(resp)?;
     Ok(res)
 }
 
-pub async fn download_file(api_url: &str, folder_path: &str) -> Result<(), Box<dyn Error>> {
-    let mut resp = reqwest::get(format!("{}/{}", BASEURL.as_str(), api_url)).await?;
-    // 从 response Content-Disposition 中获取文件名
+pub async fn download_file(api_url: &str, folder_path: &str) -> Result<(), DeviceServerError> {
+    let mut resp = reqwest::get(format!("{}/{}", BASEURL.as_str(), api_url)).await
+        .map_err(|e| DeviceServerError {code: ServerErrorCode::HttpError, msg: format!("file downloading error, http GET error: {e}")})?;
+    // get filename from response Content-Disposition
     let filename = resp
         .headers()
         .get("Content-Disposition")
@@ -53,28 +54,28 @@ pub async fn download_file(api_url: &str, folder_path: &str) -> Result<(), Box<d
                 .find_map(|s| s.trim().strip_prefix("filename="))
                 .map(|s| s.trim_matches('"'))
         })
-        .unwrap_or("download.bin");
-    // 检查是否存在同名文件
+        .unwrap_or("download-default-name.bin");
+    // check if the file exists with the same name
     let is_exist = tokio::fs::metadata(format!("{}/{}", folder_path, filename)).await.is_ok();
     if !is_exist {
-        // 跳过该文件的保存
-        let mut out = File::create(format!("{}/{}", folder_path, filename))?;
-        while let Some(chunk) = resp.chunk().await? {
-            out.write_all(&chunk)?;
+        // skip saving file
+        let mut out = File::create(format!("{}/{}", folder_path, filename)).map_err(|e| DeviceServerError {code: ServerErrorCode::FileSystemError, msg: format!("file downloading error, fail to create file: {e}")})?;
+        while let Some(chunk) = resp.chunk().await.map_err(|e| DeviceServerError {code: ServerErrorCode::FileSystemError, msg: format!("file downloading error, http get error: {e}")})? {
+            out.write_all(&chunk).map_err(|e| DeviceServerError {code: ServerErrorCode::FileSystemError, msg: format!("file downloading error, fail to write file: {e}")})?;
         }
     } else {
-        warn!(LOG_TAG, "文件 {} 已存在，跳过下载", filename);
+        warn!(LOG_TAG, "file {} exists, download skippped", filename);
     }
     
     Ok(())
 }
 
-/// 检查返回值中的 code 是否成功，不成功则抛出异常
-fn get_res_data(resp: Value) -> Result<Value, Box<dyn Error>> {
+/// check if the return code is 200
+fn get_res_data(resp: Value) -> Result<Value, DeviceServerError> {
     let status = resp["code"].as_i64().expect("status code not found");
     if status == 200 {
         Ok(resp["data"].clone())
     } else {
-        Err(Box::new(DeviceServerError {code: ServerErrorCode::HttpError, msg: format!("http 请求错误: {}", resp["msg"].as_str().unwrap_or(""))}))
+        Err(DeviceServerError {code: ServerErrorCode::HttpError, msg: format!("http error: {}", resp["msg"].as_str().unwrap_or(""))})
     }
 }

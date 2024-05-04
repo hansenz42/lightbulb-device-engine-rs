@@ -4,14 +4,14 @@ use std::fmt;
 
 #[derive(Debug, Copy, Clone)]
 pub enum ServerErrorCode {
-    // 未知错误
     UnknownError = 1000,
-    // http 请求错误
     HttpError = 1001,
-    // 设备配置文件错误
+    // Error related to device config files
     DeviceConfigError = 1002,
-    // 设备配置错误
+    // the device type is not supportted
     DeviceTypeNotSupport = 1003,
+    // cannot read or write files
+    FileSystemError = 1004,
 }
 
 #[derive(Debug)]
@@ -22,19 +22,19 @@ pub struct DeviceServerError {
 
 impl Display for DeviceServerError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "设备服务器错误 code: {},  msg: {}", self.code as u8, self.msg)
+        write!(f, "device server error, code: {},  msg: {}", self.code as u8, self.msg)
     }
 }
 
 impl Error for DeviceServerError {}
 
-// 设备驱动错误
+// error for drivers
 #[derive(Debug)]
 pub struct DriverError(pub String);
 
 impl Display for DriverError {
     fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        write!(f, "设备驱动错误 msg: {}", self.0)
+        write!(f, "device driver error msg: {}", self.0)
     }
 }
 
