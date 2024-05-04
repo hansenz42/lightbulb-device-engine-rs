@@ -7,9 +7,11 @@
 
 use std::collections::HashMap;
 use std::error::Error;
+use std::fmt::format;
 use serde_json::{Value, Map};
 
 use crate::common::dao::Dao;
+use crate::common::error::{DeviceServerError, ServerErrorCode};
 use super::file_dao::FileDao;
 use super::file_repo::{FileRepo, FileMetaBo};
 use crate::common::http;
@@ -38,25 +40,31 @@ impl FileManager {
     /// 远程获取配置文件
     /// - 如果远程存在配置文件，那么一定是以远程文件为准
     /// - 如果远程文件读取失败，则使用本地文件缓存
-    async fn get_remote(&mut self) -> Result<Value, Box<dyn Error>> {
+    async fn get_remote(&mut self) -> Result<Value, DeviceServerError> {
         let response_data = http::api_get(UPDATE_CONFIG_URL).await;
         match response_data {
             Ok(json_data) => {
                 if let Some(list) = json_data.get("list") {
                     if list.is_array() {
-                        info!(LOG_TAG, "成功获取远程文件数据");
+                        info!(LOG_TAG, "successfully get remote file data");
                         Ok(list.clone())
                     } else {
-                        error!(LOG_TAG, "远程文件数据格式错误");
-                        return Err("远程文件数据格式错误".into());
+                        error!(LOG_TAG, "remote file data format error");
+                        return Err(DeviceServerError {
+                            code: ServerErrorCode::FileConfigError, 
+                            msg: format!("remote file data format error") }
+                        );
                     }
                 } else {
-                    error!(LOG_TAG, "远程文件数据格式错误");
-                    return Err("远程文件数据格式错误".into());
+                    error!(LOG_TAG, "cannot transform remote file to json");
+                    return Err(DeviceServerError {
+                        code: ServerErrorCode::FileConfigError,
+                        msg: format!("cannot transform remote file to json")
+                    });
                 }
             }
             Err(e) => {
-                error!(LOG_TAG, "无法获取远程文件数据，错误信息：{}", e);
+                error!(LOG_TAG, "cannot get remote file config data: {}", e);
                 Err(e)
             }
         }

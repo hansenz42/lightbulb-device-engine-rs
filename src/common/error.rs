@@ -12,6 +12,8 @@ pub enum ServerErrorCode {
     DeviceTypeNotSupport = 1003,
     // cannot read or write files
     FileSystemError = 1004,
+    DatabaseError = 1005,
+    FileConfigError = 1006,
 }
 
 #[derive(Debug)]

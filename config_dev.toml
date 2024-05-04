@@ -1,23 +1,23 @@
-# 基本信息
+# basic information
 [meta]
 application_name = "lightbulb"
 scenario_name = "default_scenario"
 server_name = "default_server"
 
-# 环境信息
+# env settings
 [env]
 debug = true
 env = "dev"
 log_level = "trace"
 
-# 服务器信息
+# device server setting
 [server]
-server_id = "server_id_1"
+server_id = "deviceserver_dev"
 server_ip = "127.0.0.1"
 server_type = "deviceserver"
 
 
-# 网络接口
+# bounding http server port
 [web]
 web_host = "0.0.0.0"
 web_port = 5008
@@ -26,14 +26,14 @@ web_port = 5008
 [pm2]
 process_name = "device"
 
-# mqtt 信息
+# mqtt information
 [mqtt]
 broker_host = "127.0.0.1"
 broker_port = 1883
 client_id = "lightbulb-device-engine-2335"
 
 
-# 上游服务器地址
+# upstream flowserver setting
 [upstream]
 host = "127.0.0.1"
 port = 7001

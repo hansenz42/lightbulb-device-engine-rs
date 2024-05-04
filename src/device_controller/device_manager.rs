@@ -12,6 +12,7 @@ use std::error::Error;
 use serde_json::{Value, Map};
 
 use crate::common::dao::Dao;
+use crate::common::error::{DeviceServerError, ServerErrorCode};
 use crate::driver::dmx::dmx_bus::DmxBus;
 use crate::driver::serial::serial_bus::SerialBus;
 use crate::driver::traits::Operable;
@@ -28,7 +29,7 @@ use std::sync::{mpsc, Arc, Mutex};
 use crate::driver::modbus::modbus_bus::ModbusBus;
 
 // url to update device config
-const UPDATE_CONFIG_URL: &str = "api/v1.2/device";
+const UPDATE_CONFIG_URL: &str = "api/v1.2/device/config/HZ-B1";
 const LOG_TAG : &str = "DeviceManager";
 
 /// device manager
@@ -68,15 +69,15 @@ impl DeviceManager {
     /// - 所有权关系：该函数将拿走 self 的所有权，因为需要在线程中调用访问 self 中的设备对象
     pub fn start_worker(self, downward_rx: mpsc::Receiver<DeviceCommandBo>, mqtt_client: Arc<MqttClient>) {
         
-        info!(LOG_TAG, "根据配置文件初始化设备");
+        info!(LOG_TAG, "init devices according to config");
 
 
         // downward thread, send command to device
         thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().expect("下行传递线程：无法创建 tokio 运行时");
+            let rt = tokio::runtime::Runtime::new().expect("downward worker: cannot create tokio runtime");
             rt.block_on( async move {
                 loop {
-                    info!(LOG_TAG, "等待下行指令");
+                    info!(LOG_TAG, "waitting for downward command");
                     let recv_message = downward_rx.recv();
                     match recv_message {
                         Ok(commnad) => {
@@ -84,7 +85,7 @@ impl DeviceManager {
 
                         }
                         Err(e) => {
-                            warn!(LOG_TAG, "下行指令通道关闭，即将退出，错误信息：{}", e);
+                            warn!(LOG_TAG, "downward worker channel closing, error msg: {}", e);
                             return
                         }
                     }
@@ -92,7 +93,7 @@ impl DeviceManager {
             });
         });
         
-        info!(LOG_TAG, "下行指令 worker 已启动");
+        info!(LOG_TAG, "download worker started");
 
         let upward_rx = self.upward_rx;
 
@@ -100,18 +101,18 @@ impl DeviceManager {
         // - 设备上报数据
         // - 向 mqtt 发布推送设备状态
         thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().expect("上行传递线程：无法创建 tokio 运行时");
+            let rt = tokio::runtime::Runtime::new().expect("upward worker: cannot create tokio runtime");
             rt.block_on( async move {
                 loop{
-                    info!(LOG_TAG, "等待上行数据");
+                    info!(LOG_TAG, "waiting for upward message");
                     let message = upward_rx.recv();
                     match message {
                         Ok(device_state_bo) => {
-                            info!(LOG_TAG, "设备上报数据：{:?}", &device_state_bo);
-                            mqtt_client.publish_status(device_state_bo).await.expect("向 mqtt 发布设备状态失败");
+                            info!(LOG_TAG, "upward message to mqtt: {:?}", &device_state_bo);
+                            mqtt_client.publish_status(device_state_bo).await.expect("cannot publish upward message to mqtt");
                         }   
                         Err(e) => {
-                            warn!(LOG_TAG, "上行指令通道关闭，通道异常，错误信息：{}", e);
+                            warn!(LOG_TAG, "upward worker closed, channel error, msg: {}", e);
                             return
                         }
                     }
@@ -119,7 +120,7 @@ impl DeviceManager {
             });
         });
         
-        info!(LOG_TAG, "上行数据 worker 已启动");
+        info!(LOG_TAG, "upward worker started");
     }
 
     pub fn clone_upward_tx(&self) -> mpsc::Sender<DeviceStateBo> {
@@ -145,23 +146,27 @@ impl DeviceManager {
         }
 
         self.load_from_db().await?;
-        info!(LOG_TAG, "设备管理器已启动");
+        info!(LOG_TAG, "device manager initialized");
         Ok(())
     }
 
     /// get config data from remote
-    async fn get_remote(&mut self) -> Result<Value, Box<dyn Error>>{
+    async fn get_remote(&mut self) -> Result<Value, DeviceServerError>{
         http::api_get(UPDATE_CONFIG_URL).await
     }
 
     /// svae device config to db
-    async fn write_to_db(&self, json_data: Value) -> Result<(), Box<dyn Error>>{
-        let device_list = json_data.get("list").unwrap().as_array().expect("list 未找到");
+    async fn write_to_db(&self, json_data: Value) -> Result<(), DeviceServerError>{
+        let device_list = json_data.get("list").unwrap().as_array().expect("error writing config, cannot find list in config");
         for device in device_list {
             if let Some(device_po) = transform_json_data_to_po(device.clone()) {
-                self.device_dao.add_device_config(device_po).await?;
+                self.device_dao.add_device_config(device_po).await
+                .map_err(|e| DeviceServerError{
+                    code: ServerErrorCode::DatabaseError,
+                    msg: format!("error writing device config to database, error msg: {}", e)
+                })?;
             } else {
-                warn!(LOG_TAG, "无法解析设备配置文件：{:?}", device);
+                warn!(LOG_TAG, "cannot parse device config json: {:?}", device);
             }
         }
         Ok(())
@@ -326,5 +331,17 @@ mod tests {
         }).unwrap();
 
         thread::sleep(std::time::Duration::from_secs(2));
+    }
+
+    #[test]
+    fn test_get_device_config() {
+        let _ = init_logger();
+        println!("get device config testing");
+        let mut manager = DeviceManager::new();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            let result = manager.get_remote().await.unwrap();
+            println!("{:?}", result);
+        })
     }
 }

@@ -7,9 +7,9 @@ use super::setting::Settings;
 
 /// 初始化日志的基础功能
 pub fn init_logger() -> Result<(), Error> {
-    // 检查是否已经初始化
+    // check if log manager has been initialized
     if log::max_level() != log::LevelFilter::Off {
-        println!("日志管理器尝试重复初始化");
+        println!("log manager initialized");
         return Ok(())
     }
 
@@ -24,7 +24,7 @@ pub fn init_logger() -> Result<(), Error> {
             _ => log::LevelFilter::Info
         })
         .init();
-    println!("日志管理器已经初始化");
+    println!("log manager initialized");
     Ok(())
 }
 
