@@ -7,27 +7,27 @@ use rusqlite::params;
 use crate::common::sqlite::SqliteConnection;
 use super::entity::device_po::DevicePo;
 use async_trait::async_trait;
+use crate::{debug, error, info, trace, warn};
 
 pub struct DeviceDao {
     file_path: &'static str,
     table_name: &'static str,
 }
 
+const LOG_TAG: &str = "device_dao";
+
 #[async_trait]
 impl Dao for DeviceDao {
-    /// 删除数据表
     async fn drop_table(&self) -> tokio_rusqlite::Result<()> {
         let conn = SqliteConnection::get().open().await?;
         let table_name_copy = self.table_name.clone();
 
-        // 执行删除
         conn.call( move|conn| 
             conn.execute(format!("DROP TABLE {}", table_name_copy).as_str(), ())
         ).await?;
         Ok(())
     }
 
-    /// 创建数据表
     async fn create_table(&self) -> tokio_rusqlite::Result<()> {
         let conn = SqliteConnection::get().open().await?;
 
@@ -48,7 +48,7 @@ impl Dao for DeviceDao {
         })
         .await?;
 
-        log::debug!("[Controller] 设备缓存表初始化");
+        debug!(LOG_TAG, "device cache init complete");
 
         Ok(())
     }
@@ -65,10 +65,10 @@ impl DeviceDao {
     pub async fn ensure_table_exist(&self) -> Result<(), Box<dyn Error>> {
         let is_exist = self.check_table(self.table_name).await?;
         if is_exist {
-            log::debug!("设备缓存表已存在");
+            debug!(LOG_TAG, "device cache table already exist");
         } else {
             self.create_table().await?;
-            log::debug!("设备缓存表初始化");
+            debug!(LOG_TAG, "device cache table init");
         }
         Ok(())
     }    
@@ -81,7 +81,7 @@ impl DeviceDao {
 
         conn.call(move |conn| {
             conn.execute(
-                "INSERT INTO device (device_id, device_class, device_type, name, description, room, config) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+                "INSERT INTO device (device_id, device_class, device_type, name, description, room, config) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
                 params![
                     device_config_copy.device_id,
                     device_config_copy.device_class,
@@ -97,13 +97,12 @@ impl DeviceDao {
         Ok(())
     }
 
-    /// 读取整个列表
     pub async fn get_all(&self) -> tokio_rusqlite::Result<Vec<DevicePo>> {
         let conn = SqliteConnection::get().open().await?;
 
         let res = conn.call(|conn| {
             let mut stmt = conn.prepare(
-                "SELECT device_id, device_class, device_type, name, description, room, master_device_id, config FROM device",
+                "SELECT device_id, device_class, device_type, name, description, room, config FROM device",
             )?;
             let device_iter = stmt.query_map([], |row| {
                 Ok(DevicePo {

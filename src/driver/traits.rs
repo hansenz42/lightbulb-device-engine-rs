@@ -1,4 +1,4 @@
-use crate::{common::error::DriverError, entity::bo::{device_command_bo::DeviceCommandBo}};
+use crate::{common::error::DriverError, entity::dto::{device_command_dto::DeviceCommandDto}};
 use crate::entity::dto::device_state_dto::DeviceStateDto;
 use std::{rc::Rc, sync::mpsc};
 
@@ -15,7 +15,7 @@ pub trait UpwardSendable {
 /// the device that operable by controller
 pub trait Operable {
     /// send command to operable dvice
-    fn operate(&self, message: DeviceCommandBo) -> Result<(), crate::common::error::DriverError>;
+    fn operate(&self, message: DeviceCommandDto) -> Result<(), crate::common::error::DriverError>;
 }
 
 

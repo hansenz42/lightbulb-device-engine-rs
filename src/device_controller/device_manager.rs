@@ -13,6 +13,7 @@ use serde_json::{Value, Map};
 
 use crate::common::dao::Dao;
 use crate::common::error::{DeviceServerError, ServerErrorCode};
+use crate::device_controller::device_factory::DeviceFactory;
 use crate::driver::dmx::dmx_bus::DmxBus;
 use crate::driver::serial::serial_bus::SerialBus;
 use crate::driver::traits::Operable;
@@ -22,7 +23,7 @@ use super::device_dao::DeviceDao;
 use crate::common::http;
 use super::entity::device_po::DevicePo;
 use crate::entity::dto::device_state_dto::{DeviceStateDto, StateDtoEnum};
-use crate::entity::bo::device_command_bo::DeviceCommandBo;
+use crate::entity::dto::device_command_dto::DeviceCommandDto;
 use crate::{info, warn, error, trace, debug};
 use std::thread;
 use std::sync::{mpsc, Arc, Mutex};
@@ -40,15 +41,17 @@ pub struct DeviceManager {
     device_dao: DeviceDao,
     // configuration map of devices
     pub config_map: HashMap<String, DevicePo>,
+    // configuration list of devices
+    pub config_list: Vec<DevicePo>,
     
     // upward thread: receive from device, send to mqtt
     upward_rx: mpsc::Receiver<DeviceStateDto>,
     
     // the device can clone this rx channel to send data to upward thread
-    upward_rx_dummy: mpsc::Sender<DeviceStateDto>,
+    pub upward_tx_dummy: mpsc::Sender<DeviceStateDto>,
     
     // downward receive channel from mqtt
-    downward_rx: Option<mpsc::Receiver<DeviceCommandBo>>,
+    downward_rx: Option<mpsc::Receiver<DeviceCommandDto>>,
 }
 
 impl DeviceManager {
@@ -57,8 +60,9 @@ impl DeviceManager {
         DeviceManager{
             device_dao: DeviceDao::new(),
             config_map: HashMap::new(),
+            config_list: Vec::new(),
             upward_rx: upward_rx,
-            upward_rx_dummy: upward_rx_dummy,
+            upward_tx_dummy: upward_rx_dummy,
             downward_rx: None,
         }
     }
@@ -67,15 +71,20 @@ impl DeviceManager {
     /// - 设备管理 + 下行线程：从 mqtt 服务器接收到的消息，给设备的指令。下行传递线程也是设备操作的主线程，负责初始化并管理所有设备
     /// - 上行传递：接收从 device 来的消息，推送到 mqtt
     /// - 所有权关系：该函数将拿走 self 的所有权，因为需要在线程中调用访问 self 中的设备对象
-    pub fn start_worker(self, downward_rx: mpsc::Receiver<DeviceCommandBo>, mqtt_client: Arc<MqttClient>) {
+    pub fn start_worker(self, downward_rx: mpsc::Receiver<DeviceCommandDto>, mqtt_client: Arc<MqttClient>) {
         
-        info!(LOG_TAG, "init devices according to config");
-
+        // TODO: init devices accroding to device config
 
         // downward thread, send command to device
         thread::spawn(move || {
             let rt = tokio::runtime::Runtime::new().expect("downward worker: cannot create tokio runtime");
             rt.block_on( async move {
+                let mut device_factory = DeviceFactory::new(self.upward_tx_dummy.clone());
+
+                device_factory.make_devices_by_device_po_list(self.config_list.clone()).unwrap();
+
+                let (device_info_map, device_enum_map) = device_factory.get_result();
+
                 loop {
                     info!(LOG_TAG, "waitting for downward command");
                     let recv_message = downward_rx.recv();
@@ -93,7 +102,7 @@ impl DeviceManager {
             });
         });
         
-        info!(LOG_TAG, "download worker started");
+        info!(LOG_TAG, "downward worker started");
 
         let upward_rx = self.upward_rx;
 
@@ -124,7 +133,7 @@ impl DeviceManager {
     }
 
     pub fn clone_upward_tx(&self) -> mpsc::Sender<DeviceStateDto> {
-        self.upward_rx_dummy.clone()
+        self.upward_tx_dummy.clone()
     }
 
     /// init device manager
@@ -138,15 +147,17 @@ impl DeviceManager {
                 // clear all data
                 self.device_dao.clear_table().await?;
                 self.write_to_db(json_data).await?;
-                info!(LOG_TAG, "远程设备配置加载成功！");
+                info!(LOG_TAG, "successfully got device config data from flow server");
             }
             Err(e) => {
-                warn!(LOG_TAG, "无法获取远程设备配置文件，将使用本地缓存配置文件，错误信息：{}", e);
+                warn!(LOG_TAG, "cannot pull device config data from flow server, will use local data cahce, err msg: {}", e);
             }
         }
 
         self.load_from_db().await?;
-        info!(LOG_TAG, "device manager initialized");
+        info!(LOG_TAG, "successfully load device config data from db");
+
+        info!(LOG_TAG, "device manager startup complete");
         Ok(())
     }
 
@@ -157,7 +168,7 @@ impl DeviceManager {
 
     /// svae device config to db
     async fn write_to_db(&self, json_data: Value) -> Result<(), DeviceServerError>{
-        let device_list = json_data.get("list").unwrap().as_array().expect("error writing config, cannot find list in config");
+        let device_list = json_data.get("config").unwrap().as_array().expect("error writing config, cannot find list in config");
         for device in device_list {
             if let Some(device_po) = transform_json_data_to_po(device.clone()) {
                 self.device_dao.add_device_config(device_po).await
@@ -173,10 +184,16 @@ impl DeviceManager {
     }
 
     /// load config from database
-    async fn load_from_db(&mut self) -> Result<(), Box<dyn Error>> {
-        let device_config_po_list: Vec<DevicePo> = self.device_dao.get_all().await?;
+    async fn load_from_db(&mut self) -> Result<(), DeviceServerError> {
+        let device_config_po_list: Vec<DevicePo> = self.device_dao.get_all().await.map_err(
+            |e| DeviceServerError{
+                code: ServerErrorCode::DatabaseError,
+                msg: format!("error loading device config from database, error msg: {}", e)
+            }
+        )?;
         for device_config_po in device_config_po_list {
-            self.config_map.insert(device_config_po.device_id.clone(), device_config_po);
+            self.config_map.insert(device_config_po.device_id.clone(), device_config_po.clone());
+            self.config_list.push(device_config_po);
         }
         Ok(())
     }
@@ -186,33 +203,25 @@ impl DeviceManager {
 }
 
 
-// 将 json 转换为 po
+// make json object to device po
 fn transform_json_data_to_po(json_object: Value) -> Option<DevicePo> {
     let device_data = json_object.as_object()?;
     let config = device_data.get("config")?.as_object()?;
     let device_po = DevicePo {
-        device_id: config.get("id")?.as_str()?.to_string(),
-        device_class: config.get("class")?.as_str()?.to_string(),
-        device_type: config.get("type")?.as_str()?.to_string(),
-        name: config.get("name")?.as_str()?.to_string(),
-        description: config.get("description")?.as_str()?.to_string(),
-        room: config.get("room")?.as_str()?.to_string(),
+        device_id: json_object.get("device_id")?.as_str()?.to_string(),
+        device_class: json_object.get("device_class")?.as_str()?.to_string(),
+        device_type: json_object.get("device_type")?.as_str()?.to_string(),
+        name: json_object.get("name")?.as_str()?.to_string(),
+        description: json_object.get("description")?.as_str()?.to_string(),
+        room: json_object.get("room")?.as_str()?.to_string(),
         config: transform_device_config_obj_str(config)
     };
     Some(device_po)
 }
 
-// 辅助函数：构造一个配置文件 str 用于保存到数据库的 config 字段中
+// make device config to str
 fn transform_device_config_obj_str(device_data: &Map<String, Value>) -> String {
-    // 去除已经记录的字段
     let mut config = device_data.clone();
-    config.remove("class");
-    config.remove("type");
-    config.remove("name");
-    config.remove("description");
-    config.remove("room");
-
-    // 剩余字段导出为字符串
     let config_str = serde_json::to_string(&config).unwrap();
     config_str
 }
@@ -224,7 +233,6 @@ mod tests {
     use crate::entity::dto::device_state_dto::DoControllerStateDto;
     use crate::mqtt_client::client::MqttClient;
 
-    // 设备初始化测试
     #[test]
     fn test_device_create() {
         let _ = init_logger();
@@ -248,7 +256,7 @@ mod tests {
 
             manager.start_worker(rx, mqtt_client_arc.clone());
         });
-        tx.send(DeviceCommandBo{
+        tx.send(DeviceCommandDto{
             server_id: "this".to_string(),
             device_id: "test_device_id".to_string(),
             action: "some action".to_string(),
@@ -258,19 +266,6 @@ mod tests {
         thread::sleep(std::time::Duration::from_secs(6));
     }
 
-    // 测试获取服务配置
-    #[test] 
-    fn test_get_device_config_from_remote() {
-        let _ = init_logger();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let mut manager = DeviceManager::new();
-            manager.startup().await.unwrap();
-        });
-        info!(LOG_TAG, "测试完成");
-    }
-
-    // 下行传递测试
     #[test]
     fn test_downward_channel() {
         let _ = init_logger();
@@ -289,7 +284,7 @@ mod tests {
         thread::sleep(std::time::Duration::from_secs(1));
 
         println!("发送指令");
-        tx.send(DeviceCommandBo{
+        tx.send(DeviceCommandDto{
             server_id: "this".to_string(),
             device_id: "123".to_string(),
             action: "test".to_string(),
@@ -302,7 +297,6 @@ mod tests {
         thread::sleep(std::time::Duration::from_secs(2));
     }
 
-    // 上行传递测试
     #[test]
     fn test_upward_channel() {
         let _ = init_logger();
@@ -334,7 +328,7 @@ mod tests {
     }
 
     #[test]
-    fn test_get_device_config() {
+    fn test_get_device_config_from_remote() {
         let _ = init_logger();
         println!("get device config testing");
         let mut manager = DeviceManager::new();
@@ -344,4 +338,26 @@ mod tests {
             println!("{:?}", result);
         })
     }
+
+    /// test:
+    /// 1, get data from flow server
+    /// 2, load data to device manager
+    /// 3, create devices
+    /// 4, get device_info and device_enum
+    #[test]
+    fn test_device_engine_startup_and_make_devices() {
+        let _ = init_logger();
+        println!("device engine startup testing");
+        let mut manager = DeviceManager::new();
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            manager.startup().await.unwrap();
+            let mut factory = DeviceFactory::new(manager.clone_upward_tx());
+            factory.make_devices_by_device_po_list(manager.config_list.clone()).unwrap();
+            let (device_info_map, device_enum_map) = factory.get_result();
+            println!("device_info_map: {:?}", device_info_map);
+            println!("device_enum_map: {:?}", device_enum_map.keys());
+        })
+    }
+
 }

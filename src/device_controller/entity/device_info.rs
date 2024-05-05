@@ -8,7 +8,7 @@ pub enum DeviceStatusEnum{
 
 /// device info bo for device info mapping
 #[derive(Debug, PartialEq, Clone)]
-pub struct DeviceInfoBo {
+pub struct DeviceInfoDto {
     pub device_id: String,
     pub master_device_id: Option<String>,
     pub device_type: String,

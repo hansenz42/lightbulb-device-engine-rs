@@ -1,7 +1,8 @@
 //! device factory registery
 
 use super::entity::device_enum::DeviceRefEnum;
-use super::entity::device_info::{DeviceInfoBo, DeviceStatusEnum};
+use super::entity::device_info::{DeviceInfoDto, DeviceStatusEnum};
+use super::entity::device_po::DevicePo;
 use super::factory::*;
 use crate::driver::dmx::dmx_bus::DmxBus;
 use crate::driver::modbus::traits::{ModbusDiControllerListener, ModbusListener};
@@ -25,14 +26,14 @@ const LOG_TAG: &str = "device_factory";
 /// you will first call "read_json()" to read data from json Value
 /// then, call "make_device_by_config_map()" to init all device object
 /// last, call "get_result()" to get device info map and device enum map, after that, DeviceFactory will drop
-struct DeviceFactory { 
+pub struct DeviceFactory { 
     device_enum_map: HashMap<String, DeviceRefEnum>,
-    device_info_map: HashMap<String, DeviceInfoBo>,
+    device_info_map: HashMap<String, DeviceInfoDto>,
     upward_rx_dummy: mpsc::Sender<DeviceStateDto>,
 }
 
 impl DeviceFactory {
-    fn new(upward_rx_dummy: mpsc::Sender<DeviceStateDto>) -> DeviceFactory {
+    pub fn new(upward_rx_dummy: mpsc::Sender<DeviceStateDto>) -> DeviceFactory {
         DeviceFactory {
             device_enum_map: HashMap::new(),
             device_info_map: HashMap::new(),
@@ -43,44 +44,33 @@ impl DeviceFactory {
     /// get results after making all devices
     /// return all maps to device manager
     /// after calling this function, this DeviceFactory will drop
-    pub fn get_result(self) -> (HashMap<String, DeviceInfoBo>, HashMap<String, DeviceRefEnum>) {
+    pub fn get_result(self) -> (HashMap<String, DeviceInfoDto>, HashMap<String, DeviceRefEnum>) {
         ( self.device_info_map, self.device_enum_map )
     }
+    
+    pub fn make_devices_by_device_po_list(&mut self, device_po_list: Vec<DevicePo>) -> Result<(), DriverError> {
+        for device_po in device_po_list {
+            let device_config_json: Value = serde_json::from_str(&device_po.config).map_err(
+                |e| DriverError(format!("error parsing device config, error msg: {}", e))
+            )?;
+            let master_device_id = device_config_json["master_device_id"].as_str().map(|s| s.to_string());
 
-    /// read json and load into device_info_map
-    pub fn read_json(&mut self, config_list: Value) -> Result<(), DriverError> {
-        // device map area
-        let device_list = config_list.as_array().ok_or(DriverError(
-            "device factory: cannot find modbus_bus in config".to_string(),
-        ))?;
-
-        let mut config_list = device_list.clone();
-
-        for device_config in config_list.iter() {
-            let device_id = device_config["device_id"].as_str().ok_or(DriverError(
-                "device factory: cannot find device_id in config".to_string(),
-            ))?;
-
-            let device_type = device_config["device_type"].as_str().ok_or(DriverError(
-                "device factory: no device_type in config".to_string(),
-            ))?;
-
-            let master_device_id = device_config["master_device_id"]
-                .as_str()
-                .map(|s| s.to_string());
-
-            let device_info = DeviceInfoBo {
-                device_id: device_id.to_string(),
-                device_type: device_type.to_string(),
+            // 1. make device info
+            let device_info = DeviceInfoDto {
+                device_id: device_po.device_id.clone(),
+                device_type: device_po.device_type.clone(),
                 master_device_id: master_device_id,
-                config: device_config.clone(),
+                config: device_config_json.clone(),
                 status: DeviceStatusEnum::NotInitialized
             };
 
-            self.device_info_map
-                .insert(device_id.to_string(), device_info);
-        }
+            // 2. put device info into device_info_map
+            let _ = self.device_info_map.insert(device_po.device_id.clone(), device_info.clone());
 
+            // 3. use device info to make device object, create_device will put device object to device_enum_map, and will change DeviceInfoDto statue to initialized
+            let _ = self.create_device(&device_info)?;
+
+        }
         Ok(())
     }
 
@@ -105,34 +95,34 @@ impl DeviceFactory {
 
     /// make device by one device info bo
     /// this function will make the device and change device_enum map
-    fn create_device(&mut self, bo: &DeviceInfoBo) -> Result<(), DriverError> {
-        if bo.device_type == "modbus_bus" {
-            self.make_modbus(bo)?
-        } else if bo.device_type == "serial_bus" {
-            self.make_serial_bus(bo)?
-        } else if bo.device_type == "dmx_bus" {
-            self.make_dmx_bus(bo)?
-        } else if bo.device_type == "modbus_do_controller" {
-            self.make_do_controller(bo)?
-        } else if bo.device_type == "modbus_do_port" {
-            self.make_do_port(bo)?;
-        } else if bo.device_type == "modbus_di_controller" {
-            let _ = self.make_di_controller(bo)?;
-        } else if bo.device_type == "modbus_di_port" {
-            let _ = self.make_di_port(bo)?;
+    fn create_device(&mut self, dto: &DeviceInfoDto) -> Result<(), DriverError> {
+        if dto.device_type == "modbus_bus" {
+            self.make_modbus(dto)?
+        } else if dto.device_type == "serial_bus" {
+            self.make_serial_bus(dto)?
+        } else if dto.device_type == "dmx_bus" {
+            self.make_dmx_bus(dto)?
+        } else if dto.device_type == "modbus_do_controller" {
+            self.make_do_controller(dto)?
+        } else if dto.device_type == "modbus_do_port" {
+            self.make_do_port(dto)?;
+        } else if dto.device_type == "modbus_di_controller" {
+            let _ = self.make_di_controller(dto)?;
+        } else if dto.device_type == "modbus_di_port" {
+            let _ = self.make_di_port(dto)?;
         } else {
             return Err(DriverError(format!(
                 "device factory: unknown device type. device_type={}, device_id={}",
-                bo.device_type,
-                bo.device_id
+                dto.device_type,
+                dto.device_id
             )))
         }
-        if let Some(data_mut) = self.device_info_map.get_mut(bo.device_id.as_str()) {
+        if let Some(data_mut) = self.device_info_map.get_mut(dto.device_id.as_str()) {
             data_mut.status = DeviceStatusEnum::Initialized;
         } else {
             return Err(DriverError(format!(
                 "device factory: update device status failed, mut reference getting failed, device_id: {}",
-                bo.device_id
+                dto.device_id
             )))
         }
         Ok(())
@@ -149,25 +139,25 @@ impl DeviceFactory {
         Ok(master_device_enum)
     }
 
-    fn make_modbus(&mut self, bo: &DeviceInfoBo) -> Result<(), DriverError> {
+    fn make_modbus(&mut self, bo: &DeviceInfoDto) -> Result<(), DriverError> {
         let modbus_bus = modbus_bus_factory::make(&bo.config)?;
         self.device_enum_map.insert(bo.device_id.clone(), DeviceRefEnum::ModbusBus(Rc::new(RefCell::new(modbus_bus))));
         Ok(())
     }
 
-    fn make_dmx_bus(&mut self, bo: &DeviceInfoBo) -> Result<(), DriverError> {
+    fn make_dmx_bus(&mut self, bo: &DeviceInfoDto) -> Result<(), DriverError> {
         let dmx_bus = dmx_bus_factory::make(&bo.config)?;
         self.device_enum_map.insert(bo.device_id.clone(), DeviceRefEnum::DmxBus(Rc::new(RefCell::new(dmx_bus))));
         Ok(())
     }
 
-    fn make_serial_bus(&mut self, bo: &DeviceInfoBo) -> Result<(), DriverError> {
+    fn make_serial_bus(&mut self, bo: &DeviceInfoDto) -> Result<(), DriverError> {
         let serial_bus = serial_bus_factory::make(&bo.config)?;
         self.device_enum_map.insert(bo.device_id.clone(), DeviceRefEnum::SerialBus(Rc::new(RefCell::new(serial_bus))));
         Ok(())
     }
 
-    fn make_do_controller(&mut self, bo: &DeviceInfoBo) -> Result<(), DriverError> {
+    fn make_do_controller(&mut self, bo: &DeviceInfoDto) -> Result<(), DriverError> {
         if let Some(master_device_id) = &bo.master_device_id {
             // get modbus master device
             let master_device_enum = self.get_master_device_enum(master_device_id.as_str())?;
@@ -193,7 +183,7 @@ impl DeviceFactory {
         }
     }
 
-    fn make_do_port(&mut self, bo: &DeviceInfoBo) -> Result<(), DriverError> {
+    fn make_do_port(&mut self, bo: &DeviceInfoDto) -> Result<(), DriverError> {
         if let Some(master_device_id) = &bo.master_device_id {
             // get modbus master device
             let master_device_enum = self.get_master_device_enum(master_device_id.as_str())?;
@@ -217,7 +207,7 @@ impl DeviceFactory {
         }
     }
 
-    fn make_di_controller(&mut self, bo: &DeviceInfoBo) -> Result<(), DriverError> {
+    fn make_di_controller(&mut self, bo: &DeviceInfoDto) -> Result<(), DriverError> {
         // init modbus_di_controller
         // get master device (modbus), and insert itself into it
         if let Some(master_device_id) = &bo.master_device_id {
@@ -258,7 +248,7 @@ impl DeviceFactory {
     /// 4 borrow di_controller
     /// 5 make di_port device
     /// 6 mount di_port onto di_controller
-    fn make_di_port(&mut self, bo: &DeviceInfoBo) -> Result<(), DriverError> {
+    fn make_di_port(&mut self, bo: &DeviceInfoDto) -> Result<(), DriverError> {
         // find modbus_di_controller, and insert modbus_di_port into it
         if let Some(master_device_id) = &bo.master_device_id {
             // find modbus controller's master_device_id

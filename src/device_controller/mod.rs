@@ -6,7 +6,7 @@
 
 pub mod device_manager;
 pub mod device_dao;
-mod device_factory;
+pub mod device_factory;
 mod factory;
 mod traits;
 pub mod entity;

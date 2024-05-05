@@ -19,9 +19,9 @@ use std::{
 use super::{entity::{ModbusThreadCommandEnum, WriteMultiBo, WriteSingleBo}, modbus_thread::*, prelude::ModbusAddrSize, traits::ModbusListener};
 use crate::{common::error::DriverError, driver::traits::Refable};
 use crate::entity::bo::{
-    device_command_bo::DeviceCommandBo,
     device_config_bo::ConfigBo,
 };
+use crate::entity::dto::device_command_dto::DeviceCommandDto;
 use crate::entity::dto::device_state_dto::{DeviceStateDto, StateDtoEnum};
 use serde_json::Value;
 use std::collections::HashMap;
