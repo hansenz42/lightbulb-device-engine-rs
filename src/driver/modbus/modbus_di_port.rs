@@ -2,7 +2,7 @@ use super::prelude::*;
 use super::traits::ModbusDiControllerListener;
 use crate::common::error::DriverError;
 use crate::driver::traits::UpwardSendable;
-use crate::entity::bo::device_state_bo::{DeviceStateBo, DiStateBo, StateBoEnum};
+use crate::entity::dto::device_state_dto::{DeviceStateDto, DiStateDto, StateDtoEnum};
 use crate::{debug, error, info, trace, warn};
 use std::env;
 use std::sync::mpsc;
@@ -18,7 +18,7 @@ const LOG_TAG: &str = "modbus_di_port";
 pub struct ModbusDiPort {
     device_id: String,
     address: ModbusAddrSize,
-    upward_channel: mpsc::Sender<DeviceStateBo>,
+    upward_channel: mpsc::Sender<DeviceStateDto>,
 }
 
 impl ModbusDiControllerListener for ModbusDiPort {
@@ -35,8 +35,8 @@ impl ModbusDiControllerListener for ModbusDiPort {
                 "modbus di port is in dummy mode, receive remote data: {:?}", &state_value
             );
         } else {
-            let state = StateBoEnum::Di(DiStateBo { on: state_value });
-            let device_state_bo = DeviceStateBo {
+            let state = StateDtoEnum::Di(DiStateDto { on: state_value });
+            let device_state_bo = DeviceStateDto {
                 device_id: self.device_id.clone(),
                 device_class: DEVICE_CLASS.to_string(),
                 device_type: DEVICE_TYPE.to_string(),
@@ -54,7 +54,7 @@ impl ModbusDiControllerListener for ModbusDiPort {
 }
 
 impl UpwardSendable for ModbusDiPort {
-    fn get_upward_channel(&self) -> &mpsc::Sender<DeviceStateBo> {
+    fn get_upward_channel(&self) -> &mpsc::Sender<DeviceStateDto> {
         return &self.upward_channel;
     }
 }
@@ -63,7 +63,7 @@ impl ModbusDiPort {
     pub fn new(
         device_id: &str,
         address: ModbusAddrSize,
-        upward_channel: mpsc::Sender<DeviceStateBo>,
+        upward_channel: mpsc::Sender<DeviceStateDto>,
     ) -> Self {
         ModbusDiPort {
             device_id: device_id.to_string(),
@@ -84,9 +84,9 @@ mod tests {
         let (tx, rx) = mpsc::channel();
         let device_port = ModbusDiPort::new("di_1", 0, tx);
         device_port.notify(true).unwrap();
-        let state_bo: DeviceStateBo = rx.recv().unwrap();
+        let state_bo: DeviceStateDto = rx.recv().unwrap();
         match state_bo.state {
-            StateBoEnum::Di(di_state) => {
+            StateDtoEnum::Di(di_state) => {
                 assert_eq!(di_state.on, true);
             }
             _ => {

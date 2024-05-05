@@ -1,24 +1,24 @@
-//! 设备状态实体类（一般用于设备向 device manager 通知设备状态）
+//! device state data transmission object
 
 use std::error::Error;
 
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
-pub enum StateBoEnum {
+pub enum StateDtoEnum {
     Empty,
-    DmxBus(DmxBusStateBo),
-    DoController(DoControllerStateBo),
+    DmxBus(DmxBusStateDto),
+    DoController(DoControllerStateDto),
     DiController(DiControllerStateBo),
-    Audio(AudioStateBo),
-    Channel(ChannelStateBo),
-    Remote(RemoteStateBo),
-    Di(DiStateBo),
-    Do(DoStateBo),
+    Audio(AudioStateDto),
+    Channel(ChannelStateDto),
+    Remote(RemoteStateDto),
+    Di(DiStateDto),
+    Do(DoStateDto),
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct DeviceStateBo {
+pub struct DeviceStateDto {
     // 设备 id
     pub device_id: String,
     // 设备类型
@@ -26,65 +26,64 @@ pub struct DeviceStateBo {
     // 设备二级类目
     pub device_type: String,
     // 设备状态
-    pub state: StateBoEnum
+    pub state: StateDtoEnum
 }
 
+// bus states
+
 #[derive(Debug, Serialize, Deserialize)]
-pub struct DmxBusStateBo {
+pub struct DmxBusStateDto {
     pub debug_channels: Vec<u8>
 }
 
-/// 数字输出量控制器结构体
+// controller states
+
+
 #[derive(Debug, Serialize, Deserialize)]
-pub struct DoControllerStateBo {
+pub struct DoControllerStateDto {
     // 输出端接口状态
     pub port: Vec<u8>,
 }
 
-/// 数字输入量控制器结构体
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DiControllerStateBo {
     // 输入接口状态
     pub port: Vec<u8>,
 }
 
-/// 音频设备状态
+// device states
+
 #[derive(Debug, Serialize, Deserialize)]
-pub struct AudioStateBo {
+pub struct AudioStateDto {
     // 当前正在播放的音频流
-    pub stream: Vec<AudioFilePlayingBo>
+    pub stream: Vec<AudioFilePlayingDto>
 }
 
-/// 当前音频的播放状态
 #[derive(Debug, Serialize, Deserialize)]
-pub struct AudioFilePlayingBo {
+pub struct AudioFilePlayingDto {
     pub file_id: String,
     pub playing: bool,
 }
 
-/// 带通道地址的设备状态
 #[derive(Debug, Serialize, Deserialize)]
-pub struct ChannelStateBo {
+pub struct ChannelStateDto {
     // 通道地址
     pub address: u8,
     // 设备状态
     pub channels: Vec<u8>,
 }
 
-/// 遥控器状态
 #[derive(Debug, Serialize, Deserialize)]
-pub struct RemoteStateBo {
+pub struct RemoteStateDto {
     pub pressed: u8
 }
 
-/// Di 输入设备状态
 #[derive(Debug, Serialize, Deserialize)]
-pub struct DiStateBo {
+pub struct DiStateDto {
     pub on: bool
 }
 
-/// Do 输出设备状态
 #[derive(Debug, Serialize, Deserialize)]
-pub struct DoStateBo {
+pub struct DoStateDto {
     pub on: bool
 }

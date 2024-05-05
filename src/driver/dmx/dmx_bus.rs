@@ -16,7 +16,7 @@ use std::{thread, time, error::Error};
 use std::time::Duration;
 use crate::common::error::DriverError;
 use crate::{info, warn, error, trace, debug};
-use crate::entity::bo::device_state_bo::{StateBoEnum, DeviceStateBo, DmxBusStateBo};
+use crate::entity::dto::device_state_dto::{StateDtoEnum, DeviceStateDto, DmxBusStateDto};
 use crate::common::logger::init_logger;
 use super::prelude::{DmxValue, DmxChannelLen};
 use super::dmx_thread::*;
@@ -32,7 +32,7 @@ pub struct DmxBus {
     // thread command sending channel
     thread_tx: Option<mpsc::Sender<DmxThreadCommandEnum>>,
 
-    upward_channel: Option<Sender<DeviceStateBo>>,
+    upward_channel: Option<Sender<DeviceStateDto>>,
 }
 
 impl DmxBus {

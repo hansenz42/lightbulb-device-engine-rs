@@ -7,7 +7,7 @@ pub enum MediaTypeEnum {
 
 
 #[derive(Debug, Clone)]
-pub struct FilePo {
+pub struct FileDto {
     // 标签
     pub tag: String,
     // 服务器上的文件名

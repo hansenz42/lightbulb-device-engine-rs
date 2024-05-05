@@ -21,7 +21,7 @@ use crate::mqtt_client::client::MqttClient;
 use super::device_dao::DeviceDao;
 use crate::common::http;
 use super::entity::device_po::DevicePo;
-use crate::entity::bo::device_state_bo::{DeviceStateBo, StateBoEnum};
+use crate::entity::dto::device_state_dto::{DeviceStateDto, StateDtoEnum};
 use crate::entity::bo::device_command_bo::DeviceCommandBo;
 use crate::{info, warn, error, trace, debug};
 use std::thread;
@@ -42,10 +42,10 @@ pub struct DeviceManager {
     pub config_map: HashMap<String, DevicePo>,
     
     // upward thread: receive from device, send to mqtt
-    upward_rx: mpsc::Receiver<DeviceStateBo>,
+    upward_rx: mpsc::Receiver<DeviceStateDto>,
     
     // the device can clone this rx channel to send data to upward thread
-    upward_rx_dummy: mpsc::Sender<DeviceStateBo>,
+    upward_rx_dummy: mpsc::Sender<DeviceStateDto>,
     
     // downward receive channel from mqtt
     downward_rx: Option<mpsc::Receiver<DeviceCommandBo>>,
@@ -123,7 +123,7 @@ impl DeviceManager {
         info!(LOG_TAG, "upward worker started");
     }
 
-    pub fn clone_upward_tx(&self) -> mpsc::Sender<DeviceStateBo> {
+    pub fn clone_upward_tx(&self) -> mpsc::Sender<DeviceStateDto> {
         self.upward_rx_dummy.clone()
     }
 
@@ -221,7 +221,7 @@ fn transform_device_config_obj_str(device_data: &Map<String, Value>) -> String {
 mod tests {
     use super::*;
     use crate::common::logger::{init_logger};
-    use crate::entity::bo::device_state_bo::DoControllerStateBo;
+    use crate::entity::dto::device_state_dto::DoControllerStateDto;
     use crate::mqtt_client::client::MqttClient;
 
     // 设备初始化测试
@@ -319,11 +319,11 @@ mod tests {
             manager.start_worker(rx, mqtt_client_arc.clone());
         });
 
-        let do_controller_bo = StateBoEnum::DoController(DoControllerStateBo{
+        let do_controller_bo = StateDtoEnum::DoController(DoControllerStateDto{
             port: vec![1, 2, 3, 4]
         });
 
-        upward_rx_dummy.send(DeviceStateBo{
+        upward_rx_dummy.send(DeviceStateDto{
             device_class: "test_class".to_string(),
             device_type: "test_type".to_string(),
             device_id: "123".to_string(),

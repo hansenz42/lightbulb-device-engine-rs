@@ -96,7 +96,7 @@ impl ModbusDiController {
 mod tests {
     use super::*;
     use super::super::modbus_di_port::ModbusDiPort;
-    use crate::entity::bo::device_state_bo::{DeviceStateBo, DiStateBo, StateBoEnum};
+    use crate::entity::dto::device_state_dto::{DeviceStateDto, DiStateDto, StateDtoEnum};
 
     // 测试实例化并向上发送消息
     #[test]
@@ -112,7 +112,7 @@ mod tests {
         let state_bo = rx.recv().unwrap();
 
         match state_bo.state {
-            StateBoEnum::Di(di_state) => {
+            StateDtoEnum::Di(di_state) => {
                 assert_eq!(di_state.on, true);
             }
             _ => {

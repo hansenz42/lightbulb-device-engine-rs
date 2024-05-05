@@ -7,7 +7,7 @@ use crate::driver::dmx::dmx_bus::DmxBus;
 use crate::driver::modbus::traits::{ModbusDiControllerListener, ModbusListener};
 use crate::driver::modbus::{modbus_bus, modbus_di_controller};
 use crate::driver::serial::serial_bus::SerialBus;
-use crate::entity::bo::device_state_bo::DeviceStateBo;
+use crate::entity::dto::device_state_dto::DeviceStateDto;
 use crate::util::json::get_str;
 use crate::{common::error::DriverError, driver::modbus::modbus_bus::ModbusBus};
 use crate::{debug, error, info, trace, warn};
@@ -28,11 +28,11 @@ const LOG_TAG: &str = "device_factory";
 struct DeviceFactory { 
     device_enum_map: HashMap<String, DeviceRefEnum>,
     device_info_map: HashMap<String, DeviceInfoBo>,
-    upward_rx_dummy: mpsc::Sender<DeviceStateBo>,
+    upward_rx_dummy: mpsc::Sender<DeviceStateDto>,
 }
 
 impl DeviceFactory {
-    fn new(upward_rx_dummy: mpsc::Sender<DeviceStateBo>) -> DeviceFactory {
+    fn new(upward_rx_dummy: mpsc::Sender<DeviceStateDto>) -> DeviceFactory {
         DeviceFactory {
             device_enum_map: HashMap::new(),
             device_info_map: HashMap::new(),

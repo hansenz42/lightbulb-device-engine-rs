@@ -16,7 +16,7 @@ use super::file_dao::FileDao;
 use super::file_repo::{FileRepo, FileMetaBo};
 use crate::common::http;
 use crate::entity::po::file_po::FilePo;
-use crate::entity::bo::file_bo::MediaTypeEnum;
+use crate::entity::dto::file_dto::MediaTypeEnum;
 use crate::{info, warn, error, trace, debug};
 
 const UPDATE_CONFIG_URL: &str = "api/v1.2/file";

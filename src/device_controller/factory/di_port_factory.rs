@@ -1,12 +1,12 @@
 use std::sync::mpsc;
 
 use serde_json::Value;
-use crate::{common::error::DriverError, driver::modbus::{modbus_bus::ModbusBus, modbus_di_port::ModbusDiPort}, entity::bo::device_state_bo::DeviceStateBo};
+use crate::{common::error::DriverError, driver::modbus::{modbus_bus::ModbusBus, modbus_di_port::ModbusDiPort}, entity::dto::device_state_dto::DeviceStateDto};
 use crate::util::json;
 
 const DEVICE_IDENTIFIER: &str = "modbus_di_port";
 
-pub fn make(json_data: &Value, upward_channel: mpsc::Sender<DeviceStateBo>) -> Result<ModbusDiPort, DriverError> {
+pub fn make(json_data: &Value, upward_channel: mpsc::Sender<DeviceStateDto>) -> Result<ModbusDiPort, DriverError> {
     let _ = json::check_type(json_data, DEVICE_IDENTIFIER)?;
 
     let device_id = json::get_str(json_data, "device_id")?;

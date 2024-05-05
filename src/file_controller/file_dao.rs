@@ -5,7 +5,7 @@ use crate::common::dao::Dao;
 
 use crate::common::sqlite::SqliteConnection;
 use crate::entity::po::file_po::FilePo;
-use crate::entity::bo::file_bo::MediaTypeEnum;
+use crate::entity::dto::file_dto::MediaTypeEnum;
 use async_trait::async_trait;
 use crate::{info, warn, error, trace, debug};
 

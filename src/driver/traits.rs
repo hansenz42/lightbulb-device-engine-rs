@@ -1,11 +1,12 @@
-use crate::{common::error::DriverError, entity::bo::{device_command_bo::DeviceCommandBo, device_state_bo::DeviceStateBo}};
+use crate::{common::error::DriverError, entity::bo::{device_command_bo::DeviceCommandBo}};
+use crate::entity::dto::device_state_dto::DeviceStateDto;
 use std::{rc::Rc, sync::mpsc};
 
 /// the device that can send data to upward channel
 pub trait UpwardSendable {
-    fn get_upward_channel(&self) -> &mpsc::Sender<DeviceStateBo> ;
+    fn get_upward_channel(&self) -> &mpsc::Sender<DeviceStateDto> ;
 
-    fn notify_upward(&self, message: DeviceStateBo) -> Result<(), crate::common::error::DriverError> {
+    fn notify_upward(&self, message: DeviceStateDto) -> Result<(), crate::common::error::DriverError> {
         let upward_channel = self.get_upward_channel();
         upward_channel.send(message).map_err(|e| crate::common::error::DriverError(format!("ModbusDigitalInputPort 向上行通道发送消息失败，异常: {}", e)))
     }

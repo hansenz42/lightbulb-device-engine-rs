@@ -1,6 +1,6 @@
 use std::sync::mpsc::Sender;
 use crate::driver::traits::UpwardSendable;
-use crate::entity::bo::device_state_bo::{DeviceStateBo, RemoteStateBo, StateBoEnum};
+use crate::entity::dto::device_state_dto::{DeviceStateDto, RemoteStateDto, StateDtoEnum};
 use crate::common::error::DriverError;
 use super::traits::SerialMountable;
 use std::env;
@@ -14,12 +14,12 @@ const DEVICE_TYPE: &str = "remote";
 pub struct SerialRemoteController {
     device_id: String,
     button_num: u8,
-    upward_channel: Sender<DeviceStateBo>
+    upward_channel: Sender<DeviceStateDto>
 }
 
 
 impl SerialRemoteController {
-    pub fn new(device_id: &str, button_num: u8, upward_channel: Sender<DeviceStateBo>) -> Self {
+    pub fn new(device_id: &str, button_num: u8, upward_channel: Sender<DeviceStateDto>) -> Self {
         SerialRemoteController {
             device_id: device_id.to_string(),
             button_num,
@@ -35,10 +35,10 @@ impl SerialMountable for SerialRemoteController {
             info!(LOG_TAG, "serial remote controller is in dummy mode, receive remote data: {:?}", &data.data);
         } else {
             if let Some(pressed_num) = data.data.get(0) {
-                let state = StateBoEnum::Remote(RemoteStateBo{
+                let state = StateDtoEnum::Remote(RemoteStateDto{
                     pressed: pressed_num.clone(),
                 });
-                let device_state_bo = DeviceStateBo {
+                let device_state_bo = DeviceStateDto {
                     device_id: self.device_id.clone(),
                     device_class: DEVICE_CLASS.to_string(),
                     device_type: DEVICE_TYPE.to_string(),
@@ -53,7 +53,7 @@ impl SerialMountable for SerialRemoteController {
 }
 
 impl UpwardSendable for SerialRemoteController {
-    fn get_upward_channel(&self) -> &Sender<DeviceStateBo> {
+    fn get_upward_channel(&self) -> &Sender<DeviceStateDto> {
         return &self.upward_channel;
     }
 }

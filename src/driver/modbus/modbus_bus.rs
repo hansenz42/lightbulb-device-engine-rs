@@ -21,8 +21,8 @@ use crate::{common::error::DriverError, driver::traits::Refable};
 use crate::entity::bo::{
     device_command_bo::DeviceCommandBo,
     device_config_bo::ConfigBo,
-    device_state_bo::{DeviceStateBo, StateBoEnum},
 };
+use crate::entity::dto::device_state_dto::{DeviceStateDto, StateDtoEnum};
 use serde_json::Value;
 use std::collections::HashMap;
 use tokio_modbus::{client::Context, prelude::*, Slave};

@@ -13,6 +13,7 @@ pub enum ServerErrorCode {
     // cannot read or write files
     FileSystemError = 1004,
     DatabaseError = 1005,
+    // error in processing file config
     FileConfigError = 1006,
 }
 
