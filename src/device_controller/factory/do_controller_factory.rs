@@ -4,8 +4,6 @@ use serde_json::Value;
 use crate::{common::error::DriverError, device_controller::entity::{device_enum::DeviceRefEnum, device_info::DeviceInfoDto}, driver::modbus::{modbus_bus::ModbusBus, modbus_do_controller::ModbusDoController}};
 use crate::util::json;
 
-const DEVICE_IDENTIFIER: &str = "modbus_do_controller";
-
 pub fn make(device_info: &DeviceInfoDto, modbus_ref: &Rc<RefCell<ModbusBus>>) -> Result<ModbusDoController, DriverError> {
     let unit = json::get_config_int(&device_info.config, "unit")?;
     let output_num = json::get_config_int(&device_info.config, "output_num")?;

@@ -68,7 +68,14 @@ impl DeviceFactory {
             let _ = self.device_info_map.insert(device_po.device_id.clone(), device_info.clone());
 
             // 3. use device info to make device object, create_device will put device object to device_enum_map, and will change DeviceInfoDto statue to initialized
-            let _ = self.create_device(&device_info)?;
+            let result = self.create_device(&device_info);
+
+            match result {
+                Ok(_) => {}
+                Err(e) => {
+                    error!(LOG_TAG, "{}, device_id: {}", e.0.as_str(), device_po.device_id);
+                }
+            }
 
         }
         Ok(())
@@ -87,7 +94,14 @@ impl DeviceFactory {
                 }
             }
 
-            let _ = self.create_device(device_config.1)?;
+            let result = self.create_device(device_config.1);
+
+            match result {
+                Ok(_) => {}
+                Err(e) => {
+                    error!(LOG_TAG, "{}, device_id: {}", e.0.as_str(), device_id);
+                }
+            }
         }
 
         Ok(())
