@@ -37,9 +37,9 @@ impl FileManager {
         }
     }
 
-    /// 远程获取配置文件
-    /// - 如果远程存在配置文件，那么一定是以远程文件为准
-    /// - 如果远程文件读取失败，则使用本地文件缓存
+    /// get remote file config files
+    /// - if remote has config file, it must be according to remote
+    /// - if remote read config file failed, use local cache
     async fn get_remote(&mut self) -> Result<Value, DeviceServerError> {
         let response_data = http::api_get(UPDATE_CONFIG_URL).await;
         match response_data {
@@ -70,31 +70,44 @@ impl FileManager {
         }
     }
 
-    /// 将本地的缓存更新到数据库
-    async fn save_to_db(&self) -> Result<(), Box<dyn Error>> {
+    /// save local cache to db
+    async fn save_to_db(&self) -> Result<(), DeviceServerError> {
         // 清空本地数据库
-        self.file_dao.clear_table().await?;
+        self.file_dao.clear_table().await.map_err(
+            |e| DeviceServerError {
+                code: ServerErrorCode::DatabaseError,
+                msg: format!("cannot save file config to db, clear table error: {}", e)
+            }
+        )?;
         for (_, file_po) in self.cache.iter() {
-            self.file_dao.add_file_info(file_po.clone()).await?;
+            self.file_dao.add_file_info(file_po.clone()).await.map_err(
+                |e| DeviceServerError {
+                    code: ServerErrorCode::DatabaseError,
+                    msg: format!("cannot add file cache info data to db, error: {}", e)
+                }
+            )?;
         }
         Ok(())
     }
 
-    /// 将远程返回的 json_array 数组转换为可处理的 po
-    async fn transform_list_to_po(&self, json_array: Value) -> Result<Vec<FilePo>, Box<dyn Error>> {
+    /// make json_array as po
+    async fn transform_list_to_po(&self, json_array: Value) -> Result<Vec<FilePo>, DeviceServerError> {
         let mut file_po_list: Vec<FilePo> = Vec::new();
         if let Some(file_list) = json_array.as_array() {
             for file in file_list {
                 if let Some(file_po) = json_object_to_single_po(file) {
                     file_po_list.push(file_po);
                 } else {
-                    warn!(LOG_TAG, "单条文件数据格式错误，解析失败 data: {:?}", file);
+                    warn!(LOG_TAG, "single file data format error, parse failed data: {:?}", file);
                 }
             }
             Ok(file_po_list)
         } else {
-            error!(LOG_TAG, "数据转换错误，无法将接收的文件信息转换为数据对对象");
-            return Err("数据转换错误，无法将接收的文件信息转换为数据对对象".into());
+            error!(LOG_TAG, "cannot transform json to file_po, data format error, parse failed data: {:?}", json_array);
+            return Err(DeviceServerError {
+                code: ServerErrorCode::FileConfigError,
+                msg: format!("cannot transform json to file_po, data format error, parse failed data: {:?}", json_array)
+            })
         }
     }
 
@@ -130,10 +143,10 @@ impl FileManager {
         // 从数据库生成本地缓存
         match self.load_from_db().await {
             Ok(_) => {
-                info!(LOG_TAG, "从数据库读取数据成功");
+                info!(LOG_TAG, "read file config cache from db success");
             }
             Err(e) => {
-                warn!(LOG_TAG, "本地缓读取失败，缓存不存在，错误信息：{}", e);
+                warn!(LOG_TAG, "read file config cache from db failed, error: {}", e);
             }
         }
 
@@ -143,25 +156,25 @@ impl FileManager {
         let scanned_file_hashmap: HashMap<String, FileMetaBo> = scanned_file_list.into_iter().map(|x| (x.hash.clone(), x.clone())).collect();
 
         for file in self.cache.clone().values() {
-            info!(LOG_TAG, "检查缓存记录中的文件 name: {}; hash {}", file.filename, file.hash);
+            info!(LOG_TAG, "check cache record file name: {}; hash {}", file.filename, file.hash);
             if !scanned_file_hashmap.contains_key(&file.hash) {
                 // 删除数据库中的记录
                 self.file_dao.delete_file_info(&file.hash).await?;
                 // 删除本地记录
                 self.cache.remove(&file.hash);
-                warn!(LOG_TAG, "文件在磁盘上不存在，已删除数据库和缓存记录， name {}, hash {}", file.filename, file.hash);
+                warn!(LOG_TAG, "check cache file on the disk, file does not exist on disk, deleted database and cache record, name: {}, hash: {}", file.filename, file.hash);
             }
         }
 
         // 获取远程文件记录
         if let Ok(json_array) = self.get_remote().await {
-            if let Ok(file_po_list) = self.transform_list_to_po(json_array).await {
+            if let Ok(file_po_list) = self.transform_list_to_po(json_array.clone()).await {
                 let mut new_file_po: Vec<FilePo> = Vec::new();
                 // 将远程数据和本地数据进行比较
                 for file_po in &file_po_list {
                     if !self.cache.contains_key(&file_po.hash) {
                         new_file_po.push(file_po.clone());
-                        info!(LOG_TAG, "记录新文件 {} 到程序缓存", file_po.filename);
+                        info!(LOG_TAG, "record new file {} to cache", file_po.filename);
                     }
                 }
 
@@ -170,22 +183,22 @@ impl FileManager {
                     match self.download_file_from_remote(file_po).await {
                         Ok(_) => {
                             self.cache.insert(file_po.hash.clone(), file_po.clone());
-                            info!(LOG_TAG, "已下载文件并记录到缓存 name {} ; hash {}", file_po.filename, file_po.hash);
+                            info!(LOG_TAG, "downloaded file and record to cache, name: {}, hash: {}", file_po.filename, file_po.hash);
                         }
                         Err(e) => {
-                            error!(LOG_TAG, "下载文件 {} 失败，错误信息：{}", file_po.filename, e);
+                            error!(LOG_TAG, "download file {} failed, error: {}", file_po.filename, e);
                         }
                     }
                 }
 
                 // 更新当前缓存
                 self.save_to_db().await?;
-                info!(LOG_TAG, "缓存更新成功，数据库更新成功，文件管理器已启动");
+                info!(LOG_TAG, "file config cache successfully updated");
             } else {
-                warn!(LOG_TAG, "转成数据转换为本地失败，使用本地缓存");
+                warn!(LOG_TAG, "cannot transform json to file_po, data format error, will use local cache, parse failed data: {:?}", json_array);
             }
         } else {
-            warn!(LOG_TAG, "无法获取远程数据，使用本地缓存");
+            warn!(LOG_TAG, "cannot get remote data, use local cache");
         }
 
         Ok(())
@@ -227,5 +240,11 @@ mod test {
         rt.block_on(async {
             file_manager.startup().await.unwrap();
         });
+    }
+
+    #[test]
+    fn test_get_data_from_flow() {
+        let mut file_manager = FileManager::new();
+
     }
 }
