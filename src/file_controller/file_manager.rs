@@ -208,7 +208,7 @@ impl FileManager {
 
 /// 辅助函数：将单个 json object 转换为 FilePo，如果转换失败，则返回 None
 fn json_object_to_single_po(json_obj: &Value) -> Option<FilePo> {
-    let file_data = json_obj.as_object().expect("file 数据格式错误");
+    let file_data = json_obj.as_object().expect("file field incorrect");
     let file_po = FilePo {
         // tag 有可能为空
         tag: file_data.get("tag").expect("get tag from file_data").as_str().or_else(|| Some(""))?.to_string(),
@@ -217,7 +217,7 @@ fn json_object_to_single_po(json_obj: &Value) -> Option<FilePo> {
         media_type: match file_data.get("type")?.as_str()? {
             "audio" => MediaTypeEnum::Audio,
             "video" => MediaTypeEnum::Video,
-            _ => panic!("media_type 字段数据错误")
+            _ => panic!("media_type field incorrect")
         },
         // delete 字段将数据库中的 int 转换为 bool
         deleted: file_data.get("deleted")?.as_bool()?
@@ -245,6 +245,11 @@ mod test {
     #[test]
     fn test_get_data_from_flow() {
         let mut file_manager = FileManager::new();
+        let rt = tokio::runtime::Runtime::new().unwrap();
 
+        rt.block_on(async {
+            let json_data = file_manager.get_remote().await.unwrap();
+            println!("{:?}", json_data);
+        })
     }
 }
