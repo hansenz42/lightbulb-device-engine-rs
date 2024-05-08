@@ -110,23 +110,23 @@ impl DeviceFactory {
     /// make device by one device info bo
     /// this function will make the device and change device_enum map
     fn create_device(&mut self, dto: &DeviceInfoDto) -> Result<(), DriverError> {
-        if dto.device_type == "modbus-bus" {
+        if dto.device_type == "modbus_bus" {
             self.make_modbus(dto)?
-        } else if dto.device_type == "serial-bus" {
+        } else if dto.device_type == "serial_bus" {
             self.make_serial_bus(dto)?
-        } else if dto.device_type == "dmx-bus" {
+        } else if dto.device_type == "dmx_bus" {
             self.make_dmx_bus(dto)?
-        } else if dto.device_type == "modbus-do-controller" {
+        } else if dto.device_type == "modbus_do_controller" {
             self.make_do_controller(dto)?
-        } else if dto.device_type == "modbus-do-port" {
+        } else if dto.device_type == "modbus_do_port" {
             self.make_do_port(dto)?;
-        } else if dto.device_type == "modbus-di-controller" {
+        } else if dto.device_type == "modbus_di_controller" {
             let _ = self.make_di_controller(dto)?;
-        } else if dto.device_type == "modbus-di-port" {
+        } else if dto.device_type == "modbus_di_port" {
             let _ = self.make_di_port(dto)?;
         } else {
             return Err(DriverError(format!(
-                "device factory: unknown device type. device_type={}, device_id={}",
+                "unknown device type. device_type={}, device_id={}",
                 dto.device_type,
                 dto.device_id
             )))
@@ -135,10 +135,11 @@ impl DeviceFactory {
             data_mut.status = DeviceStatusEnum::Initialized;
         } else {
             return Err(DriverError(format!(
-                "device factory: update device status failed, mut reference getting failed, device_id: {}",
+                "update device status failed, mut reference getting failed, device_id: {}",
                 dto.device_id
             )))
         }
+        debug!(LOG_TAG, "made device, device_id: {}", dto.device_id);
         Ok(())
     }
 
