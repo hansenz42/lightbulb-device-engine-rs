@@ -20,6 +20,7 @@ use crate::entity::dto::file_dto::MediaTypeEnum;
 use crate::{info, warn, error, trace, debug};
 
 const UPDATE_CONFIG_URL: &str = "api/v1.2/file/config";
+const FILE_DOWNLOAD_URL: &str = "api/v1.2/file/";
 const LOG_TAG: &str = "FileManager";
 
 pub struct FileManager {
@@ -115,7 +116,7 @@ impl FileManager {
 
     /// 从远程下载文件到本地
     async fn download_file_from_remote(&self, file_po: &FilePo) -> Result<(), Box<dyn Error>> {
-        let url = format!("/api/v1.1/file/{}", file_po.hash);
+        let url = format!("{}/{}", FILE_DOWNLOAD_URL, file_po.hash);
         self.file_repo.download(url.as_str()).await?;
         Ok(())
     }
