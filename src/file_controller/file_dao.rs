@@ -56,7 +56,7 @@ impl Dao for FileDao {
         }).await?;
 
         
-        debug!(TAG, "文件数据表初始化");
+        debug!(TAG, "file config table init");
 
         Ok(())
     }
@@ -99,7 +99,7 @@ impl FileDao {
         Ok(())
     }
 
-    /// 删除文件记录
+    /// delete file record
     pub async fn delete_file_info(&self, hash: &str) -> Result<(), Box<dyn Error>> {
         let conn = SqliteConnection::get().open().await?;
 
@@ -116,7 +116,7 @@ impl FileDao {
         Ok(())
     }
 
-    /// 获取所有的文件信息
+    /// get all file info
     pub async fn get_all(&self) -> Result<Vec<FilePo>, Box<dyn Error>> {
         let conn = SqliteConnection::get().open().await?;
 

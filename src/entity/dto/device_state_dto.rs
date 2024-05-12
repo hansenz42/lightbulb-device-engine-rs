@@ -5,6 +5,7 @@ use std::error::Error;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(untagged)]
 pub enum StateDtoEnum {
     Empty,
     DmxBus(DmxBusStateDto),
@@ -27,6 +28,12 @@ pub struct DeviceStateDto {
     pub device_type: String,
     // 设备状态
     pub state: StateDtoEnum
+}
+
+impl DeviceStateDto {
+    pub fn to_json(&self) -> Result<String, Box<dyn Error>> {
+        Ok(serde_json::to_string(self)?)
+    }
 }
 
 // bus states

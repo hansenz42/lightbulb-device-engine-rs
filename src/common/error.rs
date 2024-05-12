@@ -15,6 +15,8 @@ pub enum ServerErrorCode {
     DatabaseError = 1005,
     // error in processing file config
     FileConfigError = 1006,
+    // error in mqtt Connect
+    MqttError = 1007,
 }
 
 #[derive(Debug)]

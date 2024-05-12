@@ -1,5 +1,6 @@
 use tokio::sync::mpsc;
 
+use crate::common::error::{DeviceServerError, ServerErrorCode};
 use crate::common::mqtt;
 use crate::common::setting::Settings;
 use crate::entity::mqtt::MqttMessageBo;
@@ -10,13 +11,13 @@ use std::sync::Arc;
 use crate::entity::dto::device_state_dto::DeviceStateDto;
 
 pub struct MqttClient {
-    // mqtt 连接
+    // mqtt connection
     con: Option<mqtt::MqttConnection>,
 
-    // 消息接收通道
+    // message recv channel
     pub rx: Option<mpsc::Receiver<MqttMessageBo>>,
 
-    // 消息转换对象
+    // message protocol
     protocol: Protocol
 }
 
@@ -30,128 +31,145 @@ impl MqttClient {
         }
     }
 
-    /// 开启消息接受循环，处理接收到的消息
-    pub async fn start(&mut self) -> Result<(), Box<dyn Error>> {
+    /// start event loop thread and communicate with the flow server
+    pub async fn start(&mut self) -> Result<(), DeviceServerError> {
         let setting = Settings::get();
         let (tx, mut rx) = mpsc::channel(1);
 
-        // 在新的线程里面创建 MqttConnection，使用 mpsc 通道做线程间通信
+        // create new MqttConnection in the thread，use mpsc channel to communicate between threads
         let mut con = mqtt::MqttConnection::new(
             setting.mqtt.broker_host.as_str(), 
-            setting.mqtt.broker_port.try_into().expect("mqtt broker 端口号定义错误"),
+            setting.mqtt.broker_port.try_into().expect("mqtt broker port data type error, is not u16"),
             setting.mqtt.client_id.as_str()
         );
 
-        con.connect(tx).await.expect("mqtt 创建连接失败");
+        con.connect(tx).await
+            .map_err(|e| DeviceServerError {code: ServerErrorCode::MqttError, msg: format!("mqtt connect error: {e}")} )?;
         self.con = Some(con);
         self.rx = Some(rx);
 
-        log::info!("mqtt 连接成功 host: {} port: {}", setting.mqtt.broker_host, setting.mqtt.broker_port);
+        log::info!("mqtt connect successful host: {} port: {}", setting.mqtt.broker_host, setting.mqtt.broker_port);
 
-        self.subscribe_topics().await.expect("注册话题失败");
+        self.subscribe_topics().await.expect("subscribe topics failed");
         Ok(())
     }
 
-    /// 根据 topic 和 payload 发布消息
-    pub async fn publish(&self, topic: &str, payload: &str) -> Result<(), Box<dyn Error>> {
+    /// according topic and payload to publish message
+    pub async fn publish(&self, topic: &str, payload: &str) -> Result<(), DeviceServerError> {
         match &self.con {
             Some(con) => {
-                con.publish(topic, payload).await?;
+                con.publish(topic, payload).await
+                    .map_err(|e| DeviceServerError {code: ServerErrorCode::MqttError, msg: format!("mqtt publish error: {e}")} )?;
             },
             None => {
-                return Err("mqtt 连接未初始化".into());
+                return Err(DeviceServerError {code: ServerErrorCode::MqttError, msg: format!("mqtt publish error: not connect")});
             }
         }
         Ok(())
     }
 
     /// TODO: 发送心跳包
-    pub async fn publish_heartbeat(&self) -> Result<(), Box<dyn Error>> {
+    pub async fn publish_heartbeat(&self) -> Result<(), DeviceServerError> {
         Ok(())
     }
 
-    /// 发送设备状态变化通知
-    pub async fn publish_status(&self, state_bo: DeviceStateDto) -> Result<(), Box<dyn Error>> {
-        let topic = self.protocol.topic_self_declare("status", None, Some(state_bo.device_class.clone()), Some(state_bo.device_id.clone()));
-        let payload_content = serde_json::to_value(state_bo)?;
+    /// publish device status message
+    pub async fn publish_status(&self, state_dto: DeviceStateDto) -> Result<(), DeviceServerError> {
+        let topic = self.protocol.topic_self_declare("status", None, Some(state_dto.device_class.clone()), Some(state_dto.device_id.clone()));
+
+        let payload_content = serde_json::to_value(state_dto)
+            .map_err(|e| DeviceServerError {code: ServerErrorCode::MqttError, msg: format!("cannot publish status message, transform state bo to json failed, json error: {e}")})?;
         let payload = self.protocol.payload_from_server( Some(payload_content), None, None, None);
-        let json_str = payload.to_json()?;
+
+        let json_str = payload.to_json()
+            .map_err(|e| DeviceServerError {code: ServerErrorCode::MqttError, msg: format!("cannot publish status message, transform from payload to json failed, json error: {e}")})?;
         self.publish(topic.as_str(), json_str.as_str()).await?;
         Ok(())
     }
 
-    /// 发布离线消息
-    pub async fn publish_offline(&self) -> Result<(), Box<dyn Error>> {
+    /// publish offline message
+    pub async fn publish_offline(&self) -> Result<(), DeviceServerError> {
         match &self.con {
             Some(con) => {
                 let topic = self.protocol.topic_self_declare("offline", None, None, None);
                 let payload = self.protocol.payload_from_server(None, None, None, None);
-                let json_str = payload.to_json()?;
-                con.publish(topic.as_str(), json_str.as_str()).await?;
+                let json_str = payload.to_json()
+                    .map_err(|e| DeviceServerError {code: ServerErrorCode::MqttError, msg: format!("cannot publish offline message, transform from payload to json failed, json error: {e}")})?;
+                self.publish(topic.as_str(), json_str.as_str()).await?;
                 Ok(())
             }
-            None => Err("mqtt 连接未初始化".into())
+            None => Err(DeviceServerError {code: ServerErrorCode::MqttError, msg: format!("mqtt publish error: not connect")})
         }
     }
 
-    /// 注册预定义的 mqtt 话题
-    pub async fn subscribe_topics(&mut self) -> Result<(), Box<dyn Error>> {
+    /// register predefined topics
+    pub async fn subscribe_topics(&mut self) -> Result<(), DeviceServerError> {
         match &self.con {
             Some(con) => {
                 let setting = Settings::get();
 
-                // 注册服务器话题
+                // cmd for device server topic
                 let server_topic = format!(
                     "cmd/{}/{}/deviceserver/{}", 
                     setting.meta.application_name,
                     setting.meta.scenario_name,
                     setting.meta.server_name
                 );
-                con.subscribe(server_topic.as_str()).await?;
+                self.subscribe(server_topic.as_str()).await?;
 
-                // 注册设备话题
+                // cmd for device topic 
                 let device_topic = format!(
                     "cmd/{}/{}/device/{}/+/+/+", 
                     setting.meta.application_name,
                     setting.meta.scenario_name,
                     setting.meta.server_name
                 );
+                self.subscribe(device_topic.as_str()).await?;
 
-                con.subscribe(device_topic.as_str()).await?;
-
-                // 注册广播话题
+                // broadcast topic
                 let broadcast_topic = format!(
                     "broadcast/{}",
                     setting.meta.application_name
                 );
-
-                con.subscribe(broadcast_topic.as_str()).await?;
+                self.subscribe(broadcast_topic.as_str()).await?;
 
                 Ok(())
             },
             None => {
-                Err("mqtt 连接未初始化".into())
+                Err(DeviceServerError {code: ServerErrorCode::MqttError, msg: format!("mqtt subscribe error: not connect")})
             }
         }
-        
+    }
+
+    async fn subscribe(&self, topic: &str) -> Result<(), DeviceServerError> {
+        match &self.con {
+            Some(con) => {
+                con.subscribe(topic).await
+                    .map_err(|e| DeviceServerError {code: ServerErrorCode::MqttError, msg: format!("mqtt subscribe error: {e}")} )?;
+                Ok(())
+            },
+            None => {
+                Err(DeviceServerError {code: ServerErrorCode::MqttError, msg: format!("mqtt subscribe error: not connect")})
+            }
+        }
     }
 
 }
 
 
 // 单元测试部分
-
 #[cfg(test)]
 mod test {
-    use super::*;
-    use crate::common::logger::{init_logger};
+    use rodio::Device;
 
-    /// 测试接收一条消息
+    use super::*;
+    use crate::{common::logger::init_logger, entity::dto::device_state_dto::{DoStateDto, StateDtoEnum}};
+
+    /// recv message test
     #[test]
     fn test() {
         init_logger();
         let rt = tokio::runtime::Runtime::new().unwrap();
-
         let mut client = MqttClient::new();
 
         rt.block_on(async move {
@@ -168,6 +186,30 @@ mod test {
                     println!("未初始化");
                 }
             }
+        });
+    }
+
+    #[test]
+    fn test_publish_status() {
+        init_logger();
+        println!("publish status testing: will use do state dto");
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let mut client = MqttClient::new();
+
+        rt.block_on(async move {
+            client.start().await.unwrap();
+            client.publish_status(
+                DeviceStateDto {
+                    device_id: "test".to_string(),
+                    device_class: "test".to_string(),
+                    device_type: "test".to_string(),
+                    state: StateDtoEnum::Do(
+                        DoStateDto {
+                            on: true
+                        }
+                    ) 
+                }
+            ).await.unwrap();
         });
     }
 }
