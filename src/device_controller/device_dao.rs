@@ -87,7 +87,7 @@ impl DeviceDao {
                     device_config_copy.device_class,
                     device_config_copy.device_type, 
                     device_config_copy.name, 
-                    device_config_copy.description, 
+                    device_config_copy.description,
                     device_config_copy.room, 
                     device_config_copy.config
                 ],

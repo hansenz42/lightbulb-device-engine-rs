@@ -3,7 +3,7 @@
 //! - if return code is not 200, return HttpError
 //! - make input and output are json format
 
-use std::{collections::HashMap, fs::File, io::Write};
+use std::{borrow::Borrow, collections::HashMap, fs::File, io::Write};
 use super::setting::Settings;
 use lazy_static::lazy_static;
 use serde_json::Value;
@@ -20,11 +20,15 @@ lazy_static! {
 
 /// wrapper for get api
 pub async fn api_get(api_url: &str) -> Result<Value, DeviceServerError> {
-    let resp: serde_json::Value  = reqwest::get(format!("{}/{}", BASEURL.as_str(), api_url).as_str())
-        .await.map_err(|e| DeviceServerError {code: ServerErrorCode::HttpError, msg: format!("http GET error: {e}")})?
-        .json()
-        .await.map_err(|e| DeviceServerError {code: ServerErrorCode::HttpError, msg: format!("http GET error, cannot transform return value to json: {e}")})?;
-    let res = get_res_data(resp)?;
+    // let resp: serde_json::Value  = reqwest::get(format!("{}/{}", BASEURL.as_str(), api_url).as_str()).await
+    //     .map_err(|e| DeviceServerError {code: ServerErrorCode::HttpError, msg: format!("http GET error: {e}")})?
+    //     .json().await
+    //     .map_err(|e| DeviceServerError {code: ServerErrorCode::HttpError, msg: format!("http GET error, cannot transform return value to json: {e}")})?;
+    let resp = reqwest::get(format!("{}/{}", BASEURL.as_str(), api_url).as_str()).await
+        .map_err(|e| DeviceServerError {code: ServerErrorCode::HttpError, msg: format!("http GET error: {e}")})?;
+    let res = resp.json().await
+        .map_err(|e| DeviceServerError {code: ServerErrorCode::HttpError, msg: format!("http GET error, cannot transform return value to json error={}", e)})?;
+    let res = get_res_data(res)?;
     Ok(res)
 }
 

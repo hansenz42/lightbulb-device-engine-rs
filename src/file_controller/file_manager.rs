@@ -19,7 +19,7 @@ use crate::entity::po::file_po::FilePo;
 use crate::entity::dto::file_dto::MediaTypeEnum;
 use crate::{info, warn, error, trace, debug};
 
-const UPDATE_CONFIG_URL: &str = "api/v1.2/file";
+const UPDATE_CONFIG_URL: &str = "api/v1.2/file/config";
 const LOG_TAG: &str = "FileManager";
 
 pub struct FileManager {
@@ -44,23 +44,15 @@ impl FileManager {
         let response_data = http::api_get(UPDATE_CONFIG_URL).await;
         match response_data {
             Ok(json_data) => {
-                if let Some(list) = json_data.get("list") {
-                    if list.is_array() {
-                        info!(LOG_TAG, "successfully get remote file data");
-                        Ok(list.clone())
-                    } else {
-                        error!(LOG_TAG, "remote file data format error");
-                        return Err(DeviceServerError {
-                            code: ServerErrorCode::FileConfigError, 
-                            msg: format!("remote file data format error") }
-                        );
-                    }
+                if json_data.is_array() {
+                    info!(LOG_TAG, "successfully get remote file data");
+                    Ok(json_data.clone())
                 } else {
-                    error!(LOG_TAG, "cannot transform remote file to json");
+                    error!(LOG_TAG, "remote file data format error");
                     return Err(DeviceServerError {
-                        code: ServerErrorCode::FileConfigError,
-                        msg: format!("cannot transform remote file to json")
-                    });
+                        code: ServerErrorCode::FileConfigError, 
+                        msg: format!("remote file data format error") }
+                    );
                 }
             }
             Err(e) => {
@@ -136,9 +128,13 @@ impl FileManager {
     /// - （如有文件未下载）则下载文件
     /// - 将最新的数据写入缓存，保存到数据库
     /// 注意：目前本地旧的文件不会被清理
-    pub async fn startup(&mut self) -> Result<(), Box<dyn Error>> {
+    pub async fn startup(&mut self) -> Result<(), DeviceServerError> {
         // 确保 file 数据表存在
-        self.file_dao.ensure_table_exist().await?;
+        self.file_dao.ensure_table_exist().await
+            .map_err(|e| DeviceServerError {
+                code: ServerErrorCode::DatabaseError,
+                msg: format!("cannot ensure file table exist, error: {}", e)
+            })?;
 
         // 从数据库生成本地缓存
         match self.load_from_db().await {
@@ -159,7 +155,10 @@ impl FileManager {
             info!(LOG_TAG, "check cache record file name: {}; hash {}", file.filename, file.hash);
             if !scanned_file_hashmap.contains_key(&file.hash) {
                 // 删除数据库中的记录
-                self.file_dao.delete_file_info(&file.hash).await?;
+                self.file_dao.delete_file_info(&file.hash).await.map_err(|e| DeviceServerError {
+                    code: ServerErrorCode::DatabaseError,
+                    msg: format!("cannot delete file cache info data to db, error: {}", e)
+                })?;
                 // 删除本地记录
                 self.cache.remove(&file.hash);
                 warn!(LOG_TAG, "check cache file on the disk, file does not exist on disk, deleted database and cache record, name: {}, hash: {}", file.filename, file.hash);

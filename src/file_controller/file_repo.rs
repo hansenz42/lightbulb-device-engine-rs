@@ -6,6 +6,7 @@ use crypto::digest::Digest;
 use crypto::md5::Md5;
 use async_trait::async_trait;
 use data_encoding::HEXUPPER;
+use crate::common::error::{DeviceServerError, ServerErrorCode};
 use crate::common::http::download_file;
 
 const FILE_FOLDER: &'static str = "file";
@@ -56,32 +57,43 @@ impl FileRepo {
     }
 
     /// 下载并保存文件到本地
-    pub async fn download(&self, url: &str) -> Result<(), Box<dyn Error>>{
-        download_file(url, FILE_FOLDER).await?;
+    pub async fn download(&self, url: &str) -> Result<(), DeviceServerError>{
+        download_file(url, FILE_FOLDER).await
+            .map_err(|e| DeviceServerError {code: ServerErrorCode::FileSystemError, msg: format!("download file error: {e}")})?;
         Ok(())
     }
 
     /// 根据文件名计算文件 md5
-    pub fn hash_file(&self, filename: &str) -> Result< String, Box<dyn Error>>{
+    pub fn hash_file(&self, filename: &str) -> Result< String, DeviceServerError>{
         // 打开文件并计算哈希
-        let input = File::open(format!("{}/{}", FILE_FOLDER, filename))?;
+        let input = File::open(format!("{}/{}", FILE_FOLDER, filename))
+            .map_err(|e| DeviceServerError {code: ServerErrorCode::FileSystemError, msg: format!("open file error: {e}")})?;
         let reader = BufReader::new(input);
-        let result_str = md5_digest(reader)?;
+        let result_str = md5_digest(reader).map_err(|e| DeviceServerError {code: ServerErrorCode::FileSystemError, msg: format!("hash file error: {e}")})?;
         Ok(result_str)
     }
 
     /// 检查本地目录下的所有文件
-    pub async fn scan_files(&self) -> Result<Vec<FileMetaBo>, Box<dyn Error>> {
+    pub async fn scan_files(&self) -> Result<Vec<FileMetaBo>, DeviceServerError> {
         let mut file_list = Vec::new();
-        let mut dir = tokio::fs::read_dir(FILE_FOLDER).await?;
-        while let Some(res) = dir.next_entry().await? {
-            let file_name = res.file_name().into_string().unwrap();
-            let hash = FileRepo::new().hash_file(&file_name)?;
-            file_list.push(FileMetaBo {
-                filename: file_name,
-                hash
-            });
+        // check File_FOLDER exists, if not, then create one
+        let is_exist = tokio::fs::metadata(FILE_FOLDER).await.is_ok();
+        if !is_exist {
+            tokio::fs::create_dir(FILE_FOLDER).await
+                .map_err(|e| DeviceServerError {code: ServerErrorCode::FileSystemError, msg: format!("create dir error: {e}")})?;
         }
+        let mut dir = tokio::fs::read_dir(FILE_FOLDER).await
+            .map_err(|e| DeviceServerError {code: ServerErrorCode::FileSystemError, msg: format!("read dir error: {e}")})?;
+        while let Some(res) = dir.next_entry().await
+            .map_err(|e| DeviceServerError {code: ServerErrorCode::FileSystemError, msg: format!("dir to next entry error: {e}")})? 
+            {
+                let file_name = res.file_name().into_string().unwrap();
+                let hash = FileRepo::new().hash_file(&file_name)?;
+                file_list.push(FileMetaBo {
+                    filename: file_name,
+                    hash
+                });
+            }
         Ok(file_list)
     }
 }

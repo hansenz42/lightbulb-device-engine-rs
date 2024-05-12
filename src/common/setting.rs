@@ -1,4 +1,4 @@
-//! 配置文件管理器
+//! setting config file
 
 use std::{fs::File, io::Read};
 use lazy_static::lazy_static;

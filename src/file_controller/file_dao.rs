@@ -73,10 +73,10 @@ impl FileDao {
     pub async fn ensure_table_exist(&self) -> Result<(), Box<dyn Error>> {
         let is_exist = self.check_table(self.table_name).await?;
         if is_exist {
-            debug!(TAG, "设备缓存表已存在");
+            debug!(TAG, "device cache table exist");
         } else {
             self.create_table().await?;
-            debug!(TAG, "设备缓存表初始化");
+            debug!(TAG, "device cache table init");
         }
         Ok(())
     }   
