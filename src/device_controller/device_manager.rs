@@ -10,6 +10,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::error::Error;
 use serde_json::{Value, Map};
+use tokio::time::interval;
+use tokio::time::Duration;
 
 use crate::common::dao::Dao;
 use crate::common::error::{DeviceServerError, ServerErrorCode};
@@ -32,6 +34,7 @@ use crate::driver::modbus::modbus_bus::ModbusBus;
 // url to update device config
 const UPDATE_CONFIG_URL: &str = "api/v1.2/device/config/HZ-B1";
 const LOG_TAG : &str = "DeviceManager";
+const HEARTBEAT_INTERVAL: u64 = 10000;
 
 /// device manager
 /// - manage device list
@@ -43,13 +46,10 @@ pub struct DeviceManager {
     pub config_map: HashMap<String, DevicePo>,
     // configuration list of devices
     pub config_list: Vec<DevicePo>,
-    
     // upward thread: receive from device, send to mqtt
     upward_rx: mpsc::Receiver<DeviceStateDto>,
-    
     // the device can clone this rx channel to send data to upward thread
     pub upward_tx_dummy: mpsc::Sender<DeviceStateDto>,
-    
     // downward receive channel from mqtt
     downward_rx: Option<mpsc::Receiver<DeviceCommandDto>>,
 }
@@ -73,62 +73,8 @@ impl DeviceManager {
     /// - 所有权关系：该函数将拿走 self 的所有权，因为需要在线程中调用访问 self 中的设备对象
     pub fn start_worker(self, downward_rx: mpsc::Receiver<DeviceCommandDto>, mqtt_client: Arc<MqttClient>) {
         
-        // TODO: init devices accroding to device config
+        info!(LOG_TAG, "device controller worker started");
 
-        // downward thread, send command to device
-        thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().expect("downward worker: cannot create tokio runtime");
-            rt.block_on( async move {
-                let mut device_factory = DeviceFactory::new(self.upward_tx_dummy.clone());
-
-                device_factory.make_devices_by_device_po_list(self.config_list.clone()).unwrap();
-
-                let (device_info_map, device_enum_map) = device_factory.get_result();
-
-                loop {
-                    info!(LOG_TAG, "waitting for downward command");
-                    let recv_message = downward_rx.recv();
-                    match recv_message {
-                        Ok(commnad) => {
-                            let device_id = &commnad.device_id;
-
-                        }
-                        Err(e) => {
-                            warn!(LOG_TAG, "downward worker channel closing, error msg: {}", e);
-                            return
-                        }
-                    }
-                }
-            });
-        });
-        
-        info!(LOG_TAG, "downward worker started");
-
-        let upward_rx = self.upward_rx;
-
-        // 上行传递线程 （注意使用 tokio 调度）
-        // - 设备上报数据
-        // - 向 mqtt 发布推送设备状态
-        thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().expect("upward worker: cannot create tokio runtime");
-            rt.block_on( async move {
-                loop{
-                    info!(LOG_TAG, "waiting for upward message");
-                    let message = upward_rx.recv();
-                    match message {
-                        Ok(device_state_bo) => {
-                            info!(LOG_TAG, "upward message to mqtt: {:?}", &device_state_bo);
-                            mqtt_client.publish_status(device_state_bo).await.expect("cannot publish upward message to mqtt");
-                        }   
-                        Err(e) => {
-                            warn!(LOG_TAG, "upward worker closed, channel error, msg: {}", e);
-                            return
-                        }
-                    }
-                }
-            });
-        });
-        
         info!(LOG_TAG, "upward worker started");
     }
 
@@ -230,6 +176,7 @@ fn transform_device_config_obj_str(device_data: &Map<String, Value>) -> String {
 mod tests {
     use super::*;
     use crate::common::logger::{init_logger};
+    use crate::entity::dto::device_command_dto::DeviceParamsEnum;
     use crate::entity::dto::device_state_dto::DoControllerStateDto;
     use crate::mqtt_client::client::MqttClient;
 
@@ -260,7 +207,7 @@ mod tests {
             server_id: "this".to_string(),
             device_id: "test_device_id".to_string(),
             action: "some action".to_string(),
-            params: serde_json::json!(null)
+            params: DeviceParamsEnum::Empty
         }).unwrap();
         info!(LOG_TAG, "测试完成");
         thread::sleep(std::time::Duration::from_secs(6));
@@ -288,7 +235,7 @@ mod tests {
             server_id: "this".to_string(),
             device_id: "123".to_string(),
             action: "test".to_string(),
-            params: serde_json::json!(null)
+            params: DeviceParamsEnum::Empty
         }).unwrap();
 
         // 等待 2 s

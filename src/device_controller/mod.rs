@@ -10,3 +10,4 @@ pub mod device_factory;
 mod factory;
 mod traits;
 pub mod entity;
+pub mod thread;

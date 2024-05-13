@@ -45,25 +45,26 @@ impl FileRepo {
         FileRepo{}
     }
 
-    /// 确保 files 文件夹存在
-    pub async fn check_folder() -> Result<(), Box<dyn Error>> {
+    /// make sure "files" folder exists
+    pub async fn check_folder() -> Result<(), DeviceServerError> {
         // 检查 folder 是否存在
         let is_exist = tokio::fs::metadata(FILE_FOLDER).await.is_ok();
         if !is_exist {
             // 创建文件夹
-            tokio::fs::create_dir(FILE_FOLDER).await?;
+            tokio::fs::create_dir(FILE_FOLDER).await
+                .map_err(|e| DeviceServerError {code: ServerErrorCode::FileSystemError, msg: format!("create dir error: {e}")})?;
         }
         Ok(())
     }
 
-    /// 下载并保存文件到本地
+    /// download file and save to local cache
     pub async fn download(&self, url: &str) -> Result<(), DeviceServerError>{
         download_file(url, FILE_FOLDER).await
             .map_err(|e| DeviceServerError {code: ServerErrorCode::FileSystemError, msg: format!("download file error: {e}")})?;
         Ok(())
     }
 
-    /// 根据文件名计算文件 md5
+    /// calculate md5 according to file
     pub fn hash_file(&self, filename: &str) -> Result< String, DeviceServerError>{
         // 打开文件并计算哈希
         let input = File::open(format!("{}/{}", FILE_FOLDER, filename))

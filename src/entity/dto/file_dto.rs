@@ -8,14 +8,9 @@ pub enum MediaTypeEnum {
 
 #[derive(Debug, Clone)]
 pub struct FileDto {
-    // 标签
     pub tag: String,
-    // 服务器上的文件名
     pub filename: String,
-    // 文件哈希值
     pub hash: String,
-    // 文件类型
     pub media_type: MediaTypeEnum,
-    // 是否删除
     pub deleted: bool,
 }
