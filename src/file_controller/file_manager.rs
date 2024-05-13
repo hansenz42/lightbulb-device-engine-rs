@@ -1,9 +1,6 @@
-//! 文件管理器
-//! 系统启动时
-//! 1 从远程获取配置文件，如果获取到最新的设备配置，则保存到持久存储中
-//! 2 如果无法读取，则使用本地缓存初始化
-//! 3 如果不存在本地存储，则打断启动
-
+//! file system manager
+//! control file metadata
+//! manage local file cache
 
 use std::collections::HashMap;
 use std::error::Error;
@@ -13,14 +10,14 @@ use serde_json::{Value, Map};
 use crate::common::dao::Dao;
 use crate::common::error::{DeviceServerError, ServerErrorCode};
 use super::file_dao::FileDao;
-use super::file_repo::{FileRepo, FileMetaBo};
+use super::file_repo::{FileRepo, FileMetaDto, FILE_FOLDER};
 use crate::common::http;
 use crate::entity::po::file_po::FilePo;
 use crate::entity::dto::file_dto::MediaTypeEnum;
 use crate::{info, warn, error, trace, debug};
 
 const UPDATE_CONFIG_URL: &str = "api/v1.2/file/config";
-const FILE_DOWNLOAD_URL: &str = "api/v1.2/file/";
+const FILE_DOWNLOAD_URL: &str = "api/v1.2/file";
 const LOG_TAG: &str = "FileManager";
 
 pub struct FileManager {
@@ -65,7 +62,7 @@ impl FileManager {
 
     /// save local cache to db
     async fn save_to_db(&self) -> Result<(), DeviceServerError> {
-        // 清空本地数据库
+        // clear local table
         self.file_dao.clear_table().await.map_err(
             |e| DeviceServerError {
                 code: ServerErrorCode::DatabaseError,
@@ -104,9 +101,13 @@ impl FileManager {
         }
     }
 
-    /// 从数据库读取数据当前对象
-    async fn load_from_db(&mut self) -> Result<(), Box<dyn Error>> {
-        let file_po_list: Vec<FilePo> = self.file_dao.get_all().await?;
+    /// read file config data from database
+    async fn load_from_db(&mut self) -> Result<(), DeviceServerError> {
+        let file_po_list: Vec<FilePo> = self.file_dao.get_all().await
+            .map_err(|e| DeviceServerError {
+                code: ServerErrorCode::DatabaseError,
+                msg: format!("cannot read file meta from db, error: {}", e)
+            })?;
         // 将 Vec 转换为 Hashmap 
         for file_po in file_po_list {
             self.cache.insert(file_po.hash.clone(), file_po);
@@ -114,30 +115,35 @@ impl FileManager {
         Ok(())
     }
 
-    /// 从远程下载文件到本地
-    async fn download_file_from_remote(&self, file_po: &FilePo) -> Result<(), Box<dyn Error>> {
+    /// download file from remote
+    async fn download_file_from_remote(&self, file_po: &FilePo) -> Result<(), DeviceServerError> {
         let url = format!("{}/{}", FILE_DOWNLOAD_URL, file_po.hash);
-        self.file_repo.download(url.as_str()).await?;
+        self.file_repo.download(url.as_str()).await
+            .map_err(|e| DeviceServerError {
+                code: ServerErrorCode::FileSystemError,
+                msg: format!("download file error: {e}")
+            })?;
         Ok(())
     }
 
-    /// 启动流程
-    /// - 从数据库生成本地缓存
-    /// - 扫描磁盘，检查文件是否都存在，如果文件不存在，则更新本地缓存的数据（删除文件记录）
-    /// - 获取远程文件记录
-    /// - 检查远程数据和本地文件的不同
-    /// - （如有文件未下载）则下载文件
-    /// - 将最新的数据写入缓存，保存到数据库
-    /// 注意：目前本地旧的文件不会被清理
+    /// start the file manager
+    /// 1 read local database 
+    /// 2 scan files on the disk, check if the file exists, and update file meta
+    /// 3 get remote file meta
+    /// 4 check if there is new file on the remote server
+    /// 5 download new file
+    /// 6 save file config cache to db
+    /// caution:
+    /// - the file deleted on the remote, will not removed
     pub async fn startup(&mut self) -> Result<(), DeviceServerError> {
-        // 确保 file 数据表存在
+        // make sure file table exists
         self.file_dao.ensure_table_exist().await
             .map_err(|e| DeviceServerError {
                 code: ServerErrorCode::DatabaseError,
                 msg: format!("cannot ensure file table exist, error: {}", e)
             })?;
 
-        // 从数据库生成本地缓存
+        // make local cache, load from database
         match self.load_from_db().await {
             Ok(_) => {
                 info!(LOG_TAG, "read file config cache from db success");
@@ -147,10 +153,10 @@ impl FileManager {
             }
         }
 
-        // 扫描磁盘，检查文件是否都存在，如果文件不存在，则更新本地缓存的数据（删除文件记录）
+        // scan disk, check if the file exists, and update file meta
         let scanned_file_list = self.file_repo.scan_files().await?;
         // vec 转换为 hashmap
-        let scanned_file_hashmap: HashMap<String, FileMetaBo> = scanned_file_list.into_iter().map(|x| (x.hash.clone(), x.clone())).collect();
+        let scanned_file_hashmap: HashMap<String, FileMetaDto> = scanned_file_list.into_iter().map(|x| (x.hash.clone(), x.clone())).collect();
 
         for file in self.cache.clone().values() {
             info!(LOG_TAG, "check cache record file name: {}; hash {}", file.filename, file.hash);
@@ -166,11 +172,11 @@ impl FileManager {
             }
         }
 
-        // 获取远程文件记录
+        // get file meta from remote
         if let Ok(json_array) = self.get_remote().await {
             if let Ok(file_po_list) = self.transform_list_to_po(json_array.clone()).await {
                 let mut new_file_po: Vec<FilePo> = Vec::new();
-                // 将远程数据和本地数据进行比较
+                // compare with local cache ...
                 for file_po in &file_po_list {
                     if !self.cache.contains_key(&file_po.hash) {
                         new_file_po.push(file_po.clone());
@@ -178,7 +184,7 @@ impl FileManager {
                     }
                 }
 
-                // 下载新文件
+                // download new file
                 for file_po in &new_file_po {
                     match self.download_file_from_remote(file_po).await {
                         Ok(_) => {
@@ -191,7 +197,7 @@ impl FileManager {
                     }
                 }
 
-                // 更新当前缓存
+                // refresh database file meta with new data
                 self.save_to_db().await?;
                 info!(LOG_TAG, "file config cache successfully updated");
             } else {
@@ -203,14 +209,20 @@ impl FileManager {
 
         Ok(())
     }
+
+    /// get file path by file hash
+    pub fn get_path_by_hash(&self, hash_str: &str) -> Option<String> {
+        let filename = self.cache.get(hash_str)?.filename.clone();
+        Some(format!("{}/{}", FILE_FOLDER, filename))
+    }
     
 }
 
-/// 辅助函数：将单个 json object 转换为 FilePo，如果转换失败，则返回 None
+/// transform json object to file po
 fn json_object_to_single_po(json_obj: &Value) -> Option<FilePo> {
     let file_data = json_obj.as_object().expect("file field incorrect");
     let file_po = FilePo {
-        // tag 有可能为空
+        // tag can be empty
         tag: file_data.get("tag").expect("get tag from file_data").as_str().or_else(|| Some(""))?.to_string(),
         filename: file_data.get("filename")?.as_str()?.to_string(),
         hash: file_data.get("hash")?.as_str()?.to_string(),
@@ -239,6 +251,8 @@ mod test {
 
         rt.block_on(async {
             file_manager.startup().await.unwrap();
+            let file_path = file_manager.get_path_by_hash("61b62be9d1715598003e71ec9ea52010");
+            println!("{:?}", file_path);
         });
     }
 

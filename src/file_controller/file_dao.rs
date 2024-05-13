@@ -18,7 +18,7 @@ pub struct FileDao {
 
 #[async_trait]
 impl Dao for FileDao {
-    /// 删除数据表
+    /// drop table
     async fn drop_table(&self) -> tokio_rusqlite::Result<()> {
         let conn = SqliteConnection::get().open().await?;
         let table_name_copy = self.table_name.clone();
@@ -33,7 +33,7 @@ impl Dao for FileDao {
         Ok(())
     }
 
-    /// 创建缓存数据表
+    /// create file table
     async fn create_table(&self) -> tokio_rusqlite::Result<()> {
         let conn = SqliteConnection::get().open().await?;
         let table_name_copy = self.table_name.clone();
@@ -82,7 +82,7 @@ impl FileDao {
     }   
     
 
-    /// 将单个文件信息加入缓存
+    /// add single info to db
     pub async fn add_file_info(&self, file_info: FilePo) -> Result<(), Box<dyn Error>> {
         let conn = SqliteConnection::get().open().await?;
 

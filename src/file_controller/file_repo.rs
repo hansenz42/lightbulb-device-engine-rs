@@ -9,7 +9,7 @@ use data_encoding::HEXUPPER;
 use crate::common::error::{DeviceServerError, ServerErrorCode};
 use crate::common::http::download_file;
 
-const FILE_FOLDER: &'static str = "file";
+pub const FILE_FOLDER: &'static str = "file";
 
 /// 计算 md5 hash
 fn md5_digest<R: Read>(mut reader: R) -> Result<String, Box<dyn Error>> {
@@ -29,7 +29,7 @@ fn md5_digest<R: Read>(mut reader: R) -> Result<String, Box<dyn Error>> {
 
 /// 本地文件描述数据
 #[derive(Debug, Clone)]
-pub struct FileMetaBo {
+pub struct FileMetaDto {
     pub filename: String,
     pub hash: String
 }
@@ -74,7 +74,7 @@ impl FileRepo {
     }
 
     /// 检查本地目录下的所有文件
-    pub async fn scan_files(&self) -> Result<Vec<FileMetaBo>, DeviceServerError> {
+    pub async fn scan_files(&self) -> Result<Vec<FileMetaDto>, DeviceServerError> {
         let mut file_list = Vec::new();
         // check File_FOLDER exists, if not, then create one
         let is_exist = tokio::fs::metadata(FILE_FOLDER).await.is_ok();
@@ -89,7 +89,7 @@ impl FileRepo {
             {
                 let file_name = res.file_name().into_string().unwrap();
                 let hash = FileRepo::new().hash_file(&file_name)?;
-                file_list.push(FileMetaBo {
+                file_list.push(FileMetaDto {
                     filename: file_name,
                     hash
                 });
