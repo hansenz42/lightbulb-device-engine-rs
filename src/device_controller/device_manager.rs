@@ -22,6 +22,7 @@ use crate::driver::traits::Operable;
 use crate::entity::bo::device_config_bo::{ConfigBo};
 use crate::mqtt_client::client::MqttClient;
 use super::device_dao::DeviceDao;
+use super::entity::device_info::DeviceInfoDto;
 use crate::common::http;
 use super::entity::device_po::DevicePo;
 use crate::entity::dto::device_state_dto::{DeviceStateDto, StateDtoEnum};
@@ -52,6 +53,8 @@ pub struct DeviceManager {
     pub upward_tx_dummy: mpsc::Sender<DeviceStateDto>,
     // downward receive channel from mqtt
     downward_rx: Option<mpsc::Receiver<DeviceCommandDto>>,
+    // device info map
+    pub device_info_map: Option<Arc<Mutex<HashMap<String, DeviceInfoDto>>>>
 }
 
 impl DeviceManager {
@@ -64,6 +67,7 @@ impl DeviceManager {
             upward_rx: upward_rx,
             upward_tx_dummy: upward_rx_dummy,
             downward_rx: None,
+            device_info_map: None
         }
     }
 

@@ -1,8 +1,8 @@
-use std::{any::Any, borrow::Borrow, fmt::format, sync::{mpsc, Arc}, thread};
+use std::{any::Any, borrow::Borrow, collections::HashMap, fmt::format, sync::{mpsc, Arc, Mutex}, thread};
 
 use crate::{common::error::DriverError, driver::modbus::modbus_do_port::ModbusDoPort, entity::dto::{device_command_dto::{DeviceCommandDto, DeviceParamsEnum}, device_state_dto::DeviceStateDto}, mqtt_client::client::MqttClient};
 
-use super::{device_factory::DeviceFactory, entity::{device_enum::DeviceRefEnum, device_po::DevicePo}};
+use super::{device_factory::DeviceFactory, entity::{device_enum::DeviceRefEnum, device_info::DeviceInfoDto, device_po::DevicePo}};
 use crate::{info, warn, error, trace, debug};
 use crate::driver::modbus::traits::ModbusDoControllerCaller;
 
@@ -73,6 +73,10 @@ fn upward_thread(upward_rx: mpsc::Receiver<DeviceStateDto>, mqtt_client: Arc<Mqt
             }
         });
     });
+}
+
+fn heartbeating_thread(device_info_map: Arc<Mutex<HashMap<String, DeviceInfoDto>>>) {
+    // TODO implement 
 }
 
 /// command device method
