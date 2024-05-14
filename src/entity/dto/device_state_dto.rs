@@ -4,7 +4,7 @@ use std::error::Error;
 
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum StateDtoEnum {
     Empty,
@@ -38,7 +38,7 @@ impl DeviceStateDto {
 
 // bus states
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DmxBusStateDto {
     pub debug_channels: Vec<u8>
 }
@@ -46,13 +46,13 @@ pub struct DmxBusStateDto {
 // controller states
 
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DoControllerStateDto {
     // 输出端接口状态
     pub port: Vec<u8>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DiControllerStateBo {
     // 输入接口状态
     pub port: Vec<u8>,
@@ -60,19 +60,19 @@ pub struct DiControllerStateBo {
 
 // device states
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AudioStateDto {
     // 当前正在播放的音频流
     pub stream: Vec<AudioFilePlayingDto>
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct AudioFilePlayingDto {
     pub file_id: String,
     pub playing: bool,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ChannelStateDto {
     // 通道地址
     pub address: u8,
@@ -80,17 +80,17 @@ pub struct ChannelStateDto {
     pub channels: Vec<u8>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct RemoteStateDto {
     pub pressed: u8
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DiStateDto {
     pub on: bool
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DoStateDto {
     pub on: bool
 }

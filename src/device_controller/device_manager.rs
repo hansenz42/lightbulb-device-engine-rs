@@ -15,14 +15,15 @@ use tokio::time::Duration;
 
 use crate::common::dao::Dao;
 use crate::common::error::{DeviceServerError, ServerErrorCode};
-use crate::device_controller::device_factory::DeviceFactory;
+use crate::device_controller::device_info_factory::make_device_info;
+use crate::device_controller::device_instance_factory::DeviceInstanceFactory;
 use crate::driver::dmx::dmx_bus::DmxBus;
 use crate::driver::serial::serial_bus::SerialBus;
 use crate::driver::traits::Operable;
 use crate::entity::bo::device_config_bo::{ConfigBo};
+use crate::entity::dto::device_info_dto::DeviceMetaInfoDto;
 use crate::mqtt_client::client::MqttClient;
 use super::device_dao::DeviceDao;
-use super::entity::device_info::DeviceInfoDto;
 use crate::common::http;
 use super::entity::device_po::DevicePo;
 use crate::entity::dto::device_state_dto::{DeviceStateDto, StateDtoEnum};
@@ -54,7 +55,7 @@ pub struct DeviceManager {
     // downward receive channel from mqtt
     downward_rx: Option<mpsc::Receiver<DeviceCommandDto>>,
     // device info map
-    pub device_info_map: Option<Arc<Mutex<HashMap<String, DeviceInfoDto>>>>
+    pub device_info_map: Option<Arc<Mutex<HashMap<String, DeviceMetaInfoDto>>>>
 }
 
 impl DeviceManager {
@@ -75,7 +76,7 @@ impl DeviceManager {
     /// - 设备管理 + 下行线程：从 mqtt 服务器接收到的消息，给设备的指令。下行传递线程也是设备操作的主线程，负责初始化并管理所有设备
     /// - 上行传递：接收从 device 来的消息，推送到 mqtt
     /// - 所有权关系：该函数将拿走 self 的所有权，因为需要在线程中调用访问 self 中的设备对象
-    pub fn start_worker(self, downward_rx: mpsc::Receiver<DeviceCommandDto>, mqtt_client: Arc<MqttClient>) {
+    pub fn start_worker(self, downward_rx: mpsc::Receiver<DeviceCommandDto>, mqtt_client: Arc<Mutex<MqttClient>>) {
         
         info!(LOG_TAG, "device controller worker started");
 
@@ -89,13 +90,26 @@ impl DeviceManager {
     /// init device manager
     /// - read config from remote server
     /// - update local data
-    pub async fn startup(&mut self) -> Result<(), Box<dyn Error>> {
-        self.device_dao.ensure_table_exist().await?;
+    pub async fn startup(&mut self) -> Result<(), DeviceServerError> {
+        // 1. make sure the table exists
+        self.device_dao.ensure_table_exist().await
+            .map_err(
+                |e| DeviceServerError{
+                    code: ServerErrorCode::DatabaseError,
+                    msg: format!("cannot ensure device table exist, error msg: {}", e)
+                }
+            )?;
 
+        // 2. get remote config data and write to db
         match self.get_remote().await {
             Ok(json_data) => {
                 // clear all data
-                self.device_dao.clear_table().await?;
+                self.device_dao.clear_table().await.map_err(
+                    |e| DeviceServerError {
+                        code: ServerErrorCode::DatabaseError,
+                        msg: format!("cannot save device config to db, clear table error: {}", e)
+                    }
+                )?;
                 self.write_to_db(json_data).await?;
                 info!(LOG_TAG, "successfully got device config data from flow server");
             }
@@ -104,8 +118,12 @@ impl DeviceManager {
             }
         }
 
+        // 3. load data from database
         self.load_from_db().await?;
         info!(LOG_TAG, "successfully load device config data from db");
+
+        // 4. make device info map
+        self.device_info_map = Some(Arc::new(Mutex::new(make_device_info(self.config_list.clone())?)));
 
         info!(LOG_TAG, "device manager startup complete");
         Ok(())
@@ -303,11 +321,7 @@ mod tests {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             manager.startup().await.unwrap();
-            let mut factory = DeviceFactory::new(manager.clone_upward_tx());
-            factory.make_devices_by_device_po_list(manager.config_list.clone()).unwrap();
-            let (device_info_map, device_enum_map) = factory.get_result();
-            println!("device_info_map: {:?}", device_info_map);
-            println!("device_enum_map: {:?}", device_enum_map.keys());
+            let mut factory = DeviceInstanceFactory::new(manager.clone_upward_tx());
         })
     }
 

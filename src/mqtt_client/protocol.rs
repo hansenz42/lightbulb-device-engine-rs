@@ -2,17 +2,17 @@
 use std::error::Error;
 use crate::util::gen_id::generate_uuid;
 
-use super::entity::{MqttTopicInfoBo, MqttPayloadDto};
+use super::entity::{MqttTopicInfoDto, MqttPayloadDto};
 use crate::common::setting::Settings;
 
 // 对 TopicInfo 结构体做二次包装，使其支持默认值的调用方法
-struct TopicConfig(MqttTopicInfoBo);
+struct TopicConfig(MqttTopicInfoDto);
 
 impl Default for TopicConfig {
     // 使用 wrapper 包裹 TopicConfig 结构体，用于生成 Topic Config 的默认值
     fn default() -> Self {
         let setting = Settings::get();
-        TopicConfig(MqttTopicInfoBo {
+        TopicConfig(MqttTopicInfoDto {
             command: "".to_string(),
             application: setting.meta.application_name.clone(),
             scenario: Some(setting.meta.scenario_name.clone()),
@@ -45,7 +45,7 @@ pub struct Protocol {
     }
 
     /// 将 topic 字符串解析为结构体
-    fn parse_topic(topic_str: String) -> Result<MqttTopicInfoBo, Box<dyn Error>>{
+    fn parse_topic(topic_str: String) -> Result<MqttTopicInfoDto, Box<dyn Error>>{
         let topic_vec: Vec<&str> = topic_str.split("/").collect();
         let command = topic_vec[0].to_string();
         let application = topic_vec[1].to_string();
@@ -71,7 +71,7 @@ pub struct Protocol {
             device_id = Some(topic_vec[7].to_string());
         }
 
-        Ok(MqttTopicInfoBo {
+        Ok(MqttTopicInfoDto {
             command,
             application,
             scenario,

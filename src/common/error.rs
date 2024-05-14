@@ -7,7 +7,7 @@ pub enum ServerErrorCode {
     UnknownError = 1000,
     HttpError = 1001,
     // Error related to device config files
-    DeviceConfigError = 1002,
+    DeviceInfoError = 1002,
     // the device type is not supportted
     DeviceTypeNotSupport = 1003,
     // cannot read or write files

@@ -83,7 +83,7 @@ impl MqttPayloadDto {
 
 
 /// mqtt Topic 字符串中的信息
-pub struct MqttTopicInfoBo {
+pub struct MqttTopicInfoDto {
     pub command: String,
     pub application: String,
     pub scenario: Option<String>,

@@ -1,7 +1,8 @@
-use crate::{common::error::DriverError, device_controller::entity::device_info::DeviceInfoDto, driver::modbus::{modbus_bus::ModbusBus, modbus_di_controller::ModbusDiController, modbus_do_controller::ModbusDoController}};
+use crate::entity::dto::device_info_dto::DeviceMetaInfoDto;
+use crate::{common::error::DriverError,  driver::modbus::modbus_di_controller::ModbusDiController};
 use crate::util::json;
 
-pub fn make( device_info: &DeviceInfoDto) -> Result<ModbusDiController, DriverError> {
+pub fn make( device_info: &DeviceMetaInfoDto) -> Result<ModbusDiController, DriverError> {
     let unit = json::get_config_int(&device_info.config, "unit")?;
     let input_num = json::get_config_int(&device_info.config, "input_num")?;
     let obj = ModbusDiController::new(

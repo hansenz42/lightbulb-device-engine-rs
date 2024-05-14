@@ -1,12 +1,12 @@
 use serde_json::Value;
-use crate::device_controller::entity::device_info::DeviceInfoDto;
+use crate::entity::dto::device_info_dto::DeviceMetaInfoDto;
 use crate::{common::error::DriverError, driver::serial::serial_bus::SerialBus };
 use crate::util::json;
 
 const DEVICE_IDENTIFIER: &str = "serial_bus";
 
 
-pub fn make(device_info: &DeviceInfoDto) -> Result<SerialBus, DriverError> {
+pub fn make(device_info: &DeviceMetaInfoDto) -> Result<SerialBus, DriverError> {
     let serial_port = json::get_config_str(&device_info.config, "serial_port")?;
     let baudrate = json::get_config_int(&device_info.config, "baudrate")?;
     let obj = SerialBus::new(
