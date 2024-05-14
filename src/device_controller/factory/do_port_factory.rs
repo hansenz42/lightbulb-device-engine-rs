@@ -1,7 +1,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use serde_json::Value;
-use crate::{common::error::DriverError, driver::modbus::{modbus_do_controller::ModbusDoController, modbus_do_port::ModbusDoPort}, entity::dto::device_info_dto::DeviceMetaInfoDto, util::json};
+use crate::{common::error::DriverError, driver::modbus::{modbus_do_controller::ModbusDoController, modbus_do_port::ModbusDoPort}, entity::dto::device_meta_info_dto::DeviceMetaInfoDto, util::json};
 
 pub fn make(device_info: &DeviceMetaInfoDto, modbus_do_controller_ref: Rc<RefCell<ModbusDoController>>) -> Result<ModbusDoPort, DriverError> {
     let address = json::get_config_int(&device_info.config, "address")?;

@@ -1,7 +1,7 @@
 use std::{borrow::Borrow, cell::RefCell, rc::Rc};
 
 use serde_json::Value;
-use crate::{common::error::DriverError, device_controller::entity::device_enum::DeviceRefEnum, driver::modbus::{modbus_bus::ModbusBus, modbus_do_controller::ModbusDoController}, entity::dto::device_info_dto::DeviceMetaInfoDto};
+use crate::{common::error::DriverError, device_controller::entity::device_enum::DeviceRefEnum, driver::modbus::{modbus_bus::ModbusBus, modbus_do_controller::ModbusDoController}, entity::dto::device_meta_info_dto::DeviceMetaInfoDto};
 use crate::util::json;
 
 pub fn make(device_info: &DeviceMetaInfoDto, modbus_ref: &Rc<RefCell<ModbusBus>>) -> Result<ModbusDoController, DriverError> {

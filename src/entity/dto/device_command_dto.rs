@@ -1,5 +1,6 @@
 use serde_json::Value;
 
+/// used for commanding device
 #[derive(Debug, Clone)]
 pub struct DeviceCommandDto {
     pub server_id: String,

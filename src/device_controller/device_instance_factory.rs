@@ -7,7 +7,7 @@ use crate::driver::dmx::dmx_bus::DmxBus;
 use crate::driver::modbus::traits::{ModbusDiControllerListener, ModbusListener};
 use crate::driver::modbus::{modbus_bus, modbus_di_controller};
 use crate::driver::serial::serial_bus::SerialBus;
-use crate::entity::dto::device_info_dto::{DeviceMetaInfoDto, DeviceStatusEnum};
+use crate::entity::dto::device_meta_info_dto::{DeviceMetaInfoDto, DeviceStatusEnum};
 use crate::entity::dto::device_state_dto::DeviceStateDto;
 use crate::util::json::get_str;
 use crate::{common::error::DriverError, driver::modbus::modbus_bus::ModbusBus};

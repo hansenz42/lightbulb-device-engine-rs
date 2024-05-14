@@ -1,4 +1,4 @@
-use crate::entity::dto::device_info_dto::DeviceMetaInfoDto;
+use crate::entity::dto::device_meta_info_dto::DeviceMetaInfoDto;
 use crate::{common::error::DriverError,  driver::modbus::modbus_di_controller::ModbusDiController};
 use crate::util::json;
 

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use serde_json::Value;
 
-use crate::{common::error::{DeviceServerError, DriverError, ServerErrorCode}, debug, entity::dto::device_info_dto::DeviceMetaInfoDto, error, info, trace, warn};
+use crate::{common::error::{DeviceServerError, DriverError, ServerErrorCode}, debug, entity::dto::device_meta_info_dto::DeviceMetaInfoDto, error, info, trace, warn};
 
 use super::entity::{
     device_po::DevicePo,

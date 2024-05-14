@@ -21,7 +21,7 @@ use super::{
     device_instance_factory::DeviceInstanceFactory,
     entity::{device_enum::DeviceRefEnum, device_po::DevicePo},
 };
-use crate::entity::dto::device_info_dto::DeviceMetaInfoDto;
+use crate::entity::dto::device_meta_info_dto::DeviceMetaInfoDto;
 use crate::driver::modbus::traits::ModbusDoControllerCaller;
 use crate::{debug, error, info, trace, warn};
 

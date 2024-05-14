@@ -19,7 +19,7 @@ use std::{
 use super::{entity::{ModbusThreadCommandEnum, WriteMultiBo, WriteSingleBo}, modbus_thread::*, prelude::ModbusAddrSize, traits::ModbusListener};
 use crate::{common::error::DriverError, driver::traits::Refable};
 use crate::entity::bo::{
-    device_config_bo::ConfigBo,
+    device_config_bo::ConfigPo,
 };
 use crate::entity::dto::device_command_dto::DeviceCommandDto;
 use crate::entity::dto::device_state_dto::{DeviceStateDto, StateDtoEnum};

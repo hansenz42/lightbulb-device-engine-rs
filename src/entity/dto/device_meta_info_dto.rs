@@ -8,7 +8,7 @@ pub enum DeviceStatusEnum{
     Initialized
 }
 
-/// device info bo for device info mapping
+/// used for device manager tracking device status
 #[derive(Debug, Clone)]
 pub struct DeviceMetaInfoDto {
     pub device_id: String,
@@ -16,7 +16,8 @@ pub struct DeviceMetaInfoDto {
     pub device_type: String,
     pub config: Value,
     pub status: DeviceStatusEnum,
-    
+
+    // for reporting device state part 
     pub active: bool,
     pub error_msg: String,
     pub error_timestamp: f64,

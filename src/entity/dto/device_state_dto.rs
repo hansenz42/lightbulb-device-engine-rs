@@ -4,6 +4,7 @@ use std::error::Error;
 
 use serde::{Deserialize, Serialize};
 
+/// universal device status enum
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
 pub enum StateDtoEnum {
@@ -18,6 +19,7 @@ pub enum StateDtoEnum {
     Do(DoStateDto),
 }
 
+/// used for device report to device manager
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DeviceStateDto {
     // 设备 id

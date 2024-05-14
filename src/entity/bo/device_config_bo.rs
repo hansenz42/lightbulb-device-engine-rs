@@ -2,9 +2,9 @@
 
 use serde::{Deserialize, Serialize};
 
-
+/// used for creating device
 #[derive(Debug, Clone)]
-pub struct DeviceCreateBo {
+pub struct DeviceCreatePo {
     // 设备一级类目
     pub device_class: String,
     // 设备二级类目
@@ -18,14 +18,14 @@ pub struct DeviceCreateBo {
     // 设备区域（房间）
     pub room: String,
     // 设备配置（json string）
-    pub config: ConfigBo,
+    pub config: ConfigPo,
 
     // 主设备 id，只有子设备存在才有效
     pub master_device_id: Option<String>
 }
 
 #[derive(Debug, Clone)]
-pub enum ConfigBo {
+pub enum ConfigPo {
     Modbus(ModbusConfigBo),
     DmxBus(DmxBusConfigBo),
     SerialBus(SerialBusConfigBo),

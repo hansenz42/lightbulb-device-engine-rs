@@ -1,5 +1,5 @@
 use serde_json::Value;
-use crate::entity::dto::device_info_dto::DeviceMetaInfoDto;
+use crate::entity::dto::device_meta_info_dto::DeviceMetaInfoDto;
 use crate::{common::error::DriverError, driver::modbus::modbus_bus::ModbusBus };
 use crate::util::json;
 
