@@ -27,14 +27,14 @@ impl Default for TopicConfig {
 
 /// mqtt 协议处理工具类，将 bytestring 和已经定义好的结构体互相转换
 pub struct Protocol {
-    // 基本数据
+    // basic information
     app_name: String,
     scenario_name: String,
     server_type: String,
     server_id: String
 }
 
-    impl Protocol {
+impl Protocol {
     pub fn new() -> Self {
         Protocol {
             app_name: Settings::get().meta.application_name.clone(),
@@ -84,7 +84,7 @@ pub struct Protocol {
     }
 
     /// 生成 topic String 字符串
-    fn generate_topic (wrapper : TopicConfig) -> String {
+    fn make_topic_str (wrapper : TopicConfig) -> String {
         let mut topic = String::new();
         let bo = wrapper.0;
         topic.push_str(bo.command.as_str());
@@ -121,7 +121,7 @@ pub struct Protocol {
     pub fn topic_with_command(&self, command: &str) -> String {
         let mut config = TopicConfig::default();
         config.0.command = command.to_string();
-        Self::generate_topic(config)
+        Self::make_topic_str(config)
     }
 
     /// 发送给目标设备的 topic
@@ -133,17 +133,17 @@ pub struct Protocol {
         config.0.room_name = room_name;
         config.0.device_type = device_type;
         config.0.device_id = device_id;
-        Self::generate_topic(config)
+        Self::make_topic_str(config)
     }
 
-    /// 发送设备自我声明的 topic
+    /// make topic with server self information
     pub fn topic_self_declare(&self, command: &str, room_name: Option<String>, device_type: Option<String>, device_id: Option<String>) -> String {
         let mut config = TopicConfig::default();
         config.0.command = command.to_string();
         config.0.room_name = room_name;
         config.0.device_type = device_type;
         config.0.device_id = device_id;
-        Self::generate_topic(config)
+        Self::make_topic_str(config)
     }
 
     /// 发送错误消息数据

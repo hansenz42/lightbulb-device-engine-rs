@@ -37,9 +37,9 @@ pub fn make_device_info(
             config: device_config_json.clone(),
             status: DeviceStatusEnum::NotInitialized,
 
-            error_msg: String::from(""),
-            error_timestamp: 0.0,
-            last_update: 0.0,
+            error_msg: None,
+            error_timestamp: None,
+            last_update: None,
             state: StateDtoEnum::Empty,
         };
 

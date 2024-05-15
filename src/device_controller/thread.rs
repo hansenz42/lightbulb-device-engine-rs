@@ -24,11 +24,11 @@ use crate::entity::dto::device_meta_info_dto::DeviceMetaInfoDto;
 use crate::driver::modbus::traits::ModbusDoControllerCaller;
 use crate::{debug, error, info, trace, warn};
 
-const LOG_TAG: &'static str = "device_controller_thread";
+const LOG_TAG: &'static str = "device_manager_threads";
 
 /// device thread, use config to create device object, and send command to them
-fn device_thread(
-    upward_tx_dummy: mpsc::Sender<DeviceStateDto>,
+pub fn device_thread(
+    state_report_tx_dummy: mpsc::Sender<DeviceStateDto>,
     downward_rx: mpsc::Receiver<DeviceCommandDto>,
     device_po_list: Vec<DevicePo>,
     device_info_map: Arc<Mutex<HashMap<String, DeviceMetaInfoDto>>>,
@@ -36,23 +36,25 @@ fn device_thread(
     // downward thread, send command to device
     let handle = thread::spawn(move || {
         // 1. make devices according to config
-        let mut device_factory = DeviceInstanceFactory::new(upward_tx_dummy.clone());
+        let mut device_factory = DeviceInstanceFactory::new(state_report_tx_dummy.clone());
         device_factory
             .make_devices(device_info_map, device_po_list)
             .unwrap();
         let device_enum_map = device_factory.get_device_map();
 
         loop {
-            info!(LOG_TAG, "waitting for downward command");
+            info!(LOG_TAG, "device thread: waitting for device command");
             let recv_message = downward_rx.recv();
             match recv_message {
-                Ok(commnad) => {
-                    let device_id = &commnad.device_id;
+                Ok(command) => {
+                    let device_id = &command.device_id;
+                    info!(LOG_TAG, "command device, dto: {:?}", command);
                     // get device enum from map, if is none then print error msg
                     match device_enum_map.get(device_id) {
                         Some(device_enum) => {
+                            info!(LOG_TAG, "sending command to device {:?}", command);
                             // send command to device
-                            match command_device(device_enum, commnad) {
+                            match command_device(device_enum, command) {
                                 Ok(_) => {}
                                 Err(e) => {
                                     error!(LOG_TAG, "command device error, error msg: {}", e);
@@ -63,14 +65,14 @@ fn device_thread(
                         None => {
                             error!(
                                 LOG_TAG,
-                                "cannot find device_id: {} in device_enum_map", device_id
+                                "cannot send command to device, unable to find device_id: {} in device_enum_map", device_id
                             );
                             continue;
                         }
                     }
                 }
                 Err(e) => {
-                    warn!(LOG_TAG, "downward worker channel closing, error msg: {}", e);
+                    warn!(LOG_TAG, "device worker thread exiting: channel closing, error msg: {}", e);
                     return;
                 }
             }
@@ -80,61 +82,75 @@ fn device_thread(
 
 /// device heartbeating thread
 /// send heartbeating message with device info to flow server at a regular interval
-fn heartbeating_thread(
+pub fn heartbeating_thread(
     beat_interval_millis: u64,
     device_info_map: Arc<Mutex<HashMap<String, DeviceMetaInfoDto>>>,
     device_config_map: HashMap<String, DevicePo>,
     mqtt_client: Arc<Mutex<MqttClient>>
 ) {
     let handle = thread::spawn(move || {
-        loop {
-            // 1. make device report message
-            let mut report_dto_map: HashMap<String, DeviceReportDto> = HashMap::new();
-            {
-                let map_guard = device_info_map.lock().unwrap();
-                for (device_id, device_info) in map_guard.iter() {
-                    let report_dto = DeviceReportDto::from_device_meta_info(device_info);
-                    report_dto_map.insert(device_id.clone(), report_dto);
+        info!(LOG_TAG, "heartbeating thread starting");
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            loop {
+                // 1. make device report message
+                let mut report_dto_map: HashMap<String, DeviceReportDto> = HashMap::new();
+                {
+                    let map_guard = device_info_map.lock().unwrap();
+                    for (device_id, device_info) in map_guard.iter() {
+                        let report_dto = DeviceReportDto::from_device_meta_info(device_info);
+                        report_dto_map.insert(device_id.clone(), report_dto);
+                    }
                 }
-            }
 
-            // 2. make server state, and send heartbeating message
-            let server_state = ServerStateDto {
-                device_config: device_config_map.clone(),
-                device_status: report_dto_map,
-            };
-            {
-                let mqtt_guard = mqtt_client.lock().unwrap();
-                mqtt_guard.publish_heartbeat(server_state);
-            }
+                // 2. make server state, and send heartbeating message
+                let server_state = ServerStateDto {
+                    device_config: device_config_map.clone(),
+                    device_status: report_dto_map,
+                };
+                info!(LOG_TAG, "heartbeating thread: send server state: {:?}", server_state);
+                {
+                    let mqtt_guard = mqtt_client.lock().unwrap();
+                    let ret = mqtt_guard.publish_heartbeat(server_state).await;
+                    match ret {
+                        Ok(_) => {}
+                        Err(e) => {
+                            error!(LOG_TAG, "heartbeating thread: cannot publish server state to mqtt, will try in next beat, error msg: {}", e);
+                        }
+                    }
+                }
 
-            // 3. sleep for beat_interval
-            thread::sleep(std::time::Duration::from_millis(beat_interval_millis));
-        }
+                // 3. sleep for beat_interval
+                thread::sleep(std::time::Duration::from_millis(beat_interval_millis));
+            }
+        })
     });
 }
 
 /// upward thread
 /// used to report device state to upward controllers
 /// the thread using tokio runtime because mqtt client is async
-fn upward_thread(upward_rx: mpsc::Receiver<DeviceStateDto>, mqtt_client: Arc<MqttClient>) {
+pub fn reporting_thread(state_report_rx: mpsc::Receiver<DeviceStateDto>, mqtt_client: Arc<Mutex<MqttClient>>) {
     thread::spawn(move || {
         let rt =
             tokio::runtime::Runtime::new().expect("upward worker: cannot create tokio runtime");
         rt.block_on(async move {
             loop {
                 info!(LOG_TAG, "waiting for upward message");
-                let message = upward_rx.recv();
+                let message = state_report_rx.recv();
                 match message {
                     Ok(device_state_bo) => {
-                        info!(LOG_TAG, "upward message to mqtt: {:?}", &device_state_bo);
-                        mqtt_client
-                            .publish_status(device_state_bo)
-                            .await
-                            .expect("cannot publish upward message to mqtt");
+                        info!(LOG_TAG, "reporting thread: report message to mqtt: {:?}", &device_state_bo);
+                        {
+                            let mqtt_guard = mqtt_client.lock().unwrap();
+                            mqtt_guard
+                                .publish_status(device_state_bo)
+                                .await
+                                .expect("cannot publish upward message to mqtt");
+                        }
                     }
                     Err(e) => {
-                        warn!(LOG_TAG, "upward worker closed, channel error, msg: {}", e);
+                        warn!(LOG_TAG, "report thread worker exiting, channel error, msg: {}", e);
                         return;
                     }
                 }
@@ -146,7 +162,7 @@ fn upward_thread(upward_rx: mpsc::Receiver<DeviceStateDto>, mqtt_client: Arc<Mqt
 /// command device method
 /// only limited type of device can be called.
 /// selected type of device can only be called by specific params in device command dto
-fn command_device(
+pub fn command_device(
     device_ref: &DeviceRefEnum,
     command_dto: DeviceCommandDto,
 ) -> Result<(), DriverError> {

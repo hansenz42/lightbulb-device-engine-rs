@@ -8,7 +8,7 @@ server_name = "default_server"
 [env]
 debug = true
 env = "dev"
-log_level = "trace"
+log_level = "info"
 
 # device server setting
 [server]

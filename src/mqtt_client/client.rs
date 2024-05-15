@@ -69,7 +69,23 @@ impl MqttClient {
         Ok(())
     }
 
+    /// publish heartbeat message
     pub async fn publish_heartbeat(&self, server_state: ServerStateDto) -> Result<(), DeviceServerError> {
+        // 1 make topic 
+        let topic = self.protocol.topic_self_declare("status", None, None, None);
+        
+        // 2 make payload
+        let payload_content = serde_json::to_value(server_state)
+            .map_err(|e| DeviceServerError {code: ServerErrorCode::MqttError, msg: format!("cannot publish heartbeat message, transform state bo to json failed, json error: {e}")})?;
+        let payload = self.protocol.payload_from_server( Some(payload_content), None, None, None);
+
+        // 3 payload to json string
+        let json_str = payload.to_json()
+            .map_err(|e| DeviceServerError {code: ServerErrorCode::MqttError, msg: format!("cannot publish heartbeat message, transform from payload to json failed, json error: {e}")})?;
+
+        // 4 publish
+        self.publish(topic.as_str(), json_str.as_str()).await?;
+
         Ok(())
     }
 
