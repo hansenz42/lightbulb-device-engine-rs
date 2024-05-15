@@ -3,6 +3,7 @@ use tokio::sync::mpsc;
 use crate::common::error::{DeviceServerError, ServerErrorCode};
 use crate::common::mqtt;
 use crate::common::setting::Settings;
+use crate::entity::dto::server_state_dto::ServerStateDto;
 use crate::entity::mqtt::MqttMessageBo;
 use super::protocol::Protocol;
 use std::error::Error;
@@ -68,8 +69,7 @@ impl MqttClient {
         Ok(())
     }
 
-    /// TODO: 发送心跳包
-    pub async fn publish_heartbeat(&self) -> Result<(), DeviceServerError> {
+    pub async fn publish_heartbeat(&self, server_state: ServerStateDto) -> Result<(), DeviceServerError> {
         Ok(())
     }
 

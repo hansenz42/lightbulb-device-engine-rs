@@ -11,8 +11,7 @@ use crate::{
     common::error::DriverError,
     driver::modbus::modbus_do_port::ModbusDoPort,
     entity::dto::{
-        device_command_dto::{DeviceCommandDto, DeviceParamsEnum},
-        device_state_dto::DeviceStateDto,
+        device_command_dto::{DeviceCommandDto, DeviceParamsEnum}, device_report_dto::DeviceReportDto, device_state_dto::DeviceStateDto, server_state_dto::ServerStateDto
     },
     mqtt_client::client::MqttClient,
 };
@@ -84,13 +83,32 @@ fn device_thread(
 fn heartbeating_thread(
     beat_interval_millis: u64,
     device_info_map: Arc<Mutex<HashMap<String, DeviceMetaInfoDto>>>,
+    device_config_map: HashMap<String, DevicePo>,
     mqtt_client: Arc<Mutex<MqttClient>>
 ) {
     let handle = thread::spawn(move || {
         loop {
-            // 1. send heartbeating message
+            // 1. make device report message
+            let mut report_dto_map: HashMap<String, DeviceReportDto> = HashMap::new();
+            {
+                let map_guard = device_info_map.lock().unwrap();
+                for (device_id, device_info) in map_guard.iter() {
+                    let report_dto = DeviceReportDto::from_device_meta_info(device_info);
+                    report_dto_map.insert(device_id.clone(), report_dto);
+                }
+            }
 
-            // 2. sleep for beat_interval
+            // 2. make server state, and send heartbeating message
+            let server_state = ServerStateDto {
+                device_config: device_config_map.clone(),
+                device_status: report_dto_map,
+            };
+            {
+                let mqtt_guard = mqtt_client.lock().unwrap();
+                mqtt_guard.publish_heartbeat(server_state);
+            }
+
+            // 3. sleep for beat_interval
             thread::sleep(std::time::Duration::from_millis(beat_interval_millis));
         }
     });

@@ -4,7 +4,7 @@ use std::collections::HashMap;
 
 use serde_json::Value;
 
-use crate::{common::error::{DeviceServerError, DriverError, ServerErrorCode}, debug, entity::dto::device_meta_info_dto::DeviceMetaInfoDto, error, info, trace, warn};
+use crate::{common::error::{DeviceServerError, DriverError, ServerErrorCode}, debug, entity::dto::{device_meta_info_dto::{DeviceMetaInfoDto, DeviceStatusEnum}, device_state_dto::StateDtoEnum}, error, info, trace, warn};
 
 use super::entity::{
     device_po::DevicePo,
@@ -36,6 +36,11 @@ pub fn make_device_info(
             master_device_id: master_device_id,
             config: device_config_json.clone(),
             status: DeviceStatusEnum::NotInitialized,
+
+            error_msg: String::from(""),
+            error_timestamp: 0.0,
+            last_update: 0.0,
+            state: StateDtoEnum::Empty,
         };
 
         // 2. put into device map

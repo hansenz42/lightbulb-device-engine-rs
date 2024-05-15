@@ -5,7 +5,10 @@ use crate::entity::dto::device_state_dto::StateDtoEnum;
 #[derive(Debug, PartialEq, Clone)]
 pub enum DeviceStatusEnum{
     NotInitialized = 0,
-    Initialized
+    Initialized,
+    ACTIVE,
+    ERROR,
+    OFFLINE
 }
 
 /// used for device manager tracking device status
@@ -18,9 +21,8 @@ pub struct DeviceMetaInfoDto {
     pub status: DeviceStatusEnum,
 
     // for reporting device state part 
-    pub active: bool,
-    pub error_msg: String,
-    pub error_timestamp: f64,
-    pub last_update: f64,
+    pub error_msg: Option<String>,
+    pub error_timestamp: Option<f64>,
+    pub last_update: Option<f64>,
     pub state: StateDtoEnum
 }

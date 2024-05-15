@@ -1,5 +1,8 @@
+use serde::{Deserialize, Serialize};
+
+
 /// 数据库对象：设备
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DevicePo {
     // 设备 id
     pub device_id: String,
