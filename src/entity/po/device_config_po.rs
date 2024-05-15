@@ -26,49 +26,49 @@ pub struct DeviceCreatePo {
 
 #[derive(Debug, Clone)]
 pub enum ConfigPo {
-    Modbus(ModbusConfigBo),
-    DmxBus(DmxBusConfigBo),
-    SerialBus(SerialBusConfigBo),
-    ModbusDigitalInputController(ModbusDigitalInputControllerConfigBo),
-    ModbusDigitalOutputController(ModbusDigitalOutputControllerConfigBo),
-    Audio(AudioConfigBo),
-    Di(DiConfigBo),
-    Do(DoConfigBo),
-    Remote(RemoteConfigBo),
-    DmxCustom(DmxCustomConfigBo),
-    Dummy(DummyConfigBo)
+    Modbus(ModbusConfigPo),
+    DmxBus(DmxBusConfigPo),
+    SerialBus(SerialBusConfigPo),
+    ModbusDigitalInputController(ModbusDigitalInputControllerConfigPo),
+    ModbusDigitalOutputController(ModbusDigitalOutputControllerConfigPo),
+    Audio(AudioConfigPo),
+    Di(DiConfigPo),
+    Do(DoConfigPo),
+    Remote(RemoteConfigPo),
+    DmxCustom(DmxCustomConfigPo),
+    Dummy(DummyConfigPo)
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct DummyConfigBo {
+pub struct DummyConfigPo {
 
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ModbusConfigBo {
+pub struct ModbusConfigPo {
     pub serial_port: String,
     pub baudrate: u32
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct DmxBusConfigBo {
+pub struct DmxBusConfigPo {
     pub ftdi_serial: String,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct SerialBusConfigBo {
+pub struct SerialBusConfigPo {
     pub serial_port: String,
     pub baudrate:u32
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ModbusDigitalInputControllerConfigBo {
+pub struct ModbusDigitalInputControllerConfigPo {
     pub unit: u32,
     pub input_num: u32,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct ModbusDigitalOutputControllerConfigBo {
+pub struct ModbusDigitalOutputControllerConfigPo {
     pub unit: u32,
     pub output_num: u32,
 }
@@ -81,28 +81,28 @@ pub enum AudioChannelEnum {
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct AudioConfigBo {
+pub struct AudioConfigPo {
     pub soundcard_id: String,
     pub to_channel: AudioChannelEnum
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct DiConfigBo {
+pub struct DiConfigPo {
     pub address:u32
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct DoConfigBo {
+pub struct DoConfigPo {
     pub address:u32
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct RemoteConfigBo {
+pub struct RemoteConfigPo {
     pub num_button: u32
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
-pub struct DmxCustomConfigBo {
+pub struct DmxCustomConfigPo {
     pub channels: u32,
     pub address: u32
 }

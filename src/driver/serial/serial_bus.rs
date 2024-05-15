@@ -15,7 +15,7 @@ use super::{
 };
 use crate::{
     common::error::DriverError,
-    entity::bo::{device_config_bo::ConfigPo},
+    entity::po::{device_config_po::ConfigPo},
     entity::dto::device_state_dto::DeviceStateDto
 };
 use actix_web::http::uri::Port;

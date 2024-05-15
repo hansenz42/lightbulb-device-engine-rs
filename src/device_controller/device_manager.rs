@@ -26,7 +26,7 @@ use crate::driver::dmx::dmx_bus::DmxBus;
 use crate::driver::modbus::modbus_bus::ModbusBus;
 use crate::driver::serial::serial_bus::SerialBus;
 use crate::driver::traits::Operable;
-use crate::entity::bo::device_config_bo::ConfigPo;
+use crate::entity::po::device_config_po::ConfigPo;
 use crate::entity::dto::device_command_dto::DeviceCommandDto;
 use crate::entity::dto::device_meta_info_dto::DeviceMetaInfoDto;
 use crate::entity::dto::device_state_dto::{DeviceStateDto, StateDtoEnum};
