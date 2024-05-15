@@ -89,7 +89,7 @@ impl DeviceDao {
                     device_config_copy.name, 
                     device_config_copy.description,
                     device_config_copy.room, 
-                    device_config_copy.config
+                    device_config_copy.config.to_string()
                 ],
             )
         }).await?;
@@ -105,6 +105,7 @@ impl DeviceDao {
                 "SELECT device_id, device_class, device_type, name, description, room, config FROM device",
             )?;
             let device_iter = stmt.query_map([], |row| {
+                let config_str: String = row.get(6)?;
                 Ok(DevicePo {
                     device_id: row.get(0)?,
                     device_class: row.get(1)?,
@@ -112,7 +113,7 @@ impl DeviceDao {
                     name: row.get(3)?,
                     description: row.get(4)?,
                     room: row.get(5)?,
-                    config: row.get(6)?,
+                    config: serde_json::from_str(&config_str).unwrap_or_default(),
                 })
             })?;
     

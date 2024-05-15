@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 
 
 /// 数据库对象：设备
@@ -17,5 +18,5 @@ pub struct DevicePo {
     // 设备区域（房间）
     pub room: String,
     // 设备配置（json string）
-    pub config: String,
+    pub config: Value,
 }

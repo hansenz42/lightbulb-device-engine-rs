@@ -221,7 +221,6 @@ impl DeviceManager {
 // make json object to device po
 fn transform_json_data_to_po(json_object: Value) -> Option<DevicePo> {
     let device_data = json_object.as_object()?;
-    let config = device_data.get("config")?.as_object()?;
     let device_po = DevicePo {
         device_id: json_object.get("device_id")?.as_str()?.to_string(),
         device_class: json_object.get("device_class")?.as_str()?.to_string(),
@@ -229,7 +228,7 @@ fn transform_json_data_to_po(json_object: Value) -> Option<DevicePo> {
         name: json_object.get("name")?.as_str()?.to_string(),
         description: json_object.get("description")?.as_str()?.to_string(),
         room: json_object.get("room")?.as_str()?.to_string(),
-        config: transform_device_config_obj_str(config),
+        config: json_object.get("config")?.clone()
     };
     Some(device_po)
 }

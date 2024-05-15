@@ -18,14 +18,7 @@ pub fn make_device_info(
 ) -> Result<HashMap<String, DeviceMetaInfoDto>, DeviceServerError> {
     let mut ret: HashMap<String, DeviceMetaInfoDto> = HashMap::new();
     for device_po in device_po_list {
-        let device_config_json: Value =
-            serde_json::from_str(&device_po.config).map_err(|e| {
-                DeviceServerError{
-                    code: ServerErrorCode::DeviceInfoError,
-                    msg: format!("error parsing device config json, error msg: {}", e)
-                }
-            })?;
-        let master_device_id = device_config_json["master_device_id"]
+        let master_device_id = device_po.config["master_device_id"]
             .as_str()
             .map(|s| s.to_string());
 
@@ -34,7 +27,7 @@ pub fn make_device_info(
             device_id: device_po.device_id.clone(),
             device_type: device_po.device_type.clone(),
             master_device_id: master_device_id,
-            config: device_config_json.clone(),
+            config: device_po.config.clone(),
             status: DeviceStatusEnum::NotInitialized,
 
             error_msg: None,
