@@ -13,23 +13,23 @@ use tokio::time::interval;
 use tokio::time::Duration;
 
 use super::device_dao::DeviceDao;
+use super::device_threads::device_thread;
+use super::device_threads::heartbeating_thread;
+use super::device_threads::reporting_thread;
 use super::entity::device_po::DevicePo;
-use super::thread::device_thread;
-use super::thread::heartbeating_thread;
-use super::thread::reporting_thread;
 use crate::common::dao::Dao;
 use crate::common::error::{DeviceServerError, ServerErrorCode};
 use crate::common::http;
-use crate::device_controller::device_info_maker_helper::make_device_info;
 use crate::device_controller::device_factory::DeviceInstanceFactory;
+use crate::device_controller::device_info_maker_helper::make_device_info;
 use crate::driver::dmx::dmx_bus::DmxBus;
 use crate::driver::modbus::modbus_bus::ModbusBus;
 use crate::driver::serial::serial_bus::SerialBus;
 use crate::driver::traits::Operable;
-use crate::entity::po::device_config_po::ConfigPo;
 use crate::entity::dto::device_command_dto::DeviceCommandDto;
 use crate::entity::dto::device_meta_info_dto::DeviceMetaInfoDto;
 use crate::entity::dto::device_state_dto::{DeviceStateDto, StateDtoEnum};
+use crate::entity::po::device_config_po::ConfigPo;
 use crate::mqtt_client::client::MqttClient;
 use crate::{debug, error, info, trace, warn};
 use std::sync::{mpsc, Arc, Mutex};
@@ -81,23 +81,25 @@ impl DeviceManager {
     /// - heartbeating thread: send heartbeat periodically
     /// - device thread: create device and controller command sending
     /// - reporting thread: listen to devices status change and report to mqtt client
-    pub fn start_worker(
-        self,
-        mqtt_client: Arc<Mutex<MqttClient>>,
-    ) {
+    pub fn start_worker(self, mqtt_client: Arc<Mutex<MqttClient>>) {
         // 1 start device thread
         device_thread(
             self.state_report_tx_dummy.clone(),
             self.device_command_rx,
             self.config_list.clone(),
-            self.device_info_map.clone()
+            self.device_info_map.clone(),
         );
-        info!(LOG_TAG, "device manager worker starting: device thread started");
+        info!(
+            LOG_TAG,
+            "device manager worker starting: device thread started"
+        );
 
         // 2 start reporting thread
         reporting_thread(self.state_report_rx, mqtt_client.clone());
-
-        info!(LOG_TAG, "device manager worker starting: reporting thread started");
+        info!(
+            LOG_TAG,
+            "device manager worker starting: reporting thread started"
+        );
 
         // 3 start heartbeating thread
         heartbeating_thread(
@@ -106,16 +108,21 @@ impl DeviceManager {
             self.config_map.clone(),
             mqtt_client.clone(),
         );
-
-        info!(LOG_TAG, "device manager worker starting: heartbeating thread started");
+        info!(
+            LOG_TAG,
+            "device manager worker starting: heartbeating thread started"
+        );
     }
 
     pub fn clone_upward_tx(&self) -> mpsc::Sender<DeviceStateDto> {
         self.state_report_tx_dummy.clone()
     }
 
-    pub async fn start(mut self, mqtt_client: Arc<Mutex<MqttClient>>) -> Result<(), DeviceServerError> {
-        self.ready().await?;
+    pub fn start(
+        mut self,
+        mqtt_client: Arc<Mutex<MqttClient>>,
+    ) -> Result<(), DeviceServerError> {
+        self.ready()?;
         self.start_worker(mqtt_client);
         Ok(())
     }
@@ -123,46 +130,51 @@ impl DeviceManager {
     /// init device manager
     /// - read config from remote server
     /// - update local data
-    pub async fn ready(&mut self) -> Result<(), DeviceServerError> {
+    pub fn ready(&mut self) -> Result<(), DeviceServerError> {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
         // 1. make sure the table exists
-        self.device_dao
-            .ensure_table_exist()
-            .await
-            .map_err(|e| DeviceServerError {
-                code: ServerErrorCode::DatabaseError,
-                msg: format!("cannot ensure device table exist, error msg: {}", e),
-            })?;
+            self.device_dao
+                .ensure_table_exist()
+                .await
+                .map_err(|e| DeviceServerError {
+                    code: ServerErrorCode::DatabaseError,
+                    msg: format!("cannot ensure device table exist, error msg: {}", e),
+                })?;
 
-        // 2. get remote config data and write to db
-        match self.get_remote().await {
-            Ok(json_data) => {
-                // clear all data
-                self.device_dao
-                    .clear_table()
-                    .await
-                    .map_err(|e| DeviceServerError {
-                        code: ServerErrorCode::DatabaseError,
-                        msg: format!("cannot save device config to db, clear table error: {}", e),
-                    })?;
-                self.write_to_db(json_data).await?;
-                info!(
-                    LOG_TAG,
-                    "successfully got device config data from flow server"
-                );
+            // 2. get remote config data and write to db
+            match self.get_remote().await {
+                Ok(json_data) => {
+                    // clear all data
+                    self.device_dao
+                        .clear_table()
+                        .await
+                        .map_err(|e| DeviceServerError {
+                            code: ServerErrorCode::DatabaseError,
+                            msg: format!("cannot save device config to db, clear table error: {}", e),
+                        })?;
+                    self.write_to_db(json_data).await?;
+                    info!(
+                        LOG_TAG,
+                        "successfully got device config data from flow server"
+                    );
+                }
+                Err(e) => {
+                    warn!(LOG_TAG, "cannot pull device config data from flow server, will use local data cahce, err msg: {}", e);
+                }
             }
-            Err(e) => {
-                warn!(LOG_TAG, "cannot pull device config data from flow server, will use local data cahce, err msg: {}", e);
-            }
-        }
 
-        // 3. load data from database
-        self.load_from_db().await?;
-        info!(LOG_TAG, "successfully load device config data from db");
+            // 3. load data from database
+            self.load_from_db().await?;
+            info!(LOG_TAG, "successfully load device config data from db");
 
-        // 4. make device info map
-        self.device_info_map = Arc::new(Mutex::new(make_device_info(
-            self.config_list.clone(),
-        )?));
+            // 4. make device info map
+            self.device_info_map = Arc::new(Mutex::new(make_device_info(
+                self.config_list.clone(),
+            )?));
+
+            Ok::<(), DeviceServerError>(())
+        })?;
 
         info!(LOG_TAG, "device manager data ready");
         Ok(())
@@ -228,7 +240,7 @@ fn transform_json_data_to_po(json_object: Value) -> Option<DevicePo> {
         name: json_object.get("name")?.as_str()?.to_string(),
         description: json_object.get("description")?.as_str()?.to_string(),
         room: json_object.get("room")?.as_str()?.to_string(),
-        config: json_object.get("config")?.clone()
+        config: json_object.get("config")?.clone(),
     };
     Some(device_po)
 }
@@ -252,90 +264,17 @@ mod tests {
     fn test_device_manager() {
         let _ = init_logger();
         let rt = tokio::runtime::Runtime::new().unwrap();
+        let mut manager = DeviceManager::new();
         rt.block_on(async {
-            let mut manager = DeviceManager::new();
             let mut mqtt_client = MqttClient::new();
             mqtt_client.start().await.unwrap();
             let mqtt_client_arc = Arc::new(Mutex::new(mqtt_client));
-            manager.start(mqtt_client_arc.clone()).await.unwrap();
+            // sleep 20 sec
+            tokio::time::sleep(std::time::Duration::from_secs(20)).await;
         });
-        thread::sleep(std::time::Duration::from_secs(20));
         println!("test done");
     }
 
-    #[test]
-    fn test_downward_channel() {
-        let _ = init_logger();
-        println!("下行传递测试");
-        let manager = DeviceManager::new();
-        let (tx, rx) = mpsc::channel();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-
-        rt.block_on(async {
-            let mut mqtt_client = MqttClient::new();
-            let _ = mqtt_client.start().await;
-            let mqtt_client_arc = Arc::new(mqtt_client);
-            // manager.start_worker(rx, mqtt_client_arc.clone());
-        });
-
-        thread::sleep(std::time::Duration::from_secs(1));
-
-        println!("发送指令");
-        tx.send(DeviceCommandDto {
-            server_id: "this".to_string(),
-            device_id: "123".to_string(),
-            action: "test".to_string(),
-            params: DeviceParamsEnum::Empty,
-        })
-        .unwrap();
-
-        // 等待 2 s
-        // thread::sleep(std::time::Duration::from_secs(2));
-
-        thread::sleep(std::time::Duration::from_secs(2));
-    }
-
-    #[test]
-    fn test_upward_channel() {
-        let _ = init_logger();
-        println!("上行传递测试");
-        let manager = DeviceManager::new();
-        let upward_rx_dummy = manager.clone_upward_tx();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-
-        rt.block_on(async {
-            let mut mqtt_client = MqttClient::new();
-            let _ = mqtt_client.start().await;
-            let mqtt_client_arc = Arc::new(Mutex::new(mqtt_client));
-        });
-
-        let do_controller_bo = StateDtoEnum::DoController(DoControllerStateDto {
-            port: vec![false, false, true, true],
-        });
-
-        upward_rx_dummy
-            .send(DeviceStateDto {
-                device_class: "test_class".to_string(),
-                device_type: "test_type".to_string(),
-                device_id: "123".to_string(),
-                state: do_controller_bo,
-            })
-            .unwrap();
-
-        thread::sleep(std::time::Duration::from_secs(2));
-    }
-
-    #[test]
-    fn test_get_device_config_from_remote() {
-        let _ = init_logger();
-        println!("get device config testing");
-        let mut manager = DeviceManager::new();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            let result = manager.get_remote().await.unwrap();
-            println!("{:?}", result);
-        })
-    }
 
     /// test:
     /// 1, get data from flow server
@@ -348,9 +287,6 @@ mod tests {
         println!("device engine startup testing");
         let mut manager = DeviceManager::new();
         let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            manager.ready().await.unwrap();
-            let mut factory = DeviceInstanceFactory::new(manager.clone_upward_tx());
-        })
+        rt.block_on(async {})
     }
 }

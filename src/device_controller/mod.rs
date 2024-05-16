@@ -11,4 +11,4 @@ pub mod device_info_maker_helper;
 mod factory;
 mod traits;
 pub mod entity;
-pub mod thread;
+pub mod device_threads;

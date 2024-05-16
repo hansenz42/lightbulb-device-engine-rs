@@ -9,6 +9,7 @@ use super::protocol::Protocol;
 use std::error::Error;
 use std::result::Result;
 use std::sync::Arc;
+use std::thread;
 use crate::entity::dto::device_state_dto::DeviceStateDto;
 
 pub struct MqttClient {
@@ -33,25 +34,35 @@ impl MqttClient {
     }
 
     /// start event loop thread and communicate with the flow server
-    pub async fn start(&mut self) -> Result<(), DeviceServerError> {
+    pub fn start(&mut self) -> Result<(), DeviceServerError> {
         let setting = Settings::get();
         let (tx, mut rx) = mpsc::channel(1);
 
-        // create new MqttConnection in the thread，use mpsc channel to communicate between threads
-        let mut con = mqtt::MqttConnection::new(
-            setting.mqtt.broker_host.as_str(), 
-            setting.mqtt.broker_port.try_into().expect("mqtt broker port data type error, is not u16"),
-            setting.mqtt.client_id.as_str()
-        );
+        thread::spawn(move || {
+            let rt = tokio::runtime::Runtime::new().unwrap();
+            let _ = rt.block_on( async {
+                // create new MqttConnection in the thread，use mpsc channel to communicate between threads
+                let mut con = mqtt::MqttConnection::new(
+                    setting.mqtt.broker_host.as_str(), 
+                    setting.mqtt.broker_port.try_into().expect("mqtt broker port data type error, is not u16"),
+                    setting.mqtt.client_id.as_str()
+                );
 
-        con.connect(tx).await
-            .map_err(|e| DeviceServerError {code: ServerErrorCode::MqttError, msg: format!("mqtt connect error: {e}")} )?;
-        self.con = Some(con);
-        self.rx = Some(rx);
+                con.connect(tx).await
+                    .map_err(|e| DeviceServerError {code: ServerErrorCode::MqttError, msg: format!("mqtt connect error: {e}")} )?;
+                self.con = Some(con);
+                self.rx = Some(rx);
 
-        log::info!("mqtt connect successful host: {} port: {}", setting.mqtt.broker_host, setting.mqtt.broker_port);
+                log::info!("mqtt connect successful host: {} port: {}", setting.mqtt.broker_host, setting.mqtt.broker_port);
 
-        self.subscribe_topics().await.expect("subscribe topics failed");
+                self.subscribe_topics().await.expect("subscribe topics failed");
+
+                // this thread will loop forever
+                loop{}
+
+                Ok::<(), DeviceServerError>(())
+            });
+        });
         Ok(())
     }
 
