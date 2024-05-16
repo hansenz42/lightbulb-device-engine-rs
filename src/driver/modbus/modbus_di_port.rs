@@ -1,13 +1,13 @@
 use super::prelude::*;
 use super::traits::ModbusDiControllerListener;
 use crate::common::error::DriverError;
-use crate::driver::traits::UpwardSendable;
+use crate::driver::traits::ReportUpward;
 use crate::entity::dto::device_state_dto::{DeviceStateDto, DiStateDto, StateDtoEnum};
 use crate::{debug, error, info, trace, warn};
 use std::env;
 use std::sync::mpsc;
 
-const DEVICE_TYPE: &str = "di";
+const DEVICE_TYPE: &str = "modbus_di_port";
 const DEVICE_CLASS: &str = "operable";
 
 const LOG_TAG: &str = "modbus_di_port";
@@ -18,7 +18,7 @@ const LOG_TAG: &str = "modbus_di_port";
 pub struct ModbusDiPort {
     device_id: String,
     address: ModbusAddrSize,
-    upward_channel: mpsc::Sender<DeviceStateDto>,
+    upward_channel: mpsc::Sender<DeviceStateDto>
 }
 
 impl ModbusDiControllerListener for ModbusDiPort {
@@ -36,13 +36,13 @@ impl ModbusDiControllerListener for ModbusDiPort {
             );
         } else {
             let state = StateDtoEnum::Di(DiStateDto { on: state_value });
-            let device_state_bo = DeviceStateDto {
+            let device_state_dto = DeviceStateDto {
                 device_id: self.device_id.clone(),
                 device_class: DEVICE_CLASS.to_string(),
                 device_type: DEVICE_TYPE.to_string(),
                 state: state,
             };
-            let _ = self.notify_upward(device_state_bo)?;
+            let _ = self.notify_upward(device_state_dto)?;
             debug!(
                 LOG_TAG,
                 "di port state change, relay to upward, address: {}, message: {}", &self.address, state_value
@@ -53,9 +53,14 @@ impl ModbusDiControllerListener for ModbusDiPort {
     }
 }
 
-impl UpwardSendable for ModbusDiPort {
+impl ReportUpward for ModbusDiPort {
     fn get_upward_channel(&self) -> &mpsc::Sender<DeviceStateDto> {
         return &self.upward_channel;
+    }
+
+    /// CAUTION: di port do not call report(), it will report automatically during pooling
+    fn report(&self) -> Result<(), DriverError> {
+        Ok(())
     }
 }
 
@@ -63,12 +68,12 @@ impl ModbusDiPort {
     pub fn new(
         device_id: &str,
         address: ModbusAddrSize,
-        upward_channel: mpsc::Sender<DeviceStateDto>,
+        report_tx: mpsc::Sender<DeviceStateDto>,
     ) -> Self {
         ModbusDiPort {
             device_id: device_id.to_string(),
             address,
-            upward_channel,
+            upward_channel: report_tx
         }
     }
 }

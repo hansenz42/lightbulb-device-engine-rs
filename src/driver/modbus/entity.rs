@@ -5,11 +5,11 @@ use super::prelude::*;
 #[derive(Debug)]
 pub enum ModbusThreadCommandEnum {
 
-    // 向端口下发数据
+    // send command to port
     WriteSingle(WriteSingleBo),
     WriteMulti(WriteMultiBo),
 
-    // 停止线程并关闭端口
+    // stop and close modbus threading
     Stop,
 }
 

@@ -1,5 +1,5 @@
 use std::sync::mpsc::Sender;
-use crate::driver::traits::UpwardSendable;
+use crate::driver::traits::ReportUpward;
 use crate::entity::dto::device_state_dto::{DeviceStateDto, RemoteStateDto, StateDtoEnum};
 use crate::common::error::DriverError;
 use super::traits::SerialMountable;
@@ -52,8 +52,12 @@ impl SerialMountable for SerialRemoteController {
     }
 }
 
-impl UpwardSendable for SerialRemoteController {
+impl ReportUpward for SerialRemoteController {
     fn get_upward_channel(&self) -> &Sender<DeviceStateDto> {
         return &self.upward_channel;
+    }
+
+    fn report(&self) -> Result<(), DriverError> {
+        Ok(())
     }
 }

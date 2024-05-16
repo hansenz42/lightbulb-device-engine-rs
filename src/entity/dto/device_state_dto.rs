@@ -11,7 +11,7 @@ pub enum StateDtoEnum {
     Empty,
     DmxBus(DmxBusStateDto),
     DoController(DoControllerStateDto),
-    DiController(DiControllerStateBo),
+    DiController(DiControllerStateDto),
     Audio(AudioStateDto),
     Channel(ChannelStateDto),
     Remote(RemoteStateDto),
@@ -42,7 +42,7 @@ impl DeviceStateDto {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DmxBusStateDto {
-    pub debug_channels: Vec<u8>
+    pub channel: Vec<u8>
 }
 
 // controller states
@@ -50,14 +50,12 @@ pub struct DmxBusStateDto {
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DoControllerStateDto {
-    // 输出端接口状态
-    pub port: Vec<u8>,
+    pub port: Vec<bool>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DiControllerStateBo {
-    // 输入接口状态
-    pub port: Vec<u8>,
+pub struct DiControllerStateDto {
+    pub port: Vec<bool>,
 }
 
 // device states

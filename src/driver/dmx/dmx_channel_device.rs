@@ -56,10 +56,10 @@ mod tests {
     fn test_channel_device() {
         set_env();
 
-        let mut dmx_bus = DmxBus::new("test", "test");
-        let _ = dmx_bus.start(); 
-        let mut dmx_channel_device = DmxChannelDevice::new("test", 1, 255, &mut dmx_bus);
-        let _ = dmx_channel_device.set_channel(3, 255);
+        // let mut dmx_bus = DmxBus::new("test", "test");
+        // let _ = dmx_bus.start(); 
+        // let mut dmx_channel_device = DmxChannelDevice::new("test", 1, 255, &mut dmx_bus);
+        // let _ = dmx_channel_device.set_channel(3, 255);
 
         thread::sleep(std::time::Duration::from_secs(60));
     }

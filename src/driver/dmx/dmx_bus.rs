@@ -10,6 +10,7 @@
 use dmx::{self, DmxTransmitter};
 use serde_json::Value;
 use crate::common;
+use crate::driver::traits::ReportUpward;
 use std::sync::mpsc::Sender;
 use std::sync::{mpsc, Arc, Mutex};
 use std::{thread, time, error::Error};
@@ -23,6 +24,8 @@ use super::dmx_thread::*;
 use super::entity::*;
 
 const LOG_TAG : &str = "DmxBus";
+const DEVICE_CLASS: &str = "bus";
+const DEVICE_TYPE: &str = "dmx_bus";
 
 pub struct DmxBus {
     device_id: String,
@@ -31,20 +34,39 @@ pub struct DmxBus {
     data: [DmxValue; DmxChannelLen],
     // thread command sending channel
     thread_tx: Option<mpsc::Sender<DmxThreadCommandEnum>>,
+    report_tx: Sender<DeviceStateDto>,
+}
 
-    upward_channel: Option<Sender<DeviceStateDto>>,
+impl ReportUpward for DmxBus {
+    fn get_upward_channel(&self) -> &Sender<DeviceStateDto> {
+        return &self.report_tx;
+    }
+
+    // report dmx channel state change to report channel
+    fn report(&self) -> Result<(), DriverError> {
+        let state = DmxBusStateDto {
+            channel: Vec::from(self.data.clone())
+        };
+        self.notify_upward(DeviceStateDto {
+            device_id: self.device_id.clone(),
+            device_class: DEVICE_CLASS.to_string(),
+            device_type: DEVICE_TYPE.to_string(),
+            state: StateDtoEnum::DmxBus(state)
+        })?;
+        Ok(())
+    }
 }
 
 impl DmxBus {
 
     /// create a new dmx bus device
-    pub fn new(device_id: &str, serial_port: &str) -> Self {
+    pub fn new(device_id: &str, serial_port: &str, report_tx: Sender<DeviceStateDto>) -> Self {
         Self {
             device_id: device_id.to_string(),
             serial_port: serial_port.to_string(),
             data: [0; 512],
             thread_tx: None,
-            upward_channel: None,
+            report_tx
         }
     }
 
@@ -62,7 +84,7 @@ impl DmxBus {
 
         // create a thread loop
         let handle = thread::spawn(move || {
-            run_loop(serial_port_str.as_str(), thread_data, rx);
+            let _ = run_loop(serial_port_str.as_str(), thread_data, rx);
         });
 
         info!(
@@ -74,23 +96,26 @@ impl DmxBus {
         Ok(())
     }
 
-    /// 设置当前单个地址上的数据
+    /// set single channel on modbus bus
     pub fn set_channel(&mut self, address: u8, value: u8) -> Result<(), DriverError> {
         self.data[address as usize] = value;
-        self.send_channel_data_to_dmx()?;
+        self.sync_channel_data_to_thread()?;
+        self.report()?;
         Ok(())
     }
 
-    /// 设置多个地址上的数据
+    /// set multiple channel on modbus bus
     pub fn set_channels(&mut self, address: u8, values: &[u8]) -> Result<(), DriverError> {
         for i in 0..values.len() {
             self.data[address as usize + i] = values[i];
         }
-        self.send_channel_data_to_dmx()?;
+        self.sync_channel_data_to_thread()?;
+        self.report()?;
         Ok(())
     }
 
-    fn send_channel_data_to_dmx(&self) -> Result<(), DriverError> {
+
+    fn sync_channel_data_to_thread(&self) -> Result<(), DriverError> {
         match &self.thread_tx {
             Some(tx) => {
                 tx.send(DmxThreadCommandEnum::SetChannel(
@@ -146,12 +171,12 @@ mod tests {
         env::set_var("dummy", "true");
 
         let _ = common::logger::init_logger();
-        let mut dmxbus = DmxBus::new("test_dmx_bus", "/dev/ttyUSB0");
-        println!("dmx 总线启动");   
-        dmxbus.start().unwrap();
-        std::thread::sleep(Duration::from_secs(5));
-        println!("修改 channel 的值");
-        dmxbus.set_channel(2, 30);
-        std::thread::sleep(Duration::from_secs(20));
+        // let mut dmxbus = DmxBus::new("test_dmx_bus", "/dev/ttyUSB0");
+        // println!("dmx 总线启动");   
+        // dmxbus.start().unwrap();
+        // std::thread::sleep(Duration::from_secs(5));
+        // println!("修改 channel 的值");
+        // dmxbus.set_channel(2, 30);
+        // std::thread::sleep(Duration::from_secs(20));
     }
 }

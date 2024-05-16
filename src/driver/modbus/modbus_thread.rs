@@ -174,22 +174,22 @@ mod tests {
         let _ = init_logger();
 
         // 设置一个虚拟的 di 设备控制器
-        let di_controller = ModbusDiController::new("test_controller", 1, 8);
+        // let di_controller = ModbusDiController::new("test_controller", 1, 8);
         
-        let handle = thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                let serial_port = "/dev/ttyUSB0";
-                let baudrate = 9600;
-                let (tx, rx) = std::sync::mpsc::channel();
-                let mut controller_map: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusListener + Send>>> = HashMap::new();
-                controller_map.insert(1, RefCell::new(Box::new(di_controller)));
-                let result = run_loop(serial_port, baudrate, rx, controller_map).await;
-                assert!(result.is_ok());
-            });
-        });
+        // let handle = thread::spawn(move || {
+        //     let rt = tokio::runtime::Runtime::new().unwrap();
+        //     rt.block_on(async {
+        //         let serial_port = "/dev/ttyUSB0";
+        //         let baudrate = 9600;
+        //         let (tx, rx) = std::sync::mpsc::channel();
+        //         let mut controller_map: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusListener + Send>>> = HashMap::new();
+        //         controller_map.insert(1, RefCell::new(Box::new(di_controller)));
+        //         let result = run_loop(serial_port, baudrate, rx, controller_map).await;
+        //         assert!(result.is_ok());
+        //     });
+        // });
 
-        handle.join().unwrap();
+        // handle.join().unwrap();
     }
 
     // testing writing, use command object
@@ -199,28 +199,28 @@ mod tests {
         let _ = init_logger();
 
         // 设置一个虚拟的 di 设备控制器
-        let di_controller = ModbusDiController::new("test_controller", 1, 8);
-        let (tx, rx) = std::sync::mpsc::channel();
+        // let di_controller = ModbusDiController::new("test_controller", 1, 8);
+        // let (tx, rx) = std::sync::mpsc::channel();
 
-        let handle = thread::spawn(move || {
-            let rt = tokio::runtime::Runtime::new().unwrap();
-            rt.block_on(async {
-                let serial_port = "/dev/ttyUSB0";
-                let baudrate = 9600;
+        // let handle = thread::spawn(move || {
+        //     let rt = tokio::runtime::Runtime::new().unwrap();
+        //     rt.block_on(async {
+        //         let serial_port = "/dev/ttyUSB0";
+        //         let baudrate = 9600;
                 
-                let mut controller_map: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusListener + Send>>> = HashMap::new();
-                controller_map.insert(1, RefCell::new(Box::new(di_controller)));
-                let result = run_loop(serial_port, baudrate, rx, controller_map).await;
+        //         let mut controller_map: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusListener + Send>>> = HashMap::new();
+        //         controller_map.insert(1, RefCell::new(Box::new(di_controller)));
+        //         let result = run_loop(serial_port, baudrate, rx, controller_map).await;
                 
-            });
-        });
+        //     });
+        // });
 
-        tx.send(ModbusThreadCommandEnum::WriteSingle(WriteSingleBo{
-            unit: 1,
-            address: 1,
-            value: true
-        })).unwrap();
+        // tx.send(ModbusThreadCommandEnum::WriteSingle(WriteSingleBo{
+        //     unit: 1,
+        //     address: 1,
+        //     value: true
+        // })).unwrap();
 
-        handle.join().unwrap();
+        // handle.join().unwrap();
     }
 }

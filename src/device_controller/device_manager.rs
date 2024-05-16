@@ -310,7 +310,7 @@ mod tests {
         });
 
         let do_controller_bo = StateDtoEnum::DoController(DoControllerStateDto {
-            port: vec![1, 2, 3, 4],
+            port: vec![false, false, true, true],
         });
 
         upward_rx_dummy

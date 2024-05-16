@@ -30,16 +30,16 @@ pub struct DeviceInstanceFactory {
     device_enum_map: HashMap<String, DeviceRefEnum>,
     device_info_map: Arc<Mutex<HashMap<String, DeviceMetaInfoDto>>>,
     device_po_list: Vec<DevicePo>,
-    upward_rx_dummy: mpsc::Sender<DeviceStateDto>,
+    report_tx_dummy: mpsc::Sender<DeviceStateDto>,
 }
 
 impl DeviceInstanceFactory {
-    pub fn new(upward_rx_dummy: mpsc::Sender<DeviceStateDto>) -> DeviceInstanceFactory {
+    pub fn new(report_tx_dummy: mpsc::Sender<DeviceStateDto>) -> DeviceInstanceFactory {
         DeviceInstanceFactory {
             device_enum_map: HashMap::new(),
             device_info_map: Arc::new(Mutex::new(HashMap::new())),
             device_po_list: Vec::new(),
-            upward_rx_dummy,
+            report_tx_dummy,
         }
     }
 
@@ -87,9 +87,10 @@ impl DeviceInstanceFactory {
 
             // 2. update device status to "Initialized"
             {
-                let mut device_map_guard = self.device_info_map.lock().map_err(|e| {
-                    DriverError(format!("get device info map mutex error: {}", e))
-                })?;
+                let mut device_map_guard = self
+                    .device_info_map
+                    .lock()
+                    .map_err(|e| DriverError(format!("get device info map mutex error: {}", e)))?;
                 if let Some(data_mut) = device_map_guard.get_mut(device_po.device_id.as_str()) {
                     data_mut.status = DeviceStatusEnum::Initialized;
                 } else {
@@ -154,7 +155,7 @@ impl DeviceInstanceFactory {
     }
 
     fn make_modbus(&mut self, bo: &DeviceMetaInfoDto) -> Result<(), DriverError> {
-        let modbus_bus = modbus_bus_factory::make(&bo)?;
+        let modbus_bus = modbus_bus_factory::make(&bo, self.report_tx_dummy.clone())?;
         self.device_enum_map.insert(
             bo.device_id.clone(),
             DeviceRefEnum::ModbusBus(Rc::new(RefCell::new(modbus_bus))),
@@ -163,7 +164,7 @@ impl DeviceInstanceFactory {
     }
 
     fn make_dmx_bus(&mut self, bo: &DeviceMetaInfoDto) -> Result<(), DriverError> {
-        let dmx_bus = dmx_bus_factory::make(&bo)?;
+        let dmx_bus = dmx_bus_factory::make(&bo, self.report_tx_dummy.clone())?;
         self.device_enum_map.insert(
             bo.device_id.clone(),
             DeviceRefEnum::DmxBus(Rc::new(RefCell::new(dmx_bus))),
@@ -186,7 +187,8 @@ impl DeviceInstanceFactory {
             let master_device_enum = self.get_master_device_enum(master_device_id.as_str())?;
             if let DeviceRefEnum::ModbusBus(master_device) = master_device_enum.borrow() {
                 // make do controller device
-                let do_controller = do_controller_factory::make(&bo, master_device)?;
+                let do_controller =
+                    do_controller_factory::make(&bo, master_device, self.report_tx_dummy.clone())?;
                 self.device_enum_map.insert(
                     bo.device_id.clone(),
                     DeviceRefEnum::ModbusDoController(Rc::new(RefCell::new(do_controller))),
@@ -213,7 +215,11 @@ impl DeviceInstanceFactory {
             let master_device_enum = self.get_master_device_enum(master_device_id.as_str())?;
             if let DeviceRefEnum::ModbusDoController(master_device) = master_device_enum.borrow() {
                 // make do port device
-                let do_port = do_port_factory::make(&bo, Rc::clone(master_device))?;
+                let do_port = do_port_factory::make(
+                    &bo,
+                    Rc::clone(master_device),
+                    self.report_tx_dummy.clone(),
+                )?;
                 let _ = self.device_enum_map.insert(
                     bo.device_id.clone(),
                     DeviceRefEnum::ModbusDoPort(Rc::new(RefCell::new(do_port))),
@@ -242,7 +248,7 @@ impl DeviceInstanceFactory {
             let master_device_enum = self.get_master_device_enum(master_device_id.as_str())?;
             if let DeviceRefEnum::ModbusBus(master_modbus_ref) = master_device_enum.borrow() {
                 // make di controller device
-                let di_controller = di_controller_factory::make(&bo)?;
+                let di_controller = di_controller_factory::make(&bo, self.report_tx_dummy.clone())?;
                 // mount to modbus bus device
                 if let mut modbus = master_modbus_ref.borrow_mut() {
                     modbus.add_di_controller(di_controller.get_unit(), Box::new(di_controller));
@@ -280,11 +286,12 @@ impl DeviceInstanceFactory {
         if let Some(master_device_id) = &bo.master_device_id {
             // find modbus controller's master_device_id
             let controller_master_device_id: String;
-            
+
             {
-                let device_map_guard = self.device_info_map.lock().map_err(|e| {
-                    DriverError(format!("get device info map mutex error: {}", e))
-                })?;
+                let device_map_guard = self
+                    .device_info_map
+                    .lock()
+                    .map_err(|e| DriverError(format!("get device info map mutex error: {}", e)))?;
                 controller_master_device_id = device_map_guard.get(master_device_id.as_str())
                             .ok_or(DriverError(format!(
                                 "device factory: cannot find master_device_id of di_controller for di port, di_controller_id: {}, device_id: {}",
@@ -311,7 +318,7 @@ impl DeviceInstanceFactory {
                     )))?
                 {
                     // make di port device
-                    let di_port = di_port_factory::make(&bo, self.upward_rx_dummy.clone())?;
+                    let di_port = di_port_factory::make(&bo, self.report_tx_dummy.clone())?;
                     // mount to modbus_di_controller
                     if let mut di_controller = master_di_controller_ref.borrow_mut() {
                         di_controller.add_di_port(di_port.get_address(), Box::new(di_port));

@@ -5,12 +5,15 @@ use std::rc::Rc;
 use super::modbus_bus::ModbusBus;
 use super::prelude::*;
 use super::traits::{ModbusCaller, ModbusDoControllerCaller};
-use std::sync::mpsc;
+use std::sync::mpsc::{self, Sender};
 use super::entity::{ModbusThreadCommandEnum, WriteMultiBo, WriteSingleBo};
 use crate::common::error::DriverError;
 use crate::device_controller::entity::device_enum::DeviceRefEnum;
-use crate::driver::traits::{Refable, SetRef};
+use crate::driver::traits::{Refable, ReportUpward, SetRef};
+use crate::entity::dto::device_state_dto::{DeviceStateDto, DoControllerStateDto, StateDtoEnum};
 
+const DEVICE_CLASS: &str = "controller";
+const DEVICE_TYPE: &str = "modbus_do_controller";
 
 /// modbus digital output controller
 /// - record port state
@@ -22,7 +25,8 @@ pub struct ModbusDoController {
     mount_port_map: HashMap<ModbusAddrSize, Box<dyn ModbusDoControllerCaller + Send>>,
     port_state_vec: Vec<bool>,
     // the type here should be modbus
-    modbus_ref: Rc<RefCell<ModbusBus>>
+    modbus_ref: Rc<RefCell<ModbusBus>>,
+    report_tx: Sender<DeviceStateDto>
 }
 
 impl Refable for ModbusDoController{}
@@ -51,6 +55,7 @@ impl ModbusCaller for ModbusDoController {
                 return Err(DriverError(format!("ModbusDoController: failed to borrow modbus_ref")));
             }
         }
+        self.report()?;
         Ok(())
     }
 
@@ -78,10 +83,30 @@ impl ModbusCaller for ModbusDoController {
                 return Err(DriverError(format!("ModbusDoController: failed to borrow modbus_ref")));
             }
         }
-
+        self.report()?;
         Ok(())
     }
 
+}
+
+impl ReportUpward for ModbusDoController {
+    fn get_upward_channel(&self) -> &Sender<DeviceStateDto> {
+        return &self.report_tx;
+    }
+
+    fn report(&self) -> Result<(), DriverError> {
+        let state_dto = DoControllerStateDto {
+            port: self.port_state_vec.clone()
+        };
+        
+        self.notify_upward(DeviceStateDto{
+            device_id: self.device_id.clone(),
+            state: StateDtoEnum::DoController(state_dto),
+            device_class: DEVICE_CLASS.to_string(),
+            device_type: DEVICE_TYPE.to_string()
+        })?;
+        Ok(())
+    }
 }
 
 impl ModbusDoController {
@@ -90,6 +115,7 @@ impl ModbusDoController {
         unit: ModbusUnitSize, 
         output_num: ModbusAddrSize, 
         modbus_ref: Rc<RefCell<ModbusBus>>,
+        report_tx: Sender<DeviceStateDto>
     ) -> Self {
         ModbusDoController {
             device_id: device_id.to_string(),
@@ -97,9 +123,11 @@ impl ModbusDoController {
             output_num,
             mount_port_map: HashMap::new(),
             port_state_vec: vec![false; output_num as usize],
-            modbus_ref: modbus_ref
+            modbus_ref: modbus_ref,
+            report_tx
         }
     }
+
 }
 
 #[cfg(test)]
