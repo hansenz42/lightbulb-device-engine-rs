@@ -6,8 +6,8 @@
 
 pub mod device_manager;
 pub mod device_dao;
-pub mod device_instance_factory;
-pub mod device_info_maker;
+pub mod device_factory;
+pub mod device_info_maker_helper;
 mod factory;
 mod traits;
 pub mod entity;

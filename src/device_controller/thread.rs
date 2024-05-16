@@ -17,7 +17,7 @@ use crate::{
 };
 
 use super::{
-    device_instance_factory::DeviceInstanceFactory,
+    device_factory::DeviceInstanceFactory,
     entity::{device_enum::DeviceRefEnum, device_po::DevicePo},
 };
 use crate::entity::dto::device_meta_info_dto::DeviceMetaInfoDto;

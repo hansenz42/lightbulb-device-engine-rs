@@ -89,7 +89,7 @@ impl DmxBus {
 
         info!(
             LOG_TAG,
-            "dmx bus: start dmx bus, serial port: {}, data: {:?}",
+            "dmx bus started, serial port: {}, data: {:?}",
             self.serial_port, self.data
         );
 

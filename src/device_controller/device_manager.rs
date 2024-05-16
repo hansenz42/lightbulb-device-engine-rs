@@ -20,8 +20,8 @@ use super::thread::reporting_thread;
 use crate::common::dao::Dao;
 use crate::common::error::{DeviceServerError, ServerErrorCode};
 use crate::common::http;
-use crate::device_controller::device_info_maker::make_device_info;
-use crate::device_controller::device_instance_factory::DeviceInstanceFactory;
+use crate::device_controller::device_info_maker_helper::make_device_info;
+use crate::device_controller::device_factory::DeviceInstanceFactory;
 use crate::driver::dmx::dmx_bus::DmxBus;
 use crate::driver::modbus::modbus_bus::ModbusBus;
 use crate::driver::serial::serial_bus::SerialBus;
@@ -37,7 +37,7 @@ use std::thread;
 
 // url to update device config
 const UPDATE_CONFIG_URL: &str = "api/v1.2/device/config/HZ-B1";
-const LOG_TAG: &str = "DeviceManager";
+const LOG_TAG: &str = "device_manager";
 const HEARTBEAT_INTERVAL: u64 = 10000;
 
 /// device manager

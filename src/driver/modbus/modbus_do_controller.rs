@@ -8,7 +8,6 @@ use super::traits::{ModbusCaller, ModbusDoControllerCaller};
 use std::sync::mpsc::{self, Sender};
 use super::entity::{ModbusThreadCommandEnum, WriteMultiBo, WriteSingleBo};
 use crate::common::error::DriverError;
-use crate::device_controller::entity::device_enum::DeviceRefEnum;
 use crate::driver::traits::{Refable, ReportUpward, SetRef};
 use crate::entity::dto::device_state_dto::{DeviceStateDto, DoControllerStateDto, StateDtoEnum};
 

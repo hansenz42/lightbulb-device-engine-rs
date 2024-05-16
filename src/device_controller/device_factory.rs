@@ -20,7 +20,7 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::{mpsc, Arc, Mutex};
 
-const LOG_TAG: &str = "device_instance_factory";
+const LOG_TAG: &str = "device_factory";
 
 /// the factory for making devices
 /// you will first call "read_json()" to read data from json Value
@@ -133,13 +133,15 @@ impl DeviceInstanceFactory {
             let _ = self.make_di_controller(dto)?;
         } else if dto.device_type == "modbus_di_port" {
             let _ = self.make_di_port(dto)?;
+        } else if dto.device_type == "remote" {
+            let _ = self.make_remote_controller(dto)?;
         } else {
             return Err(DriverError(format!(
-                "unknown device type. device_type={}, device_id={}",
-                dto.device_type, dto.device_id
+                "unknown device type. device_type={}",
+                dto.device_type
             )));
         }
-        debug!(LOG_TAG, "made device, device_id: {}", dto.device_id);
+        info!(LOG_TAG, "device created! device_id: {}, device_type: {}", dto.device_id, dto.device_type);
         Ok(())
     }
 
@@ -154,10 +156,10 @@ impl DeviceInstanceFactory {
         Ok(master_device_enum)
     }
 
-    fn make_modbus(&mut self, bo: &DeviceMetaInfoDto) -> Result<(), DriverError> {
-        let modbus_bus = modbus_bus_factory::make(&bo, self.report_tx_dummy.clone())?;
+    fn make_modbus(&mut self, dto: &DeviceMetaInfoDto) -> Result<(), DriverError> {
+        let modbus_bus = modbus_bus_factory::make(&dto, self.report_tx_dummy.clone())?;
         self.device_enum_map.insert(
-            bo.device_id.clone(),
+            dto.device_id.clone(),
             DeviceRefEnum::ModbusBus(Rc::new(RefCell::new(modbus_bus))),
         );
         Ok(())
@@ -172,25 +174,53 @@ impl DeviceInstanceFactory {
         Ok(())
     }
 
-    fn make_serial_bus(&mut self, bo: &DeviceMetaInfoDto) -> Result<(), DriverError> {
-        let serial_bus = serial_bus_factory::make(&bo)?;
+    fn make_serial_bus(&mut self, dto: &DeviceMetaInfoDto) -> Result<(), DriverError> {
+        let serial_bus = serial_bus_factory::make(&dto)?;
         self.device_enum_map.insert(
-            bo.device_id.clone(),
+            dto.device_id.clone(),
             DeviceRefEnum::SerialBus(Rc::new(RefCell::new(serial_bus))),
         );
         Ok(())
     }
 
-    fn make_do_controller(&mut self, bo: &DeviceMetaInfoDto) -> Result<(), DriverError> {
-        if let Some(master_device_id) = &bo.master_device_id {
+    fn make_remote_controller(&mut self, dto: &DeviceMetaInfoDto) -> Result<(), DriverError> {
+        if let Some(master_device_id) = &dto.master_device_id {
+            // get serial master device
+            let master_device_enum = self.get_master_device_enum(&master_device_id.as_str())?;
+            if let DeviceRefEnum::SerialBus(serial_bus_device) = master_device_enum {
+                // make remote controller
+                let remote_controller = remote_factory::make(
+                    &dto,
+                    self.report_tx_dummy.clone()
+                )?;
+                let mut serial_bus = serial_bus_device.borrow_mut();
+                serial_bus.add_listener(Box::new(remote_controller));
+                Ok(())
+            } else {
+                Err(DriverError(format!(
+                    "device facotry: cannot make serial remote controller, master_device_id={}, device_id={}",
+                    master_device_id,
+                    dto.device_id
+                )))
+            }
+        } else {
+            Err(DriverError(format!(
+                "device factory: no master_device_id for do controller, device_id={}",
+                dto.device_id
+            )))
+        }
+    }
+
+    fn make_do_controller(&mut self, dto: &DeviceMetaInfoDto) -> Result<(), DriverError> {
+        if let Some(master_device_id) = &dto.master_device_id {
             // get modbus master device
             let master_device_enum = self.get_master_device_enum(master_device_id.as_str())?;
             if let DeviceRefEnum::ModbusBus(master_device) = master_device_enum{
                 // make do controller device
                 let do_controller =
-                    do_controller_factory::make(&bo, master_device, self.report_tx_dummy.clone())?;
+                    do_controller_factory::make(&dto, master_device, self.report_tx_dummy.clone())?;
                 self.device_enum_map.insert(
-                    bo.device_id.clone(),
+                    dto.device_id.clone(),
                     DeviceRefEnum::ModbusDoController(Rc::new(RefCell::new(do_controller))),
                 );
                 Ok(())
@@ -198,30 +228,30 @@ impl DeviceInstanceFactory {
                 Err(DriverError(format!(
                     "device factory: cannot find master device during do controller init, master_device_id={}, device_id={}",
                     master_device_id,
-                    bo.device_id
+                    dto.device_id
                 )))
             }
         } else {
             Err(DriverError(format!(
                 "device_factory: no master_device_id for do controller, device_id={}",
-                bo.device_id
+                dto.device_id
             )))
         }
     }
 
-    fn make_do_port(&mut self, bo: &DeviceMetaInfoDto) -> Result<(), DriverError> {
-        if let Some(master_device_id) = &bo.master_device_id {
+    fn make_do_port(&mut self, dto: &DeviceMetaInfoDto) -> Result<(), DriverError> {
+        if let Some(master_device_id) = &dto.master_device_id {
             // get modbus master device
             let master_device_enum = self.get_master_device_enum(master_device_id.as_str())?;
             if let DeviceRefEnum::ModbusDoController(master_device) = master_device_enum {
                 // make do port device
                 let do_port = do_port_factory::make(
-                    &bo,
+                    &dto,
                     Rc::clone(master_device),
                     self.report_tx_dummy.clone(),
                 )?;
                 let _ = self.device_enum_map.insert(
-                    bo.device_id.clone(),
+                    dto.device_id.clone(),
                     DeviceRefEnum::ModbusDoPort(Rc::new(RefCell::new(do_port))),
                 );
                 Ok(())
@@ -229,26 +259,26 @@ impl DeviceInstanceFactory {
                 Err(DriverError(format!(
                     "device factory: the master device is not modbus_controller during making do port: master_device_id={}, device_id={}",
                     master_device_id,
-                    bo.device_id
+                    dto.device_id
                 )))
             }
         } else {
             Err(DriverError(format!(
                 "device_factory: do not find master device_id for do port, device_id={}",
-                bo.device_id
+                dto.device_id
             )))
         }
     }
 
-    fn make_di_controller(&mut self, bo: &DeviceMetaInfoDto) -> Result<(), DriverError> {
+    fn make_di_controller(&mut self, dto: &DeviceMetaInfoDto) -> Result<(), DriverError> {
         // init modbus_di_controller
         // get master device (modbus), and insert itself into it
-        if let Some(master_device_id) = &bo.master_device_id {
+        if let Some(master_device_id) = &dto.master_device_id {
             // get modbus master device
             let master_device_enum = self.get_master_device_enum(master_device_id.as_str())?;
             if let DeviceRefEnum::ModbusBus(master_modbus_ref) = master_device_enum {
                 // make di controller device
-                let di_controller = di_controller_factory::make(&bo, self.report_tx_dummy.clone())?;
+                let di_controller = di_controller_factory::make(&dto, self.report_tx_dummy.clone())?;
                 // mount to modbus bus device
                 let mut modbus = master_modbus_ref.borrow_mut();
                 modbus.add_di_controller(di_controller.get_unit(), Box::new(di_controller));
@@ -257,13 +287,13 @@ impl DeviceInstanceFactory {
                 Err(DriverError(format!(
                     "device factory: when init di_controller, the master device is not modbus_bus, master_device_id: {}, device_id: {}",
                     master_device_id,
-                    bo.device_id
+                    dto.device_id
                 )))
             }
         } else {
             Err(DriverError(format!(
                 "device_factory: do not find master_device_id for di port, device_id={}",
-                bo.device_id
+                dto.device_id
             )))
         }
     }
@@ -275,9 +305,9 @@ impl DeviceInstanceFactory {
     /// 4 borrow di_controller
     /// 5 make di_port device
     /// 6 mount di_port onto di_controller
-    fn make_di_port(&mut self, bo: &DeviceMetaInfoDto) -> Result<(), DriverError> {
+    fn make_di_port(&mut self, dto: &DeviceMetaInfoDto) -> Result<(), DriverError> {
         // find modbus_di_controller, and insert modbus_di_port into it
-        if let Some(master_device_id) = &bo.master_device_id {
+        if let Some(master_device_id) = &dto.master_device_id {
             // find modbus controller's master_device_id
             let controller_master_device_id: String;
 
@@ -289,11 +319,11 @@ impl DeviceInstanceFactory {
                 controller_master_device_id = device_map_guard.get(master_device_id.as_str())
                             .ok_or(DriverError(format!(
                                 "device factory: cannot find master_device_id of di_controller for di port, di_controller_id: {}, device_id: {}",
-                                master_device_id, bo.device_id
+                                master_device_id, dto.device_id
                             )))?.master_device_id.clone().ok_or(
                                 DriverError(format!(
                                     "device factory: cannot find master_device_id of di_controller for di port, di_controller_id: {}, device_id: {}",
-                                    master_device_id, bo.device_id
+                                    master_device_id, dto.device_id
                                 ))
                             )?;
             }
@@ -312,7 +342,7 @@ impl DeviceInstanceFactory {
                     )))?
                 {
                     // make di port device
-                    let di_port = di_port_factory::make(&bo, self.report_tx_dummy.clone())?;
+                    let di_port = di_port_factory::make(&dto, self.report_tx_dummy.clone())?;
                     // mount to modbus_di_controller
                     let mut di_controller = master_di_controller_ref.borrow_mut();
                     di_controller.add_di_port(di_port.get_address(), Box::new(di_port))?;
@@ -321,20 +351,20 @@ impl DeviceInstanceFactory {
                     return Err(DriverError(format!(
                                 "device factory: no master_di_controller for modbus_di_port in device config: master_device_id: {}, device_id: {}",
                                 master_device_id,
-                                bo.device_id
+                                dto.device_id
                             )));
                 }
             } else {
                 Err(DriverError(format!(
                             "device factory: no find master device for modbus_di_port, master_device_id: {}, device_id: {}",
                             master_device_id,
-                            bo.device_id
+                            dto.device_id
                         )))
             }
         } else {
             Err(DriverError(format!(
                 "device_factory: no master_device_id for di port, device_id={}",
-                bo.device_id
+                dto.device_id
             )))
         }
     }

@@ -2,10 +2,13 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::driver::{
-    dmx::dmx_bus::DmxBus, modbus::{
-        modbus_bus::ModbusBus, modbus_di_controller::ModbusDiController, modbus_di_port::ModbusDiPort, modbus_do_controller::ModbusDoController, modbus_do_port::ModbusDoPort
-    }, serial::serial_bus::SerialBus
-    
+    dmx::dmx_bus::DmxBus,
+    modbus::{
+        modbus_bus::ModbusBus, modbus_di_controller::ModbusDiController,
+        modbus_di_port::ModbusDiPort, modbus_do_controller::ModbusDoController,
+        modbus_do_port::ModbusDoPort,
+    },
+    serial::{serial_bus::SerialBus, serial_remote_controller::SerialRemoteController},
 };
 
 /// the base device type should managed by device manager
@@ -17,5 +20,5 @@ pub enum DeviceRefEnum {
     ModbusDoPort(Rc<RefCell<ModbusDoPort>>),
     ModbusDiController(Rc<RefCell<ModbusDiController>>),
     ModbusDiPort(Rc<RefCell<ModbusDiPort>>),
+    SerialRemoteController(Rc<RefCell<SerialRemoteController>>),
 }
-

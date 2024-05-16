@@ -22,15 +22,17 @@ use super::{
     prelude::ModbusAddrSize,
     traits::ModbusListener,
 };
-use crate::entity::dto::device_command_dto::DeviceCommandDto;
+use crate::{entity::dto::device_command_dto::DeviceCommandDto};
 use crate::entity::dto::device_state_dto::{DeviceStateDto, StateDtoEnum};
-use crate::entity::po::device_config_po::ConfigPo;
 use crate::{common::error::DriverError, driver::traits::Refable};
-use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::mpsc;
 use tokio_modbus::{client::Context, prelude::*, Slave};
-use tokio_serial::SerialStream;
+use crate::{info, warn, error, trace, debug};
+
+
+const LOG_TAG : &str = "modbus_bus";
+
 
 pub struct ModbusBus {
     device_id: String,
@@ -66,7 +68,7 @@ impl ModbusBus {
 
         // start running loop
         let _ = thread::spawn(move || {
-            let mut rt = tokio::runtime::Runtime::new().unwrap();
+            let rt = tokio::runtime::Runtime::new().unwrap();
             rt.block_on(async {
                 let _ = run_loop(
                     serial_port_clone.as_str(),
@@ -79,6 +81,8 @@ impl ModbusBus {
         });
 
         self.modbus_thread_command_tx = Some(tx);
+
+        info!(LOG_TAG, "modbus thread started, port: {}, baudrate: {}", &self.serial_port, baudrate);
 
         Ok(())
     }
