@@ -6,11 +6,7 @@
 //! - 此外，设备管理器还应该维护一系列有 runner 特征的设备，这些设备可以挂载子设备，但是需要运行独立的线程
 
 use serde_json::{Map, Value};
-use std::cell::RefCell;
 use std::collections::HashMap;
-use std::error::Error;
-use tokio::time::interval;
-use tokio::time::Duration;
 
 use super::device_dao::DeviceDao;
 use super::device_threads::device_thread;
@@ -20,20 +16,13 @@ use super::entity::device_po::DevicePo;
 use crate::common::dao::Dao;
 use crate::common::error::{DeviceServerError, ServerErrorCode};
 use crate::common::http;
-use crate::device_controller::device_factory::DeviceInstanceFactory;
 use crate::device_controller::device_info_maker_helper::make_device_info;
-use crate::driver::dmx::dmx_bus::DmxBus;
-use crate::driver::modbus::modbus_bus::ModbusBus;
-use crate::driver::serial::serial_bus::SerialBus;
-use crate::driver::traits::Operable;
 use crate::entity::dto::device_command_dto::DeviceCommandDto;
 use crate::entity::dto::device_meta_info_dto::DeviceMetaInfoDto;
 use crate::entity::dto::device_state_dto::{DeviceStateDto, StateDtoEnum};
-use crate::entity::po::device_config_po::ConfigPo;
 use crate::mqtt_client::client::MqttClient;
 use crate::{debug, error, info, trace, warn};
 use std::sync::{mpsc, Arc, Mutex};
-use std::thread;
 
 // url to update device config
 const UPDATE_CONFIG_URL: &str = "api/v1.2/device/config/HZ-B1";

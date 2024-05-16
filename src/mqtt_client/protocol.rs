@@ -1,7 +1,5 @@
 
 use std::error::Error;
-use crate::util::gen_id::generate_uuid;
-
 use super::entity::{MqttTopicInfoDto, MqttPayloadDto};
 use crate::common::setting::Settings;
 

@@ -2,8 +2,6 @@
 
 use std::collections::HashMap;
 
-use serde_json::Value;
-
 use crate::{common::error::{DeviceServerError, DriverError, ServerErrorCode}, debug, entity::dto::{device_meta_info_dto::{DeviceMetaInfoDto, DeviceStatusEnum}, device_state_dto::StateDtoEnum}, error, info, trace, warn};
 
 use super::entity::{

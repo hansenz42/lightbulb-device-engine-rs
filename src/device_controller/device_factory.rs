@@ -3,18 +3,12 @@
 use super::entity::device_enum::DeviceRefEnum;
 use super::entity::device_po::DevicePo;
 use super::factory::*;
-use crate::driver::dmx::dmx_bus::DmxBus;
 use crate::driver::modbus::traits::{ModbusDiControllerListener, ModbusListener};
 use crate::driver::modbus::{modbus_bus, modbus_di_controller};
-use crate::driver::serial::serial_bus::SerialBus;
 use crate::entity::dto::device_meta_info_dto::{DeviceMetaInfoDto, DeviceStatusEnum};
 use crate::entity::dto::device_state_dto::DeviceStateDto;
-use crate::util::json::get_str;
 use crate::{common::error::DriverError, driver::modbus::modbus_bus::ModbusBus};
 use crate::{debug, error, info, trace, warn};
-use lazy_static::lazy_static;
-use serde_json::Value;
-use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;

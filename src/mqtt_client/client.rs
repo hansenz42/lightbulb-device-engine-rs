@@ -6,10 +6,7 @@ use crate::common::setting::Settings;
 use crate::entity::dto::server_state_dto::ServerStateDto;
 use crate::entity::mqtt::MqttMessageBo;
 use super::protocol::Protocol;
-use std::error::Error;
 use std::result::Result;
-use std::sync::Arc;
-use std::thread;
 use crate::entity::dto::device_state_dto::DeviceStateDto;
 
 pub struct MqttClient {

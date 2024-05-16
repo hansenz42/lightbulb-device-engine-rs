@@ -4,7 +4,6 @@ use std::{
 
 use crate::{
     common::error::DriverError,
-    driver::modbus::modbus_do_port::ModbusDoPort,
     entity::dto::{
         device_command_dto::{DeviceCommandDto, DeviceParamsEnum}, device_report_dto::DeviceReportDto, device_state_dto::DeviceStateDto, server_state_dto::ServerStateDto
     },

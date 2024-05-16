@@ -5,6 +5,9 @@ use std::{pin::Pin, sync::{mpsc, Arc}};
 use paho_mqtt;
 use futures::{executor::block_on, stream::StreamExt};
 use crate::entity::mqtt::{self, MqttMessageBo};
+use crate::{debug, error, info, trace, warn};
+
+const LOG_TAG : &str = "mqtt";
 
 pub struct MqttConnection {
     /// 远程服务器地址
@@ -46,21 +49,21 @@ impl MqttConnection {
             .finalize();
 
         client.set_connection_lost_callback(|_cli| {
-            println!("*** Connection lost ***");
+            error!(LOG_TAG, "*** mqtt Connection lost ***");
         });
 
         client.set_message_callback(move |_cli, msg| {
             if let Some(msg) = msg {
-                log::debug!("接收到消息！内容：{}", msg.payload_str());
+                debug!(LOG_TAG, "received message! content {}", msg.payload_str());
                 tx.send(MqttMessageBo {
                     topic: msg.topic().to_string(),
                     payload: msg.payload_str().to_string()
-                }).expect("mqtt 消息发送失败");
+                }).expect("mqtt message sending failed");
             }
         });
 
         if let Err(e) = client.connect(conn_opts).wait() {
-            log::error!("连接到 MQTT 服务器失败: {:?}", e);
+            error!(LOG_TAG, "cannot connect to mqtt server: {:?}", e);
             return Err(e);
         }
 
@@ -70,24 +73,22 @@ impl MqttConnection {
     }
     
 
-    /// 发布消息
     pub fn publish(&self, topic: &str, payload: &str) -> Result<(), paho_mqtt::Error> {
         let msg = paho_mqtt::Message::new(topic, payload, 0);
         if let Some(client) = &self.client {
             client.publish(msg).wait()?;
         } else {
-            log::error!("mqtt 消息发布失败，未连接");
+            error!(LOG_TAG, "mqtt publish failed, no connection");
         }
 
         Ok(())
     }
 
-    /// 订阅消息
     pub fn subscribe(&self, topic: &str) -> Result<(), paho_mqtt::Error> {
         if let Some(client) = &self.client {
             client.subscribe(topic, 0).wait()?;
         } else {
-            log::error!("mqtt 消息订阅失败，未连接");
+            error!(LOG_TAG, "mqtt subscribe failed, no connection");
         }
 
         Ok(())
