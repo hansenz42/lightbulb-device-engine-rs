@@ -185,7 +185,7 @@ impl DeviceInstanceFactory {
         if let Some(master_device_id) = &bo.master_device_id {
             // get modbus master device
             let master_device_enum = self.get_master_device_enum(master_device_id.as_str())?;
-            if let DeviceRefEnum::ModbusBus(master_device) = master_device_enum.borrow() {
+            if let DeviceRefEnum::ModbusBus(master_device) = master_device_enum{
                 // make do controller device
                 let do_controller =
                     do_controller_factory::make(&bo, master_device, self.report_tx_dummy.clone())?;
@@ -213,7 +213,7 @@ impl DeviceInstanceFactory {
         if let Some(master_device_id) = &bo.master_device_id {
             // get modbus master device
             let master_device_enum = self.get_master_device_enum(master_device_id.as_str())?;
-            if let DeviceRefEnum::ModbusDoController(master_device) = master_device_enum.borrow() {
+            if let DeviceRefEnum::ModbusDoController(master_device) = master_device_enum {
                 // make do port device
                 let do_port = do_port_factory::make(
                     &bo,
@@ -246,19 +246,13 @@ impl DeviceInstanceFactory {
         if let Some(master_device_id) = &bo.master_device_id {
             // get modbus master device
             let master_device_enum = self.get_master_device_enum(master_device_id.as_str())?;
-            if let DeviceRefEnum::ModbusBus(master_modbus_ref) = master_device_enum.borrow() {
+            if let DeviceRefEnum::ModbusBus(master_modbus_ref) = master_device_enum {
                 // make di controller device
                 let di_controller = di_controller_factory::make(&bo, self.report_tx_dummy.clone())?;
                 // mount to modbus bus device
-                if let mut modbus = master_modbus_ref.borrow_mut() {
-                    modbus.add_di_controller(di_controller.get_unit(), Box::new(di_controller));
-                    Ok(())
-                } else {
-                    Err(DriverError(format!(
-                        "device factory: caonnot borrow modbus, master_device_id={}, device_id={}",
-                        master_device_id, bo.device_id
-                    )))
-                }
+                let mut modbus = master_modbus_ref.borrow_mut();
+                modbus.add_di_controller(di_controller.get_unit(), Box::new(di_controller));
+                Ok(())
             } else {
                 Err(DriverError(format!(
                     "device factory: when init di_controller, the master device is not modbus_bus, master_device_id: {}, device_id: {}",
@@ -307,7 +301,7 @@ impl DeviceInstanceFactory {
             // borrow modbus bus
             let master_device_enum =
                 self.get_master_device_enum(controller_master_device_id.as_str())?;
-            if let DeviceRefEnum::ModbusBus(master_modbus_ref) = master_device_enum.borrow() {
+            if let DeviceRefEnum::ModbusBus(master_modbus_ref) = master_device_enum {
                 // borrow modbus_di_controller
                 if let DeviceRefEnum::ModbusDiController(master_di_controller_ref) = self
                     .device_enum_map
@@ -320,16 +314,9 @@ impl DeviceInstanceFactory {
                     // make di port device
                     let di_port = di_port_factory::make(&bo, self.report_tx_dummy.clone())?;
                     // mount to modbus_di_controller
-                    if let mut di_controller = master_di_controller_ref.borrow_mut() {
-                        di_controller.add_di_port(di_port.get_address(), Box::new(di_port));
-                        Ok(())
-                    } else {
-                        Err(DriverError(format!(
-                                    "device factory: wrong master device for modbus_di_port is not modbus_di_controller: {}, device_id: {}",
-                                    master_device_id,
-                                    bo.device_id
-                                )))
-                    }
+                    let mut di_controller = master_di_controller_ref.borrow_mut();
+                    di_controller.add_di_port(di_port.get_address(), Box::new(di_port))?;
+                    Ok(())
                 } else {
                     return Err(DriverError(format!(
                                 "device factory: no master_di_controller for modbus_di_port in device config: master_device_id: {}, device_id: {}",

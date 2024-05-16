@@ -20,7 +20,7 @@ use super::thread::reporting_thread;
 use crate::common::dao::Dao;
 use crate::common::error::{DeviceServerError, ServerErrorCode};
 use crate::common::http;
-use crate::device_controller::device_info_factory::make_device_info;
+use crate::device_controller::device_info_maker::make_device_info;
 use crate::device_controller::device_instance_factory::DeviceInstanceFactory;
 use crate::driver::dmx::dmx_bus::DmxBus;
 use crate::driver::modbus::modbus_bus::ModbusBus;
@@ -249,7 +249,7 @@ mod tests {
     use crate::mqtt_client::client::MqttClient;
 
     #[test]
-    fn test_device_create() {
+    fn test_device_manager() {
         let _ = init_logger();
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
@@ -260,7 +260,7 @@ mod tests {
             manager.start(mqtt_client_arc.clone()).await.unwrap();
         });
         thread::sleep(std::time::Duration::from_secs(20));
-        info!(LOG_TAG, "测试完成");
+        println!("test done");
     }
 
     #[test]
