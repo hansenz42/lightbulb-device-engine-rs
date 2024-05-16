@@ -16,7 +16,6 @@ use std::error::Error;
 use crate::file_controller::file_manager::FileManager;
 use log;
 use dotenv::dotenv;
-use mqtt_client::client::MqttClient;
 use tokio;
 
 // #[macro_use] extern crate log;

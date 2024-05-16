@@ -154,40 +154,37 @@ pub fn heartbeating_thread(
 ) {
     let handle = thread::spawn(move || {
         info!(LOG_TAG, "heartbeating thread starting");
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(async {
-            loop {
-                // 1. make device report message
-                let mut report_dto_map: HashMap<String, DeviceReportDto> = HashMap::new();
-                {
-                    let map_guard = device_info_map.lock().unwrap();
-                    for (device_id, device_info) in map_guard.iter() {
-                        let report_dto = DeviceReportDto::from_device_meta_info(device_info);
-                        report_dto_map.insert(device_id.clone(), report_dto);
-                    }
+        loop {
+            // 1. make device report message
+            let mut report_dto_map: HashMap<String, DeviceReportDto> = HashMap::new();
+            {
+                let map_guard = device_info_map.lock().unwrap();
+                for (device_id, device_info) in map_guard.iter() {
+                    let report_dto = DeviceReportDto::from_device_meta_info(device_info);
+                    report_dto_map.insert(device_id.clone(), report_dto);
                 }
-
-                // 2. make server state, and send heartbeating message
-                let server_state = ServerStateDto {
-                    device_config: device_config_map.clone(),
-                    device_status: report_dto_map,
-                };
-                info!(LOG_TAG, "heartbeating thread: send server state: {:?}", server_state);
-                {
-                    let mqtt_guard = mqtt_client.lock().unwrap();
-                    let ret = mqtt_guard.publish_heartbeat(server_state).await;
-                    match ret {
-                        Ok(_) => {}
-                        Err(e) => {
-                            error!(LOG_TAG, "heartbeating thread: cannot publish server state to mqtt, will try in next beat, error msg: {}", e);
-                        }
-                    }
-                }
-
-                // 3. sleep for beat_interval
-                thread::sleep(std::time::Duration::from_millis(beat_interval_millis));
             }
-        })
+
+            // 2. make server state, and send heartbeating message
+            let server_state = ServerStateDto {
+                device_config: device_config_map.clone(),
+                device_status: report_dto_map,
+            };
+            info!(LOG_TAG, "heartbeating thread: send server state: {:?}", server_state);
+            {
+                let mqtt_guard = mqtt_client.lock().unwrap();
+                let ret = mqtt_guard.publish_heartbeat(server_state);
+                match ret {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!(LOG_TAG, "heartbeating thread: cannot publish server state to mqtt, will try in next beat, error msg: {}", e);
+                    }
+                }
+            }
+
+            // 3. sleep for beat_interval
+            thread::sleep(std::time::Duration::from_millis(beat_interval_millis));
+        }
     });
 }
 
@@ -196,30 +193,25 @@ pub fn heartbeating_thread(
 /// the thread using tokio runtime because mqtt client is async
 pub fn reporting_thread(state_report_rx: mpsc::Receiver<DeviceStateDto>, mqtt_client: Arc<Mutex<MqttClient>>) {
     thread::spawn(move || {
-        let rt =
-            tokio::runtime::Runtime::new().expect("upward worker: cannot create tokio runtime");
-        rt.block_on(async move {
-            loop {
-                info!(LOG_TAG, "waiting for upward message");
-                let message = state_report_rx.recv();
-                match message {
-                    Ok(device_state_bo) => {
-                        info!(LOG_TAG, "reporting thread: report message to mqtt: {:?}", &device_state_bo);
-                        {
-                            let mqtt_guard = mqtt_client.lock().unwrap();
-                            mqtt_guard
-                                .publish_status(device_state_bo)
-                                .await
-                                .expect("cannot publish upward message to mqtt");
-                        }
-                    }
-                    Err(e) => {
-                        warn!(LOG_TAG, "report thread worker exiting, channel error, msg: {}", e);
-                        return;
+        loop {
+            info!(LOG_TAG, "waiting for upward message");
+            let message = state_report_rx.recv();
+            match message {
+                Ok(device_state_bo) => {
+                    info!(LOG_TAG, "reporting thread: report message to mqtt: {:?}", &device_state_bo);
+                    {
+                        let mqtt_guard = mqtt_client.lock().unwrap();
+                        mqtt_guard
+                            .publish_status(device_state_bo)
+                            .expect("cannot publish upward message to mqtt");
                     }
                 }
+                Err(e) => {
+                    warn!(LOG_TAG, "report thread worker exiting, channel error, msg: {}", e);
+                    return;
+                }
             }
-        });
+        }
     });
 }
 

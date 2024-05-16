@@ -5,10 +5,10 @@
 //! - 定期检查设备状态
 
 pub mod device_manager;
+pub mod device_threads;
 pub mod device_dao;
 pub mod device_factory;
 pub mod device_info_maker_helper;
 mod factory;
 mod traits;
 pub mod entity;
-pub mod device_threads;

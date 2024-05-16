@@ -263,15 +263,11 @@ mod tests {
     #[test]
     fn test_device_manager() {
         let _ = init_logger();
-        let rt = tokio::runtime::Runtime::new().unwrap();
         let mut manager = DeviceManager::new();
-        rt.block_on(async {
-            let mut mqtt_client = MqttClient::new();
-            mqtt_client.start().await.unwrap();
-            let mqtt_client_arc = Arc::new(Mutex::new(mqtt_client));
-            // sleep 20 sec
-            tokio::time::sleep(std::time::Duration::from_secs(20)).await;
-        });
+        let mut mqtt_client = MqttClient::new();
+        mqtt_client.start().unwrap();
+        let mqtt_client_arc = Arc::new(Mutex::new(mqtt_client));
+        // sleep 20 sec
         println!("test done");
     }
 
