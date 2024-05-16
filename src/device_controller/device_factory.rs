@@ -106,7 +106,7 @@ impl DeviceInstanceFactory {
                 Err(e) => {
                     error!(
                         LOG_TAG,
-                        "create device instance failed, device_id: {}, error msg: {}",
+                        "create device failed, device_id: {}, error msg: {}",
                         device_po.device_id,
                         e.0.as_str()
                     );

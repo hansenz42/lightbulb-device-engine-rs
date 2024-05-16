@@ -10,13 +10,13 @@ use crate::util::json;
 
 
 pub fn make(device_info: &DeviceMetaInfoDto, report_tx: Sender<DeviceStateDto>) -> Result<SerialRemoteController, DriverError> {
-    let button_num_i64 = json::get_config_int(&device_info.config, "button_num")?;
-    let button_num: u8 = button_num_i64.try_into()
-        .map_err(|_| DriverError("init remote controller error, cannot transform button_num to u8".to_string()))?;
+    let num_button_i64 = json::get_config_int(&device_info.config, "num_button")?;
+    let num_button: u8 = num_button_i64.try_into()
+        .map_err(|_| DriverError("init remote controller error, cannot transform num_button to u8".to_string()))?;
     
     let obj = SerialRemoteController::new(
         device_info.device_id.as_str(), 
-        button_num,
+        num_button,
         report_tx
     ); 
     Ok(obj)

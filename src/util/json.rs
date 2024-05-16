@@ -15,5 +15,5 @@ pub fn get_config_str(config_data: &Value, value_name: &str) -> Result<String, D
 }
 
 pub fn get_config_int(config_data: &Value, value_name: &str) -> Result<i64, DriverError>{
-    config_data[value_name].as_i64().ok_or(DriverError(format!("json parser: cannot find device_id in config")))
+    config_data[value_name].as_i64().ok_or(DriverError(format!("json parser: cannot find {} in config", value_name)))
 }
