@@ -1,11 +1,20 @@
 use std::{
-    any::Any, borrow::Borrow, collections::HashMap, fmt::format, process::exit, sync::{mpsc, Arc, Mutex}, thread
+    any::Any,
+    borrow::Borrow,
+    collections::HashMap,
+    fmt::format,
+    process::exit,
+    sync::{mpsc, Arc, Mutex},
+    thread,
 };
 
 use crate::{
     common::error::DriverError,
     entity::dto::{
-        device_command_dto::{DeviceCommandDto, DeviceParamsEnum}, device_report_dto::DeviceReportDto, device_state_dto::DeviceStateDto, server_state_dto::ServerStateDto
+        device_command_dto::{DeviceCommandDto, DeviceParamsEnum},
+        device_report_dto::DeviceReportDto,
+        device_state_dto::DeviceStateDto,
+        server_state_dto::ServerStateDto,
     },
     mqtt_client::client::MqttClient,
 };
@@ -14,8 +23,8 @@ use super::{
     device_factory::DeviceInstanceFactory,
     entity::{device_enum::DeviceRefEnum, device_po::DevicePo},
 };
-use crate::entity::dto::device_meta_info_dto::DeviceMetaInfoDto;
 use crate::driver::modbus::traits::ModbusDoControllerCaller;
+use crate::entity::dto::device_meta_info_dto::DeviceMetaInfoDto;
 use crate::{debug, error, info, trace, warn};
 
 const LOG_TAG: &'static str = "device_manager_threads";
@@ -27,26 +36,32 @@ pub fn device_thread(
     device_po_list: Vec<DevicePo>,
     device_info_map: Arc<Mutex<HashMap<String, DeviceMetaInfoDto>>>,
 ) {
-    // downward thread, send command to device
     let handle = thread::spawn(move || {
         // 1. make devices according to config
-        let mut device_factory = DeviceInstanceFactory::new(state_report_tx_dummy.clone());
+        let mut device_factory = DeviceInstanceFactory::new(state_report_tx_dummy);
         device_factory
             .make_devices(device_info_map, device_po_list)
             .unwrap();
         let device_enum_map = device_factory.get_device_map();
-        info!(LOG_TAG, "device thread: device enum map length: {}", device_enum_map.len());
-        
+        info!(
+            LOG_TAG,
+            "device thread: device enum map length: {}",
+            device_enum_map.len()
+        );
+
         // 2. start running device
         match start_device(&device_enum_map) {
             Ok(_) => {}
             Err(e) => {
-                error!(LOG_TAG, "device thread: cannot start device, error msg: {}", e);
+                error!(
+                    LOG_TAG,
+                    "device thread: cannot start device, error msg: {}", e
+                );
                 exit(1)
             }
         }
         info!(LOG_TAG, "device thread: successfully start all bus devices");
-        
+
         loop {
             info!(LOG_TAG, "device thread: waitting for device command");
             let recv_message = command_rx.recv();
@@ -77,7 +92,10 @@ pub fn device_thread(
                     }
                 }
                 Err(e) => {
-                    warn!(LOG_TAG, "device worker thread exiting: channel closing, error msg: {}", e);
+                    warn!(
+                        LOG_TAG,
+                        "device worker thread exiting: device command downward channel closing, error msg: {}", e
+                    );
                     return;
                 }
             }
@@ -92,11 +110,11 @@ pub fn start_device(device_enum_map: &HashMap<String, DeviceRefEnum>) -> Result<
             // run modbus
             DeviceRefEnum::ModbusBus(master_modbus_ref) => {
                 master_modbus_ref.borrow_mut().start()?;
-            },
+            }
             // run serial bus
             DeviceRefEnum::SerialBus(master_serial_ref) => {
                 master_serial_ref.borrow_mut().start()?;
-            },
+            }
             DeviceRefEnum::DmxBus(master_dmx_ref) => {
                 master_dmx_ref.borrow_mut().start()?;
             }
@@ -149,7 +167,7 @@ pub fn heartbeating_thread(
     beat_interval_millis: u64,
     device_info_map: Arc<Mutex<HashMap<String, DeviceMetaInfoDto>>>,
     device_config_map: HashMap<String, DevicePo>,
-    mqtt_client: Arc<Mutex<MqttClient>>
+    mqtt_client: Arc<Mutex<MqttClient>>,
 ) {
     let handle = thread::spawn(move || {
         info!(LOG_TAG, "heartbeating thread starting");
@@ -169,7 +187,10 @@ pub fn heartbeating_thread(
                 device_config: device_config_map.clone(),
                 device_status: report_dto_map,
             };
-            info!(LOG_TAG, "heartbeating thread: send server state: {:?}", server_state);
+            info!(
+                LOG_TAG,
+                "heartbeating thread: send server state"
+            );
             {
                 let mqtt_guard = mqtt_client.lock().unwrap();
                 let ret = mqtt_guard.publish_heartbeat(server_state);
@@ -190,14 +211,20 @@ pub fn heartbeating_thread(
 /// upward thread
 /// used to report device state to upward controllers
 /// the thread using tokio runtime because mqtt client is async
-pub fn reporting_thread(state_report_rx: mpsc::Receiver<DeviceStateDto>, mqtt_client: Arc<Mutex<MqttClient>>) {
+pub fn reporting_thread(
+    state_report_rx: mpsc::Receiver<DeviceStateDto>,
+    mqtt_client: Arc<Mutex<MqttClient>>,
+) {
     thread::spawn(move || {
         loop {
-            info!(LOG_TAG, "waiting for upward message");
+            info!(LOG_TAG, "waiting for device reporting message");
             let message = state_report_rx.recv();
             match message {
                 Ok(device_state_bo) => {
-                    info!(LOG_TAG, "reporting thread: report message to mqtt: {:?}", &device_state_bo);
+                    info!(
+                        LOG_TAG,
+                        "reporting thread: report message to mqtt: {:?}", &device_state_bo
+                    );
                     {
                         let mqtt_guard = mqtt_client.lock().unwrap();
                         mqtt_guard
@@ -206,11 +233,13 @@ pub fn reporting_thread(state_report_rx: mpsc::Receiver<DeviceStateDto>, mqtt_cl
                     }
                 }
                 Err(e) => {
-                    warn!(LOG_TAG, "report thread worker exiting, channel error, msg: {}", e);
+                    warn!(
+                        LOG_TAG,
+                        "report thread exiting: device report channel error, msg: {}", e
+                    );
                     return;
                 }
             }
         }
     });
 }
-

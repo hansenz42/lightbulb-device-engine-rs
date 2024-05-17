@@ -25,7 +25,7 @@ impl CustomHttpServer {
     
         tokio::spawn(server);
 
-        log::info!("http 服务器启动成功 host: {} port: {}", Settings::get().web.web_host, Settings::get().web.web_port);
+        log::info!("http server started host: {} port: {}", Settings::get().web.web_host, Settings::get().web.web_port);
     
         Ok(())
     }

@@ -39,55 +39,59 @@ pub struct DeviceManager {
     pub config_map: HashMap<String, DevicePo>,
     // configuration list of devices
     pub config_list: Vec<DevicePo>,
-    // upward thread: receive from device, send to mqtt
-    state_report_rx: mpsc::Receiver<DeviceStateDto>,
-    // the device can clone this rx channel to send data to upward thread
-    pub state_report_tx_dummy: mpsc::Sender<DeviceStateDto>,
     // downward receive channel from mqtt
     device_command_rx: mpsc::Receiver<DeviceCommandDto>,
-    device_command_tx_dummy: mpsc::Sender<DeviceCommandDto>,
+    device_command_tx: mpsc::Sender<DeviceCommandDto>,
     // device info map
     pub device_info_map: Arc<Mutex<HashMap<String, DeviceMetaInfoDto>>>,
 }
 
 impl DeviceManager {
     pub fn new() -> Self {
-        let (state_report_tx, state_report_rx) = mpsc::channel();
         let (device_command_tx, device_command_rx) = mpsc::channel();
         DeviceManager {
             device_dao: DeviceDao::new(),
             config_map: HashMap::new(),
             config_list: Vec::new(),
-            state_report_rx,
-            state_report_tx_dummy: state_report_tx,
             device_command_rx,
-            device_command_tx_dummy: device_command_tx,
+            device_command_tx,
             device_info_map: Arc::new(Mutex::new(HashMap::new())),
         }
     }
+
+    pub fn get_device_command_tx(&self) -> mpsc::Sender<DeviceCommandDto> {
+        self.device_command_tx.clone()
+    } 
 
     /// start the device manager work
     /// - heartbeating thread: send heartbeat periodically
     /// - device thread: create device and controller command sending
     /// - reporting thread: listen to devices status change and report to mqtt client
-    pub fn start_worker(self, mqtt_client: Arc<Mutex<MqttClient>>) {
+    /// CAUTION: after calling this function, DeviceManager will drop, 
+    /// so be sure that device_command_tx is cloned before calling this function
+    pub fn run_threads(self, mqtt_client: Arc<Mutex<MqttClient>>) {
+        let (state_report_tx, state_report_rx) = mpsc::channel();
+
         // 1 start device thread
         device_thread(
-            self.state_report_tx_dummy.clone(),
+            state_report_tx,
             self.device_command_rx,
             self.config_list.clone(),
             self.device_info_map.clone(),
         );
-        info!(
+        debug!(
             LOG_TAG,
-            "device manager worker starting: device thread started"
+            "device manager worker starting: device thread called"
         );
 
         // 2 start reporting thread
-        reporting_thread(self.state_report_rx, mqtt_client.clone());
-        info!(
+        reporting_thread(
+            state_report_rx,
+            mqtt_client.clone()
+        );
+        debug!(
             LOG_TAG,
-            "device manager worker starting: reporting thread started"
+            "device manager worker starting: reporting thread called"
         );
 
         // 3 start heartbeating thread
@@ -97,14 +101,10 @@ impl DeviceManager {
             self.config_map.clone(),
             mqtt_client.clone(),
         );
-        info!(
+        debug!(
             LOG_TAG,
-            "device manager worker starting: heartbeating thread started"
+            "device manager worker starting: heartbeating thread called"
         );
-    }
-
-    pub fn clone_upward_tx(&self) -> mpsc::Sender<DeviceStateDto> {
-        self.state_report_tx_dummy.clone()
     }
 
     pub fn start(
@@ -112,7 +112,7 @@ impl DeviceManager {
         mqtt_client: Arc<Mutex<MqttClient>>,
     ) -> Result<(), DeviceServerError> {
         self.ready()?;
-        self.start_worker(mqtt_client);
+        self.run_threads(mqtt_client);
         Ok(())
     }
 
@@ -243,6 +243,8 @@ fn transform_device_config_obj_str(device_data: &Map<String, Value>) -> String {
 
 #[cfg(test)]
 mod tests {
+    use std::thread;
+
     use super::*;
     use crate::common::logger::init_logger;
     use crate::entity::dto::device_command_dto::DeviceParamsEnum;
@@ -253,10 +255,13 @@ mod tests {
     fn test_device_manager() {
         let _ = init_logger();
         let mut manager = DeviceManager::new();
+        let tx = manager.get_device_command_tx();
         let mut mqtt_client = MqttClient::new();
         mqtt_client.start().unwrap();
         let mqtt_client_arc = Arc::new(Mutex::new(mqtt_client));
+        manager.start(mqtt_client_arc).unwrap();
         // sleep 20 sec
+        thread::sleep(std::time::Duration::from_secs(20));
         println!("test done");
     }
 

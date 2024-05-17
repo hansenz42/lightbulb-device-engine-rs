@@ -7,10 +7,7 @@
 //! - Write operation takes precedence over read operation   
 
 use std::{
-    borrow::BorrowMut,
     cell::RefCell,
-    error::Error,
-    rc::Rc,
     sync::{mpsc::Sender, Arc, Mutex},
     thread,
 };
@@ -22,12 +19,10 @@ use super::{
     prelude::ModbusAddrSize,
     traits::ModbusListener,
 };
-use crate::{entity::dto::device_command_dto::DeviceCommandDto};
 use crate::entity::dto::device_state_dto::{DeviceStateDto, StateDtoEnum};
 use crate::{common::error::DriverError, driver::traits::Refable};
 use std::collections::HashMap;
 use std::sync::mpsc;
-use tokio_modbus::{client::Context, prelude::*, Slave};
 use crate::{info, warn, error, trace, debug};
 
 
