@@ -15,8 +15,6 @@ pub struct DevicePo {
     pub name: String,
     // 设备描述
     pub description: String,
-    // 设备区域（房间）
-    pub room: String,
     // 设备配置（json string）
     pub config: Value,
 }

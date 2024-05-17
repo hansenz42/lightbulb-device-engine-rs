@@ -229,7 +229,6 @@ fn transform_json_data_to_po(json_object: Value) -> Option<DevicePo> {
         device_type: json_object.get("device_type")?.as_str()?.to_string(),
         name: json_object.get("name")?.as_str()?.to_string(),
         description: json_object.get("description")?.as_str()?.to_string(),
-        room: json_object.get("room")?.as_str()?.to_string(),
         config: json_object.get("config")?.clone(),
     };
     Some(device_po)
