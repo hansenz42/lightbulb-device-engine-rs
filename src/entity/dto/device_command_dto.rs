@@ -12,10 +12,16 @@ pub struct DeviceCommandDto {
 #[derive(Debug, Clone)]
 pub enum DeviceParamsEnum {
     Empty,
-    Do(DoParamsDto)
+    Do(DoParamsDto),
+    Audio(AudioParamsDto)
 }
 
 #[derive(Debug, Clone)]
 pub struct DoParamsDto {
     pub on: bool
+}
+
+#[derive(Debug, Clone)]
+pub struct AudioParamsDto {
+    pub filename: String
 }

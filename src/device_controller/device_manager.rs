@@ -67,6 +67,7 @@ impl DeviceManager {
     /// - heartbeating thread: send heartbeat periodically
     /// - device thread: create device and controller command sending
     /// - reporting thread: listen to devices status change and report to mqtt client
+    /// 
     /// CAUTION: after calling this function, DeviceManager will drop, 
     /// so be sure that device_command_tx is cloned before calling this function
     pub fn run_threads(self, mqtt_client: Arc<Mutex<MqttClient>>) {

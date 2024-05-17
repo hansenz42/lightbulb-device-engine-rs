@@ -6,3 +6,4 @@ pub mod di_controller_factory;
 pub mod di_port_factory;
 pub mod do_port_factory;
 pub mod remote_factory;
+pub mod audio_factory;
