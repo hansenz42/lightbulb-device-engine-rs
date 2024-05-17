@@ -1,20 +1,11 @@
 use std::{
-    any::Any,
-    borrow::Borrow,
-    collections::HashMap,
-    fmt::format,
-    process::exit,
-    sync::{mpsc, Arc, Mutex},
-    thread,
+    any::Any, borrow::{Borrow, BorrowMut}, cell::RefCell, collections::HashMap, fmt::format, process::exit, sync::{mpsc, Arc, Mutex}, thread
 };
 
 use crate::{
     common::error::DriverError,
     entity::dto::{
-        device_command_dto::{DeviceCommandDto, CommandParamsEnum},
-        device_report_dto::DeviceReportDto,
-        device_state_dto::DeviceStateDto,
-        server_state_dto::ServerStateDto,
+        device_command_dto::DeviceCommandDto, device_meta_info_dto::DeviceStatusEnum, device_report_dto::DeviceReportDto, device_state_dto::DeviceStateDto, server_state_dto::ServerStateDto
     },
     mqtt_client::client::MqttClient,
 };
@@ -23,7 +14,6 @@ use super::{
     device_factory::DeviceInstanceFactory,
     entity::{device_enum::DeviceRefEnum, device_po::DevicePo},
 };
-use crate::driver::modbus::traits::ModbusDoControllerCaller;
 use crate::driver::traits::Commandable;
 use crate::entity::dto::device_meta_info_dto::DeviceMetaInfoDto;
 use crate::{debug, error, info, trace, warn};
@@ -110,14 +100,17 @@ pub fn start_device(device_enum_map: &HashMap<String, DeviceRefEnum>) -> Result<
         match device_ref {
             // run modbus
             DeviceRefEnum::ModbusBus(master_modbus_ref) => {
-                master_modbus_ref.borrow_mut().start()?;
+                let mut ref_cell = RefCell::borrow_mut(master_modbus_ref);
+                ref_cell.start()?;
             }
             // run serial bus
             DeviceRefEnum::SerialBus(master_serial_ref) => {
-                master_serial_ref.borrow_mut().start()?;
+                let mut ref_cell = RefCell::borrow_mut(master_serial_ref);
+                ref_cell.start()?;
             }
             DeviceRefEnum::DmxBus(master_dmx_ref) => {
-                master_dmx_ref.borrow_mut().start()?;
+                let mut ref_cell = RefCell::borrow_mut(master_dmx_ref);
+                ref_cell.start()?;
             }
             // run dmx bus
             _ => {}
@@ -136,7 +129,8 @@ pub fn command_device(
     match device_ref {
         // do device
         DeviceRefEnum::ModbusDoPort(do_port_ref_cell) => {
-            do_port_ref_cell.borrow_mut().cmd(command_dto)?;
+            let mut ref_cell = RefCell::borrow_mut(do_port_ref_cell);
+            ref_cell.cmd(command_dto)?; 
             Ok(())
         }
         _ => {
@@ -157,7 +151,7 @@ pub fn heartbeating_thread(
     device_config_map: HashMap<String, DevicePo>,
     mqtt_client: Arc<Mutex<MqttClient>>,
 ) {
-    let handle = thread::spawn(move || {
+    let _ = thread::spawn(move || {
         info!(LOG_TAG, "heartbeating thread starting");
         loop {
             // 1. make device report message
@@ -175,7 +169,7 @@ pub fn heartbeating_thread(
                 device_config: device_config_map.clone(),
                 device_status: report_dto_map,
             };
-            info!(LOG_TAG, "heartbeating thread: send server state");
+            info!(LOG_TAG, "heartbeating thread: send server state, msg len: {}", server_state.device_status.len());
             {
                 let mqtt_guard = mqtt_client.lock().unwrap();
                 let ret = mqtt_guard.publish_heartbeat(server_state);
@@ -199,21 +193,33 @@ pub fn heartbeating_thread(
 pub fn reporting_thread(
     state_report_rx: mpsc::Receiver<DeviceStateDto>,
     mqtt_client: Arc<Mutex<MqttClient>>,
+    device_info_map: Arc<Mutex<HashMap<String, DeviceMetaInfoDto>>>
 ) {
     thread::spawn(move || loop {
         info!(LOG_TAG, "waiting for device reporting message");
         let message = state_report_rx.recv();
         match message {
-            Ok(device_state_bo) => {
+            Ok(device_state_dto) => {
                 info!(
                     LOG_TAG,
-                    "reporting thread: report message to mqtt: {:?}", &device_state_bo
+                    "reporting thread: report message to mqtt: {:?}", &device_state_dto
                 );
+                let device_id = device_state_dto.device_id.clone();
+                let device_state_copy = device_state_dto.state.clone();
+                // 1 send out mqtt message
                 {
                     let mqtt_guard = mqtt_client.lock().unwrap();
                     mqtt_guard
-                        .publish_status(device_state_bo)
+                        .publish_status(device_state_dto)
                         .expect("cannot publish upward message to mqtt");
+                }
+                // 2 update device state and mark device status to "active"
+                {
+                    let mut map_guard = device_info_map.lock().unwrap();
+                    if let Some(device_info) = map_guard.borrow_mut().get_mut(device_id.as_str()) {
+                        device_info.state = device_state_copy;
+                        device_info.status = DeviceStatusEnum::ACTIVE;
+                    }
                 }
             }
             Err(e) => {

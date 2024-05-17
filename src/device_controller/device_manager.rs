@@ -86,7 +86,8 @@ impl DeviceManager {
         // 2 start reporting thread
         reporting_thread(
             state_report_rx,
-            mqtt_client.clone()
+            mqtt_client.clone(),
+            self.device_info_map.clone()
         );
         debug!(
             LOG_TAG,
@@ -247,9 +248,7 @@ mod tests {
 
     use super::*;
     use crate::common::logger::init_logger;
-    use crate::device_controller::entity::device_enum::DeviceRefEnum;
     use crate::entity::dto::device_command_dto::CommandParamsEnum;
-    use crate::entity::dto::device_state_dto::DoControllerStateDto;
     use crate::mqtt_client::client::MqttClient;
 
     #[test]
