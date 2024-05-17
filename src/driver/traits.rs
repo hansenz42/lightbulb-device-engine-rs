@@ -19,20 +19,9 @@ pub trait ReportUpward {
     }
 }
 
-/// the device that operable by controller
-pub trait Operable {
-    /// send command to operable dvice
-    fn operate(&self, message: DeviceCommandDto) -> Result<(), DriverError>;
-}
-
-/// root device that controlles device interfaces
-pub trait RootBus {
-    fn start(&mut self) -> Result<(), DriverError>;
-}
-
-/// device that can mount to other device
-pub trait SetRef {
-    fn set_ref(&mut self, value: Rc<dyn Refable>);
+/// the device that can be commanded by device manager
+pub trait Commandable {
+    fn cmd(&mut self, dto: DeviceCommandDto) -> Result<(), DriverError>;
 }
 
 /// device that can be mounted by other device

@@ -9,7 +9,7 @@
 
 use crate::common::error::DriverError;
 use crate::driver::traits::ReportUpward;
-use crate::entity::dto::device_command_dto::{DeviceCommandDto, DeviceParamsEnum};
+use crate::entity::dto::device_command_dto::{DeviceCommandDto, CommandParamsEnum};
 use crate::entity::dto::device_state_dto::{
     AudioFilePlayingDto, AudioStateDto, DeviceStateDto, StateDtoEnum,
 };
@@ -106,7 +106,7 @@ impl AudioOutput {
 
     pub fn cmd(&mut self, dto: DeviceCommandDto) -> Result<(), DriverError> {
         match dto.params {
-            DeviceParamsEnum::Audio(audio_params) => {
+            CommandParamsEnum::Audio(audio_params) => {
                 let action = dto.action;
                 let filename = audio_params.filename;
                 if action == "play" {

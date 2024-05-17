@@ -71,7 +71,7 @@ impl MqttClient {
     /// publish heartbeat message
     pub fn publish_heartbeat(&self, server_state: ServerStateDto) -> Result<(), DeviceServerError> {
         // 1 make topic 
-        let topic = self.protocol.topic_self_declare("status", None, None, None);
+        let topic = self.protocol.topic_self_declare("status", None, None);
         
         // 2 make payload
         let payload_content = serde_json::to_value(server_state)
@@ -90,7 +90,7 @@ impl MqttClient {
 
     /// publish device status message
     pub fn publish_status(&self, state_dto: DeviceStateDto) -> Result<(), DeviceServerError> {
-        let topic = self.protocol.topic_self_declare("status", None, Some(state_dto.device_class.clone()), Some(state_dto.device_id.clone()));
+        let topic = self.protocol.topic_self_declare("status", Some(state_dto.device_class.clone()), Some(state_dto.device_id.clone()));
 
         let payload_content = serde_json::to_value(state_dto)
             .map_err(|e| DeviceServerError {code: ServerErrorCode::MqttError, msg: format!("cannot publish status message, transform state bo to json failed, json error: {e}")})?;
@@ -106,7 +106,7 @@ impl MqttClient {
     pub fn publish_offline(&self) -> Result<(), DeviceServerError> {
         match &self.con {
             Some(con) => {
-                let topic = self.protocol.topic_self_declare("offline", None, None, None);
+                let topic = self.protocol.topic_self_declare("offline", None, None);
                 let payload = self.protocol.payload_from_server(None, None, None, None);
                 let json_str = payload.to_json()
                     .map_err(|e| DeviceServerError {code: ServerErrorCode::MqttError, msg: format!("cannot publish offline message, transform from payload to json failed, json error: {e}")})?;

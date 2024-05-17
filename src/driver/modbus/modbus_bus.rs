@@ -20,7 +20,7 @@ use super::{
     traits::ModbusListener,
 };
 use crate::entity::dto::device_state_dto::{DeviceStateDto, StateDtoEnum};
-use crate::{common::error::DriverError, driver::traits::Refable};
+use crate::{common::error::DriverError};
 use std::collections::HashMap;
 use std::sync::mpsc;
 use crate::{info, warn, error, trace, debug};
@@ -39,8 +39,6 @@ pub struct ModbusBus {
     modbus_thread_command_tx: Option<Sender<ModbusThreadCommandEnum>>,
     report_tx: Sender<DeviceStateDto>,
 }
-
-impl Refable for ModbusBus {}
 
 impl ModbusBus {
     /// opens port and start the thread

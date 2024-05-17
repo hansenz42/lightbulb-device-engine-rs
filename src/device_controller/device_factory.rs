@@ -129,6 +129,8 @@ impl DeviceInstanceFactory {
             let _ = self.make_di_port(dto)?;
         } else if dto.device_type == "remote" {
             let _ = self.make_remote_controller(dto)?;
+        } else if dto.device_type == "audio" {
+            let _ = self.make_audio(dto)?;
         } else {
             return Err(DriverError(format!(
                 "unknown device type. device_type={}",
@@ -148,6 +150,15 @@ impl DeviceInstanceFactory {
                     device_id
                 )))?;
         Ok(master_device_enum)
+    }
+
+    fn make_audio(&mut self, dto: &DeviceMetaInfoDto) -> Result<(), DriverError> {
+        let audio = audio_factory::make(&dto, self.report_tx_dummy.clone())?;
+        self.device_enum_map.insert(
+            dto.device_id.clone(),
+            DeviceRefEnum::Audio(Rc::new(RefCell::new(audio))),
+        );
+        Ok(())
     }
 
     fn make_modbus(&mut self, dto: &DeviceMetaInfoDto) -> Result<(), DriverError> {

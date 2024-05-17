@@ -1,9 +1,6 @@
-//! 设备管理器，主要实现两部分功能
-//! - 设备配置信息管理：从远程服务器获得配置数据，并保存到本地缓存。优先下载远程数据，如果远程数据下载失败，则使用本地缓存
-//! - 设备通信管理：双线程结构，一个负责上行通信，一个负责下行通信
-//! - 下行通信线程管理设备实例，避免了实例在多线程传递的问题。下行通信线程也是 device_manager 的主线程，用于写不同的子设备
-//! - 上行通信线程另一边为 Device 中的 runner 设备，runner 设备会轮询接口并在特定时间向上发送数据
-//! - 此外，设备管理器还应该维护一系列有 runner 特征的设备，这些设备可以挂载子设备，但是需要运行独立的线程
+//! device manager implements two features
+//! - manage device infomation: get data from flow server, store to local cache. if get remote data failed, use local cache
+//! - multiple threads architecture, one thread for outgoing data, one thread for incoming data
 
 use serde_json::{Map, Value};
 use std::collections::HashMap;
@@ -23,9 +20,10 @@ use crate::entity::dto::device_state_dto::{DeviceStateDto, StateDtoEnum};
 use crate::mqtt_client::client::MqttClient;
 use crate::{debug, error, info, trace, warn};
 use std::sync::{mpsc, Arc, Mutex};
+use crate::common::setting::Settings;
 
 // url to update device config
-const UPDATE_CONFIG_URL: &str = "api/v1.2/device/config/HZ-B1";
+const UPDATE_CONFIG_URL: &str = "api/v1.2/device/config";
 const LOG_TAG: &str = "device_manager";
 const HEARTBEAT_INTERVAL: u64 = 10000;
 
@@ -150,7 +148,7 @@ impl DeviceManager {
                     );
                 }
                 Err(e) => {
-                    warn!(LOG_TAG, "cannot pull device config data from flow server, will use local data cahce, err msg: {}", e);
+                    error!(LOG_TAG, "cannot pull device config data from flow server, will use local data cache, err msg: {}", e);
                 }
             }
 
@@ -172,7 +170,9 @@ impl DeviceManager {
 
     /// get config data from remote
     async fn get_remote(&mut self) -> Result<Value, DeviceServerError> {
-        http::api_get(UPDATE_CONFIG_URL).await
+        let url = format!("{}/{}", UPDATE_CONFIG_URL, Settings::get().server.server_id);
+        info!(LOG_TAG, "get remote config data from flow server, url: {}", &url);
+        http::api_get(url.as_str()).await
     }
 
     /// svae device config to db
@@ -248,7 +248,8 @@ mod tests {
 
     use super::*;
     use crate::common::logger::init_logger;
-    use crate::entity::dto::device_command_dto::DeviceParamsEnum;
+    use crate::device_controller::entity::device_enum::DeviceRefEnum;
+    use crate::entity::dto::device_command_dto::CommandParamsEnum;
     use crate::entity::dto::device_state_dto::DoControllerStateDto;
     use crate::mqtt_client::client::MqttClient;
 
@@ -261,11 +262,19 @@ mod tests {
         mqtt_client.start().unwrap();
         let mqtt_client_arc = Arc::new(Mutex::new(mqtt_client));
         manager.start(mqtt_client_arc).unwrap();
+
+        // send command
+        tx.send(DeviceCommandDto{
+            device_id: "test_do_port".to_string(),
+            server_id: "test".to_string(),
+            action: "on".to_string(),
+            params: CommandParamsEnum::Empty
+        }).unwrap();
+
         // sleep 20 sec
         thread::sleep(std::time::Duration::from_secs(20));
         println!("test done");
     }
-
 
     /// test:
     /// 1, get data from flow server

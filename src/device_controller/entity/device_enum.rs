@@ -2,6 +2,7 @@
 use std::{cell::RefCell, rc::Rc};
 
 use crate::driver::{
+    device::audio_output::AudioOutput,
     dmx::dmx_bus::DmxBus,
     modbus::{
         modbus_bus::ModbusBus, modbus_di_controller::ModbusDiController,
@@ -21,4 +22,5 @@ pub enum DeviceRefEnum {
     ModbusDiController(Rc<RefCell<ModbusDiController>>),
     ModbusDiPort(Rc<RefCell<ModbusDiPort>>),
     SerialRemoteController(Rc<RefCell<SerialRemoteController>>),
+    Audio(Rc<RefCell<AudioOutput>>),
 }

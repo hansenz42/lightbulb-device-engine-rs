@@ -8,7 +8,7 @@ use super::traits::{ModbusCaller, ModbusDoControllerCaller};
 use std::sync::mpsc::{self, Sender};
 use super::entity::{ModbusThreadCommandEnum, WriteMultiBo, WriteSingleBo};
 use crate::common::error::DriverError;
-use crate::driver::traits::{Refable, ReportUpward, SetRef};
+use crate::driver::traits::{Refable, ReportUpward};
 use crate::entity::dto::device_state_dto::{DeviceStateDto, DoControllerStateDto, StateDtoEnum};
 
 const DEVICE_CLASS: &str = "controller";
@@ -27,8 +27,6 @@ pub struct ModbusDoController {
     modbus_ref: Rc<RefCell<ModbusBus>>,
     report_tx: Sender<DeviceStateDto>
 }
-
-impl Refable for ModbusDoController{}
 
 impl ModbusCaller for ModbusDoController {
     fn get_unit(&self) -> ModbusUnitSize {

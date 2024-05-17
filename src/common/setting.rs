@@ -66,7 +66,7 @@ impl Default for Settings {
         let env = match env::var("ENV") {
             Ok(e) => e,
             Err(_) => {
-                log::warn!("未设置环境变量 ENV，使用默认值 dev");
+                log::warn!("no ENV set, use default: 'dev'");
                 String::from("dev")
             }
         };
@@ -82,10 +82,10 @@ impl Default for Settings {
 
         match file.read_to_string(&mut str_val) {
             Ok(s) => s,
-            Err(e) => panic!("加载配置文件失败: {}", e)
+            Err(e) => panic!("cannot read config file: {}", e)
         };
 
-        toml::from_str(&str_val).expect("配置文件格式不正确")
+        toml::from_str(&str_val).expect("config file format invalid")
     }
 }
 

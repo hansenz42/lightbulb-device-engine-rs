@@ -1,12 +1,16 @@
 use std::cell::RefCell;
+use std::env;
 use std::rc::Rc;
 use std::sync::mpsc::Sender;
+
+use log::info;
 
 use super::modbus_do_controller::ModbusDoController;
 use super::prelude::*;
 use super::traits::{ModbusCaller, ModbusDoControllerCaller};
 use crate::common::error::DriverError;
-use crate::driver::traits::ReportUpward;
+use crate::driver::traits::{Commandable, ReportUpward};
+use crate::entity::dto::device_command_dto::DeviceCommandDto;
 use crate::entity::dto::device_state_dto::{DeviceStateDto, DoStateDto, StateDtoEnum};
 
 const DEVICE_CLASS: &str = "operable"; 
@@ -56,21 +60,41 @@ impl ReportUpward for ModbusDoPort {
     }
 }
 
+impl Commandable for ModbusDoPort {
+    fn cmd (&mut self, dto: DeviceCommandDto) -> Result<(), DriverError> {
+        if dto.action == "on" {
+            self.on = true;
+            self.write(true)?;
+        } else if dto.action == "off" {
+            self.on = false;
+            self.write(false)?;
+        } else {
+            return Err(DriverError(format!("invalid action for ModbusDoPort: {}", dto.action)));
+        }
+        Ok(())
+    }
+}
+
 impl ModbusDoControllerCaller for ModbusDoPort {
     fn get_address(&self) -> ModbusAddrSize {
         self.address
     }
 
     fn write(&self, value: bool) -> Result<(), DriverError> {
+        let dummy = env::var("dummy").unwrap_or("false".to_string());
         if let Ok(controller) = self.controller_ref.try_borrow() {
-            controller.write_one_port(self.address, value);
+            if dummy == "true" {
+                info!("**DUMMY MODE** ModbusDoPort: write dummy, address={}, value={}", self.address, value);
+            } else {
+                controller.write_one_port(self.address, value)?;
+            }
         } else {
             return Err(DriverError(format!(
                 "ModbusDoPort: controller borrow failed, cannot write data, device_id={}",
                 &self.device_id
             )));
         }
-        self.report();
+        self.report()?;
         Ok(())
     }
 }
@@ -84,7 +108,7 @@ mod test {
 
     #[test]
     fn test_modbus_do_port_new() {
-        // env::set_var("mode", "dummy");
+        // env::set_var("dummy", "true");
         // let modbus = ModbusBus::new("test", "/dev/null", 9600);
         // let controller = ModbusDoController::new(
         //     "test", 1, 8, Rc::new(modbus)

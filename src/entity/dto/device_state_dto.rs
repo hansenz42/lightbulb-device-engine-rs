@@ -22,13 +22,9 @@ pub enum StateDtoEnum {
 /// used for device report to device manager
 #[derive(Debug, Serialize, Deserialize)]
 pub struct DeviceStateDto {
-    // 设备 id
     pub device_id: String,
-    // 设备类型
     pub device_class: String,
-    // 设备二级类目
     pub device_type: String,
-    // 设备状态
     pub state: StateDtoEnum
 }
 

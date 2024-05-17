@@ -12,7 +12,7 @@ log_level = "info"
 
 # device server setting
 [server]
-server_id = "deviceserver_dev"
+server_id = "test"
 server_ip = "127.0.0.1"
 server_type = "deviceserver"
 

@@ -16,7 +16,6 @@ impl Default for TopicConfig {
             scenario: Some(setting.meta.scenario_name.clone()),
             server_type: Some(setting.server.server_type.clone()),
             server_id: Some(setting.server.server_id.clone()),
-            room_name: None,
             device_type: None,
             device_id: None,
         })
@@ -75,7 +74,6 @@ impl Protocol {
             scenario,
             server_type,
             server_id,
-            room_name,
             device_type,
             device_id,
          })
@@ -84,32 +82,30 @@ impl Protocol {
     /// 生成 topic String 字符串
     fn make_topic_str (wrapper : TopicConfig) -> String {
         let mut topic = String::new();
-        let bo = wrapper.0;
-        topic.push_str(bo.command.as_str());
+        let dto: MqttTopicInfoDto = wrapper.0;
+        topic.push_str(dto.command.as_str());
         topic.push_str("/");
-        topic.push_str(bo.application.as_str());
+        topic.push_str(dto.application.as_str());
         topic.push_str("/");
-        if let Some(scenario) = bo.scenario {
+        if let Some(scenario) = dto.scenario {
             topic.push_str(scenario.as_str());
         }
         topic.push_str("/");
-        if let Some(server_type) = bo.server_type {
+        if let Some(server_type) = dto.server_type {
             topic.push_str(server_type.as_str());
         }
         topic.push_str("/");
-        if let Some(server_id) = bo.server_id {
+        if let Some(server_id) = dto.server_id {
             topic.push_str(server_id.as_str());
-        }
+        } 
         topic.push_str("/");
-        if let Some(room_name) = bo.room_name {
-            topic.push_str(room_name.as_str());
-        }
-        topic.push_str("/");
-        if let Some(device_type) = bo.device_type {
+        if let Some(device_type) = dto.device_type {
             topic.push_str(device_type.as_str());
+        } else {
+            return topic
         }
         topic.push_str("/");
-        if let Some(device_id) = bo.device_id {
+        if let Some(device_id) = dto.device_id {
             topic.push_str(device_id.as_str());
         }
         topic
@@ -128,17 +124,15 @@ impl Protocol {
         config.0.command = command.to_string();
         config.0.server_type = Some(server_type.to_string());
         config.0.server_id = Some(server_id.to_string());
-        config.0.room_name = room_name;
         config.0.device_type = device_type;
         config.0.device_id = device_id;
         Self::make_topic_str(config)
     }
 
     /// make topic with server self information
-    pub fn topic_self_declare(&self, command: &str, room_name: Option<String>, device_type: Option<String>, device_id: Option<String>) -> String {
+    pub fn topic_self_declare(&self, command: &str, device_type: Option<String>, device_id: Option<String>) -> String {
         let mut config = TopicConfig::default();
         config.0.command = command.to_string();
-        config.0.room_name = room_name;
         config.0.device_type = device_type;
         config.0.device_id = device_id;
         Self::make_topic_str(config)

@@ -6,19 +6,13 @@ pub struct DeviceCommandDto {
     pub server_id: String,
     pub device_id: String,
     pub action: String,
-    pub params: DeviceParamsEnum
+    pub params: CommandParamsEnum
 }
 
 #[derive(Debug, Clone)]
-pub enum DeviceParamsEnum {
+pub enum CommandParamsEnum {
     Empty,
-    Do(DoParamsDto),
     Audio(AudioParamsDto)
-}
-
-#[derive(Debug, Clone)]
-pub struct DoParamsDto {
-    pub on: bool
 }
 
 #[derive(Debug, Clone)]

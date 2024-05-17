@@ -82,14 +82,12 @@ impl MqttPayloadDto {
 }
 
 
-/// mqtt Topic 字符串中的信息
 pub struct MqttTopicInfoDto {
     pub command: String,
     pub application: String,
     pub scenario: Option<String>,
     pub server_type: Option<String>,
     pub server_id: Option<String>,
-    pub room_name: Option<String>,
     pub device_type: Option<String>,
     pub device_id: Option<String>,
 }

@@ -11,7 +11,7 @@ use std::{
 use crate::{
     common::error::DriverError,
     entity::dto::{
-        device_command_dto::{DeviceCommandDto, DeviceParamsEnum},
+        device_command_dto::{DeviceCommandDto, CommandParamsEnum},
         device_report_dto::DeviceReportDto,
         device_state_dto::DeviceStateDto,
         server_state_dto::ServerStateDto,
@@ -24,6 +24,7 @@ use super::{
     entity::{device_enum::DeviceRefEnum, device_po::DevicePo},
 };
 use crate::driver::modbus::traits::ModbusDoControllerCaller;
+use crate::driver::traits::Commandable;
 use crate::entity::dto::device_meta_info_dto::DeviceMetaInfoDto;
 use crate::{debug, error, info, trace, warn};
 
@@ -135,21 +136,8 @@ pub fn command_device(
     match device_ref {
         // do device
         DeviceRefEnum::ModbusDoPort(do_port_ref_cell) => {
-            if let DeviceParamsEnum::Do(do_param) = command_dto.params {
-                let do_port = do_port_ref_cell.try_borrow().map_err(|e| {
-                    DriverError(format!(
-                        "device thread: borrow do_port error, error msg: {}",
-                        e
-                    ))
-                })?;
-                do_port.write(do_param.on.clone())?;
-                Ok(())
-            } else {
-                Err(DriverError(format!(
-                    "device thread: params is not do, params={:?}",
-                    command_dto.params
-                )))
-            }
+            do_port_ref_cell.borrow_mut().cmd(command_dto)?;
+            Ok(())
         }
         _ => {
             // do nothing
@@ -187,10 +175,7 @@ pub fn heartbeating_thread(
                 device_config: device_config_map.clone(),
                 device_status: report_dto_map,
             };
-            info!(
-                LOG_TAG,
-                "heartbeating thread: send server state"
-            );
+            info!(LOG_TAG, "heartbeating thread: send server state");
             {
                 let mqtt_guard = mqtt_client.lock().unwrap();
                 let ret = mqtt_guard.publish_heartbeat(server_state);
@@ -215,30 +200,28 @@ pub fn reporting_thread(
     state_report_rx: mpsc::Receiver<DeviceStateDto>,
     mqtt_client: Arc<Mutex<MqttClient>>,
 ) {
-    thread::spawn(move || {
-        loop {
-            info!(LOG_TAG, "waiting for device reporting message");
-            let message = state_report_rx.recv();
-            match message {
-                Ok(device_state_bo) => {
-                    info!(
-                        LOG_TAG,
-                        "reporting thread: report message to mqtt: {:?}", &device_state_bo
-                    );
-                    {
-                        let mqtt_guard = mqtt_client.lock().unwrap();
-                        mqtt_guard
-                            .publish_status(device_state_bo)
-                            .expect("cannot publish upward message to mqtt");
-                    }
+    thread::spawn(move || loop {
+        info!(LOG_TAG, "waiting for device reporting message");
+        let message = state_report_rx.recv();
+        match message {
+            Ok(device_state_bo) => {
+                info!(
+                    LOG_TAG,
+                    "reporting thread: report message to mqtt: {:?}", &device_state_bo
+                );
+                {
+                    let mqtt_guard = mqtt_client.lock().unwrap();
+                    mqtt_guard
+                        .publish_status(device_state_bo)
+                        .expect("cannot publish upward message to mqtt");
                 }
-                Err(e) => {
-                    warn!(
-                        LOG_TAG,
-                        "report thread exiting: device report channel error, msg: {}", e
-                    );
-                    return;
-                }
+            }
+            Err(e) => {
+                warn!(
+                    LOG_TAG,
+                    "report thread exiting: device report channel error, msg: {}", e
+                );
+                return;
             }
         }
     });
