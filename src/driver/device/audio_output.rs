@@ -199,7 +199,7 @@ impl AudioOutput {
                 &filename
             ))
         })?;
-        let stream = self.stream_map.remove(&filename).ok_or_else(|| {
+        let _ = self.stream_map.remove(&filename).ok_or_else(|| {
             DriverError(format!(
                 "cannot remove stream, cannot find filename: {}",
                 &filename
