@@ -1,6 +1,7 @@
 # 设备配置文档
 ## modbus 总线
 
+```json
 {
 	"device_class": "bus",
 	"device_type": "modbus_bus",
@@ -13,9 +14,11 @@
 		"baudrate": 38400
 	}
 }
+```
 
 ## 通用串口总线
 
+```json
 {
 	"device_class": "bus",
 	"device_type": "serial_bus",
@@ -28,9 +31,11 @@
 		"baudrate": 9600
 	}
 }
+```
 
 ## 数字输出/输入控制器
 
+```json
 {
 	"device_class": "controller",
 	"device_type": "modbus_do_controller",
@@ -44,11 +49,13 @@
 		"master_device_id": "some_modbus_device"
 	}
 }
+```
 
 输入控制器：type = modbus_di_controller
 
 ## 数字输出/输入端口
 
+```json
 {
 	"device_class": "operable",
 	"device_type": "modbus_do_port",
@@ -61,11 +68,13 @@
 		"master_device_id": "some_controller_device_id"
 	}
 }
+```
 
 输入端口：type = modbus_di_port
 
 ## 音频接口
 
+```json
 {
 	"device_class": "operable",
 	"device_type": "audio",
@@ -78,3 +87,4 @@
 		"channel": "left/right"
 	}
 }
+```

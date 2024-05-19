@@ -142,6 +142,12 @@ pub fn command_device(
             let mut ref_cell = RefCell::borrow_mut(do_port_ref_cell);
             ref_cell.cmd(command_dto)?;
             Ok(())
+        },
+        // audio device
+        DeviceRefEnum::Audio(audio_ref_cell) => {
+            let mut ref_cell = RefCell::borrow_mut(audio_ref_cell);
+            ref_cell.cmd(command_dto)?;
+            Ok(())
         }
         _ => {
             // do nothing

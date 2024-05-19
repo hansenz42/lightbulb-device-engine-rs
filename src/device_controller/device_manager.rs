@@ -248,7 +248,7 @@ mod tests {
 
     use super::*;
     use crate::common::logger::init_logger;
-    use crate::entity::dto::device_command_dto::CommandParamsEnum;
+    use crate::entity::dto::device_command_dto::{AudioParamsDto, CommandParamsEnum};
     use crate::mqtt_client::client::MqttClient;
 
     #[test]
@@ -263,11 +263,21 @@ mod tests {
         manager.start(mqtt_client_arc).unwrap();
 
         // send command
-        tx.send(DeviceCommandDto{
-            device_id: "test_do_port".to_string(),
+        // tx.send(DeviceCommandDto{
+        //     device_id: "test_do_port".to_string(),
+        //     server_id: "test".to_string(),
+        //     action: "on".to_string(),
+        //     params: CommandParamsEnum::Empty
+        // }).unwrap();
+
+        // send audio command
+        tx.send(DeviceCommandDto {
+            device_id: "test_audio".to_string(),
             server_id: "test".to_string(),
-            action: "on".to_string(),
-            params: CommandParamsEnum::Empty
+            action: "play".to_string(),
+            params: CommandParamsEnum::Audio(AudioParamsDto{
+                hash: "61b62be9d1715598003e71ec9ea52010".to_string(),
+            }),
         }).unwrap();
 
         // sleep 20 sec

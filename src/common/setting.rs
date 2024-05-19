@@ -90,8 +90,8 @@ impl Default for Settings {
 }
 
 impl Settings {
-    pub fn get<'a>() -> &'a Self {
-        // 给静态变量延迟赋值的宏
+    pub fn get() -> &'static Self {
+        // get static member of Settings
         lazy_static! {
             static ref CACHE: Settings = Settings::default();
         }

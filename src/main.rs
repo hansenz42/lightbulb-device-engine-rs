@@ -13,7 +13,7 @@ use common::logger::init_logger;
 use common::sqlite::SqliteConnection;
 use std::error::Error;
 // use crate::device_controller::device_manager::DeviceManager;
-use crate::file_controller::file_manager::FileManager;
+use crate::file_controller::file_controller::FileController;
 use log;
 use dotenv::dotenv;
 use tokio;

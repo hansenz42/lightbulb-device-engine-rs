@@ -9,7 +9,7 @@
 
 use crate::common::error::DriverError;
 use crate::driver::traits::ReportUpward;
-use crate::entity::dto::device_command_dto::{DeviceCommandDto, CommandParamsEnum};
+use crate::entity::dto::device_command_dto::{AudioParamsDto, CommandParamsEnum, DeviceCommandDto};
 use crate::entity::dto::device_state_dto::{
     AudioFilePlayingDto, AudioStateDto, DeviceStateDto, StateDtoEnum,
 };
@@ -22,6 +22,7 @@ use rodio::source::{from_iter, ChannelVolume, FromIter, SamplesConverter, SineWa
 use rodio::{self, Sample, Sink};
 use rodio::{cpal, source::Source, Decoder, OutputStream};
 use std::fs::File;
+use crate::file_controller::file_controller::FileController;
 
 const DEVICE_TYPE : &str = "audio";
 const DEVICE_CLASS: &str = "operable";
@@ -30,6 +31,7 @@ const DEVICE_CLASS: &str = "operable";
 pub enum ChannelEnum {
     Left = 1,
     Right,
+    Stereo
 }
 
 pub struct AudioOutput {
@@ -104,11 +106,17 @@ impl AudioOutput {
         None
     }
 
+    /// receive and process of audio command
     pub fn cmd(&mut self, dto: DeviceCommandDto) -> Result<(), DriverError> {
+        // 1. get filename from hash
+        let file_controller = FileController::get();
+        // 2. use filename to play the file
         match dto.params {
             CommandParamsEnum::Audio(audio_params) => {
                 let action = dto.action;
-                let filename = audio_params.filename;
+                let file_hash = audio_params.hash;
+                let filename = file_controller.get_path_by_hash(file_hash.as_str())
+                    .ok_or_else(|| DriverError(format!("cannot find file by hash: {}", file_hash)))?;
                 if action == "play" {
                     self.play(filename)?;
                 } else if action == "pause" {
@@ -146,7 +154,7 @@ impl AudioOutput {
             DriverError(format!("cannot decode file, unable to open file: {}, err: {}", &filename, e))
         })?;
 
-        let source = ChannelVolume::new(decoder, vec![1.0f32, 0.0f32]);
+
         let device = self
             .get_audio_device(self.soundcard_id.clone())
             .ok_or_else(|| {
@@ -173,7 +181,20 @@ impl AudioOutput {
             ))
         })?;
 
-        sink.append(source);
+        match self.channel {
+            ChannelEnum::Left => {
+                let source = ChannelVolume::new(decoder, vec![1.0f32, 0.0f32]);
+                sink.append(source);
+            },
+            ChannelEnum::Right => {
+                let source = ChannelVolume::new(decoder, vec![0.0f32, 1.0f32]);
+                sink.append(source);
+            },
+            ChannelEnum::Stereo => {
+                let source = ChannelVolume::new(decoder, vec![0.5f32, 0.5f32]);
+                sink.append(source);
+            }
+        }
 
         self.sink_map.insert(filename.clone(), sink);
         self.stream_map.insert(filename.clone(), stream);
@@ -229,11 +250,12 @@ mod tests {
         let (tx, rx) = mpsc::channel();
         let mut audio_output = AudioOutput::new(
             "test",
-            "plughw:CARD=PCH,DEV=0",
-            ChannelEnum::Left,
+            // "plughw:CARD=PCH,DEV=0",
+            "direct",
+            ChannelEnum::Stereo,
             tx
         );
-        let filename = String::from("/home/hansen/repo/lightbulb-device-engine-rs/file/188864511522626_file_example_WAV_2MG_1.wav");
+        let filename = String::from("/home/hansen/repo/lightbulb-device-engine-rs/file/sample_file.mp3");
         audio_output.play(filename.clone()).unwrap();
         std::thread::sleep(std::time::Duration::from_secs(20));
         // audio_output.stop(String::from("/home/hansen/repo/lightbulb-device-engine-rs/file/188864511522626_file_example_WAV_2MG_1.wav")).unwrap();

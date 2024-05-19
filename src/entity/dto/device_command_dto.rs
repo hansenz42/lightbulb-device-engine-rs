@@ -17,5 +17,5 @@ pub enum CommandParamsEnum {
 
 #[derive(Debug, Clone)]
 pub struct AudioParamsDto {
-    pub filename: String
+    pub hash: String
 }

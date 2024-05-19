@@ -14,21 +14,22 @@ use super::file_repo::{FileRepo, FileMetaDto, FILE_FOLDER};
 use crate::common::http;
 use crate::entity::po::file_po::FilePo;
 use crate::entity::dto::file_dto::MediaTypeEnum;
+use lazy_static::lazy_static;
 use crate::{info, warn, error, trace, debug};
 
 const UPDATE_CONFIG_URL: &str = "api/v1.2/file/config";
 const FILE_DOWNLOAD_URL: &str = "api/v1.2/file";
 const LOG_TAG: &str = "FileManager";
 
-pub struct FileManager {
+pub struct FileController {
     file_dao: FileDao,
     file_repo: FileRepo,
     cache: HashMap<String, FilePo>
 }
 
-impl FileManager {
+impl FileController {
     pub fn new() -> Self {
-        FileManager {
+        FileController {
             file_dao: FileDao::new(),
             file_repo: FileRepo::new(),
             cache: HashMap::new()
@@ -81,7 +82,7 @@ impl FileManager {
     }
 
     /// make json_array as po
-    async fn transform_list_to_po(&self, json_array: Value) -> Result<Vec<FilePo>, DeviceServerError> {
+    fn transform_list_to_po(&self, json_array: Value) -> Result<Vec<FilePo>, DeviceServerError> {
         let mut file_po_list: Vec<FilePo> = Vec::new();
         if let Some(file_list) = json_array.as_array() {
             for file in file_list {
@@ -135,87 +136,104 @@ impl FileManager {
     /// 6 save file config cache to db
     /// caution:
     /// - the file deleted on the remote, will not removed
-    pub async fn startup(&mut self) -> Result<(), DeviceServerError> {
-        // make sure file table exists
-        self.file_dao.ensure_table_exist().await
-            .map_err(|e| DeviceServerError {
-                code: ServerErrorCode::DatabaseError,
-                msg: format!("cannot ensure file table exist, error: {}", e)
-            })?;
-
-        // make local cache, load from database
-        match self.load_from_db().await {
-            Ok(_) => {
-                info!(LOG_TAG, "read file config cache from db success");
-            }
-            Err(e) => {
-                warn!(LOG_TAG, "read file config cache from db failed, error: {}", e);
-            }
-        }
-
-        // scan disk, check if the file exists, and update file meta
-        let scanned_file_list = self.file_repo.scan_files().await?;
-        // vec 转换为 hashmap
-        let scanned_file_hashmap: HashMap<String, FileMetaDto> = scanned_file_list.into_iter().map(|x| (x.hash.clone(), x.clone())).collect();
-
-        for file in self.cache.clone().values() {
-            info!(LOG_TAG, "check cache record file name: {}; hash {}", file.filename, file.hash);
-            if !scanned_file_hashmap.contains_key(&file.hash) {
-                // 删除数据库中的记录
-                self.file_dao.delete_file_info(&file.hash).await.map_err(|e| DeviceServerError {
+    pub fn ready(&mut self) -> Result<(), DeviceServerError> {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        rt.block_on(async {
+            // make sure file table exists
+            self.file_dao.ensure_table_exist().await
+                .map_err(|e| DeviceServerError {
                     code: ServerErrorCode::DatabaseError,
-                    msg: format!("cannot delete file cache info data to db, error: {}", e)
+                    msg: format!("cannot ensure file table exist, error: {}", e)
                 })?;
-                // 删除本地记录
-                self.cache.remove(&file.hash);
-                warn!(LOG_TAG, "check cache file on the disk, file does not exist on disk, deleted database and cache record, name: {}, hash: {}", file.filename, file.hash);
+
+            // make local cache, load from database
+            match self.load_from_db().await {
+                Ok(_) => {
+                    info!(LOG_TAG, "read file config cache from db success");
+                }
+                Err(e) => {
+                    warn!(LOG_TAG, "read file config cache from db failed, error: {}", e);
+                }
             }
-        }
 
-        // get file meta from remote
-        if let Ok(json_array) = self.get_remote().await {
-            if let Ok(file_po_list) = self.transform_list_to_po(json_array.clone()).await {
-                let mut new_file_po: Vec<FilePo> = Vec::new();
-                // compare with local cache ...
-                for file_po in &file_po_list {
-                    if !self.cache.contains_key(&file_po.hash) {
-                        new_file_po.push(file_po.clone());
-                        info!(LOG_TAG, "record new file {} to cache", file_po.filename);
-                    }
+            // scan disk, check if the file exists, and update file meta
+            let scanned_file_list = self.file_repo.scan_files().await?;
+            // vec 转换为 hashmap
+            let scanned_file_hashmap: HashMap<String, FileMetaDto> = scanned_file_list.into_iter().map(|x| (x.hash.clone(), x.clone())).collect();
+
+            for file in self.cache.clone().values() {
+                info!(LOG_TAG, "check cache record file name: {}; hash {}", file.filename, file.hash);
+                if !scanned_file_hashmap.contains_key(&file.hash) {
+                    // if file cannot find on the disk, delete database and cache record
+                    self.file_dao.delete_file_info(&file.hash).await.map_err(|e| DeviceServerError {
+                        code: ServerErrorCode::DatabaseError,
+                        msg: format!("cannot delete file cache info data to db, error: {}", e)
+                    })?;
+                    self.cache.remove(&file.hash);
+                    warn!(LOG_TAG, "checking cache file on the disk, file does not exist on disk, deleted database record, name: {}, hash: {}", file.filename, file.hash);
                 }
+            }
 
-                // download new file
-                for file_po in &new_file_po {
-                    match self.download_file_from_remote(file_po).await {
-                        Ok(_) => {
-                            self.cache.insert(file_po.hash.clone(), file_po.clone());
-                            info!(LOG_TAG, "downloaded file and record to cache, name: {}, hash: {}", file_po.filename, file_po.hash);
-                        }
-                        Err(e) => {
-                            error!(LOG_TAG, "download file {} failed, error: {}", file_po.filename, e);
+            // get file meta from remote
+            if let Ok(json_array) = self.get_remote().await {
+                if let Ok(file_po_list) = self.transform_list_to_po(json_array.clone()) {
+                    let mut new_file_po: Vec<FilePo> = Vec::new();
+                    // compare with local cache ...
+                    for file_po in &file_po_list {
+                        if !self.cache.contains_key(&file_po.hash) {
+                            new_file_po.push(file_po.clone());
+                            info!(LOG_TAG, "record new file {} to cache", file_po.filename);
                         }
                     }
-                }
 
-                // refresh database file meta with new data
-                self.save_to_db().await?;
-                info!(LOG_TAG, "file config cache successfully updated");
+                    // download new file
+                    for file_po in &new_file_po {
+                        match self.download_file_from_remote(file_po).await {
+                            Ok(_) => {
+                                self.cache.insert(file_po.hash.clone(), file_po.clone());
+                                info!(LOG_TAG, "downloaded file and record to cache, name: {}, hash: {}", file_po.filename, file_po.hash);
+                            }
+                            Err(e) => {
+                                error!(LOG_TAG, "download file {} failed, error: {}", file_po.filename, e);
+                            }
+                        }
+                    }
+
+                    // refresh database file meta with new data
+                    self.save_to_db().await?;
+                    info!(LOG_TAG, "file config cache successfully updated");
+                } else {
+                    warn!(LOG_TAG, "cannot transform json to file_po, data format error, will use local cache, parse failed data: {:?}", json_array);
+                }
             } else {
-                warn!(LOG_TAG, "cannot transform json to file_po, data format error, will use local cache, parse failed data: {:?}", json_array);
+                warn!(LOG_TAG, "cannot get remote data, use local cache");
             }
-        } else {
-            warn!(LOG_TAG, "cannot get remote data, use local cache");
-        }
-
-        Ok(())
+            Ok::<(), DeviceServerError>(())
+        })
     }
+
 
     /// get file path by file hash
     pub fn get_path_by_hash(&self, hash_str: &str) -> Option<String> {
         let filename = self.cache.get(hash_str)?.filename.clone();
         Some(format!("{}/{}", FILE_FOLDER, filename))
     }
+
+    pub fn get() -> &'static FileController {
+        lazy_static! {
+            static ref FILE_CONTROLLER: FileController = FileController::default();
+        }
+        &FILE_CONTROLLER
+    }
     
+}
+
+impl Default for FileController {
+    fn default() -> Self {
+        let mut s = Self::new();
+        s.ready().unwrap();
+        s
+    }
 }
 
 /// transform json object to file po
@@ -246,19 +264,15 @@ mod test {
     #[test]
     fn test() {
         init_logger();
-        let mut file_manager = FileManager::new();
-        let rt = tokio::runtime::Runtime::new().unwrap();
-
-        rt.block_on(async {
-            file_manager.startup().await.unwrap();
-            let file_path = file_manager.get_path_by_hash("61b62be9d1715598003e71ec9ea52010");
-            println!("{:?}", file_path);
-        });
+        let mut file_manager = FileController::new();
+        file_manager.ready().unwrap();
+        let file_path = file_manager.get_path_by_hash("61b62be9d1715598003e71ec9ea52010");
+        println!("{:?}", file_path);
     }
 
     #[test]
     fn test_get_data_from_flow() {
-        let mut file_manager = FileManager::new();
+        let mut file_manager = FileController::new();
         let rt = tokio::runtime::Runtime::new().unwrap();
 
         rt.block_on(async {
