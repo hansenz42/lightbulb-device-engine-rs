@@ -6,9 +6,9 @@ use serde_json::{Map, Value};
 use std::collections::HashMap;
 
 use super::device_dao::DeviceDao;
-use super::device_threads::device_thread;
-use super::device_threads::heartbeating_thread;
-use super::device_threads::reporting_thread;
+use super::workers::device_thread::device_thread;
+use super::workers::heartbeating_thread::heartbeating_thread;
+use super::workers::reporting_thread::reporting_thread;
 use super::entity::device_po::DevicePo;
 use crate::common::dao::Dao;
 use crate::common::error::{DeviceServerError, ServerErrorCode};
