@@ -72,6 +72,7 @@ impl DeviceManager {
         let (state_report_tx, state_report_rx) = mpsc::channel();
 
         // 1 start device thread
+        // TODO copy mqtt_message receiver to device thread, device thread will get device command from mqtt client
         device_thread(
             state_report_tx,
             self.device_command_rx,
