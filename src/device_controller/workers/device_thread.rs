@@ -45,7 +45,7 @@ pub fn device_thread(
         let device_enum_map = device_factory.get_device_map();
         info!(
             LOG_TAG,
-            "device thread: device enum map length: {}",
+            "device enum map length: {}",
             device_enum_map.len()
         );
 
@@ -55,15 +55,15 @@ pub fn device_thread(
             Err(e) => {
                 error!(
                     LOG_TAG,
-                    "device thread: cannot start device, error msg: {}", e
+                    "cannot start device, error msg: {}", e
                 );
                 exit(1)
             }
         }
-        info!(LOG_TAG, "device thread: successfully start all bus devices");
+        info!(LOG_TAG, "successfully start all bus devices");
 
         loop {
-            info!(LOG_TAG, "device thread: waitting for device command");
+            info!(LOG_TAG, "waitting for device command");
             let recv_message = command_rx.recv();
             match recv_message {
                 Ok(command) => {
@@ -146,7 +146,7 @@ pub fn command_device(
         _ => {
             // do nothing
             Err(DriverError(format!(
-                "device thread: not support device type, device type={:?}",
+                "not support device type, device type={:?}",
                 device_ref.type_id()
             )))
         }

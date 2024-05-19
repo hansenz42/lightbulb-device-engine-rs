@@ -35,9 +35,9 @@ pub trait ModbusCaller {
 
     fn get_port_num(&self) -> ModbusAddrSize;
 
-    fn write_one_port(&self, address: ModbusAddrSize, value:bool) -> Result<(), DriverError>;
+    fn write_one_port(&mut self, address: ModbusAddrSize, value:bool) -> Result<(), DriverError>;
 
-    fn write_multi_port(&self, address: ModbusAddrSize,value: &[bool]) -> Result<(), DriverError>;
+    fn write_multi_port(&mut self, address: ModbusAddrSize,value: &[bool]) -> Result<(), DriverError>;
 }
 
 /// 可挂在到 modbus do controller 的设备

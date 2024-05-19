@@ -244,7 +244,7 @@ fn transform_device_config_obj_str(device_data: &Map<String, Value>) -> String {
 
 #[cfg(test)]
 mod tests {
-    use std::thread;
+    use std::{env, thread};
 
     use super::*;
     use crate::common::logger::init_logger;
@@ -254,6 +254,7 @@ mod tests {
     #[test]
     fn test_device_manager() {
         let _ = init_logger();
+        // env::set_var("dummy", "true");
         let mut manager = DeviceManager::new();
         let tx = manager.get_device_command_tx();
         let mut mqtt_client = MqttClient::new();

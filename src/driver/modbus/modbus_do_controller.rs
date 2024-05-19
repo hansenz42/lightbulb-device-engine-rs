@@ -37,7 +37,7 @@ impl ModbusCaller for ModbusDoController {
         self.output_num
     }
 
-    fn write_one_port(&self, address: ModbusAddrSize, value:bool) -> Result<(), DriverError> {
+    fn write_one_port(&mut self, address: ModbusAddrSize, value:bool) -> Result<(), DriverError> {
         // check address range 
         if address >= self.output_num {
             return Err(DriverError(format!("ModbusDoController: writing address out of range, device_id: {}, address: {}, value: {}", self.device_id, address, value)));
@@ -52,11 +52,15 @@ impl ModbusCaller for ModbusDoController {
                 return Err(DriverError(format!("ModbusDoController: failed to borrow modbus_ref")));
             }
         }
+
+        // update port state
+        self.port_state_vec[address as usize] = value;
+
         self.report()?;
         Ok(())
     }
 
-    fn write_multi_port(&self, address: ModbusAddrSize, values: &[bool]) -> Result<(), DriverError> {
+    fn write_multi_port(&mut self, address: ModbusAddrSize, values: &[bool]) -> Result<(), DriverError> {
         // check address range 
         if address + values.len() as ModbusAddrSize > self.output_num {
             return Err(DriverError(format!("ModbusDoController: writing address out of range, device_id: {}, address: {}, values: {:?}", self.device_id, address, values)));
@@ -80,6 +84,12 @@ impl ModbusCaller for ModbusDoController {
                 return Err(DriverError(format!("ModbusDoController: failed to borrow modbus_ref")));
             }
         }
+
+        // update port state
+        for i in 0..len {
+            self.port_state_vec[(address as usize + i) as usize] = values[i];
+        }
+
         self.report()?;
         Ok(())
     }

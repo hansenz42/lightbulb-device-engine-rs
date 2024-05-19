@@ -3,8 +3,6 @@ use std::env;
 use std::rc::Rc;
 use std::sync::mpsc::Sender;
 
-use log::info;
-
 use super::modbus_do_controller::ModbusDoController;
 use super::prelude::*;
 use super::traits::{ModbusCaller, ModbusDoControllerCaller};
@@ -12,9 +10,11 @@ use crate::common::error::DriverError;
 use crate::driver::traits::{Commandable, ReportUpward};
 use crate::entity::dto::device_command_dto::DeviceCommandDto;
 use crate::entity::dto::device_state_dto::{DeviceStateDto, DoStateDto, StateDtoEnum};
+use crate::{info, warn};
 
 const DEVICE_CLASS: &str = "operable"; 
 const DEVICE_TYPE: &str = "modbus_do_port";
+const LOG_TAG : &str = "modbus_do_port";
 
 pub struct ModbusDoPort {
     device_id: String,
@@ -82,9 +82,9 @@ impl ModbusDoControllerCaller for ModbusDoPort {
 
     fn write(&self, value: bool) -> Result<(), DriverError> {
         let dummy = env::var("dummy").unwrap_or("false".to_string());
-        if let Ok(controller) = self.controller_ref.try_borrow() {
+        if let Ok(mut controller) = self.controller_ref.try_borrow_mut() {
             if dummy == "true" {
-                info!("**DUMMY MODE** ModbusDoPort: write dummy, address={}, value={}", self.address, value);
+                info!(LOG_TAG, "**DUMMY MODE** ModbusDoPort: write dummy, address={}, value={}", self.address, value);
             } else {
                 controller.write_one_port(self.address, value)?;
             }
