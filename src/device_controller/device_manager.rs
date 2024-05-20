@@ -4,6 +4,7 @@
 
 use serde_json::{Map, Value};
 use std::collections::HashMap;
+use std::sync::mpsc::Receiver;
 
 use super::device_dao::DeviceDao;
 use super::workers::device_thread::device_thread;
@@ -72,7 +73,6 @@ impl DeviceManager {
         let (state_report_tx, state_report_rx) = mpsc::channel();
 
         // 1 start device thread
-        // TODO copy mqtt_message receiver to device thread, device thread will get device command from mqtt client
         device_thread(
             state_report_tx,
             self.device_command_rx,
@@ -259,9 +259,9 @@ mod tests {
         let mut manager = DeviceManager::new();
         let tx = manager.get_device_command_tx();
         let mut mqtt_client = MqttClient::new();
-        mqtt_client.start().unwrap();
-        let mqtt_client_arc = Arc::new(Mutex::new(mqtt_client));
-        manager.start(mqtt_client_arc).unwrap();
+        // mqtt_client.start().unwrap();
+        // let mqtt_client_arc = Arc::new(Mutex::new(mqtt_client));
+        // manager.start(mqtt_client_arc).unwrap();
 
         // send command
         // tx.send(DeviceCommandDto{

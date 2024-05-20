@@ -1,6 +1,6 @@
 
 use std::error::Error;
-use super::entity::{MqttTopicInfoDto, MqttPayloadDto};
+use crate::entity::dto::mqtt_dto::{MqttTopicInfoDto, MqttPayloadDto};
 use crate::common::setting::Settings;
 
 // 对 TopicInfo 结构体做二次包装，使其支持默认值的调用方法
@@ -41,15 +41,14 @@ impl Protocol {
         }
     }
 
-    /// 将 topic 字符串解析为结构体
-    fn parse_topic(topic_str: String) -> Result<MqttTopicInfoDto, Box<dyn Error>>{
+    /// parse topic to dto
+    pub fn parse_topic(topic_str: &str) -> Result<MqttTopicInfoDto, Box<dyn Error>>{
         let topic_vec: Vec<&str> = topic_str.split("/").collect();
         let command = topic_vec[0].to_string();
         let application = topic_vec[1].to_string();
         let mut scenario = Option::None;
         let mut server_type = Option::None;
         let mut server_id = Option::None;
-        let mut room_name = Option::None;
         let mut device_type = Option::None;
         let mut device_id = Option::None;
 
@@ -63,9 +62,8 @@ impl Protocol {
         }
 
         if topic_vec.len() >= 6 {
-            room_name = Some(topic_vec[5].to_string());
-            device_type = Some(topic_vec[6].to_string());
-            device_id = Some(topic_vec[7].to_string());
+            device_type = Some(topic_vec[5].to_string());
+            device_id = Some(topic_vec[6].to_string());
         }
 
         Ok(MqttTopicInfoDto {

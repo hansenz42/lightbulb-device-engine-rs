@@ -4,8 +4,9 @@ use crate::util::time::get_timestamp;
 use crate::util::gen_id::generate_uuid;
 use crate::common::setting::Settings;
 
+use super::device_command_dto::CommandParamsEnum;
 
-/// mqtt Payload 对象，应用于和 mqtt 服务器的传输中
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MqttPayloadDto {
     pub code: i32,
@@ -79,6 +80,13 @@ impl MqttPayloadDto {
     pub fn from_json(json: &str) -> Result<Self> {
         serde_json::from_str(json)
     }
+}
+
+
+#[derive(Serialize, Deserialize, Debug)]
+pub struct MqttDataDeviceCommandDto {
+    pub action: String,
+    pub params: CommandParamsEnum
 }
 
 

@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 /// used for commanding device
@@ -9,13 +10,13 @@ pub struct DeviceCommandDto {
     pub params: CommandParamsEnum
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum CommandParamsEnum {
     Empty,
     Audio(AudioParamsDto)
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AudioParamsDto {
     pub hash: String
 }

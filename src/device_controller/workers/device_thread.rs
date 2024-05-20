@@ -16,7 +16,6 @@ use crate::{
         device_report_dto::DeviceReportDto, device_state_dto::DeviceStateDto,
         server_state_dto::ServerStateDto,
     },
-    mqtt_client::client::MqttClient,
 };
 
 use super::super::{

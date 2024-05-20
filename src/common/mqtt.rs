@@ -3,8 +3,6 @@
 use std::{pin::Pin, sync::{mpsc, Arc}};
 
 use paho_mqtt;
-use futures::{executor::block_on, stream::StreamExt};
-use crate::entity::mqtt::{self, MqttMessageBo};
 use crate::{debug, error, info, trace, warn};
 
 const LOG_TAG : &str = "mqtt";
@@ -33,9 +31,13 @@ impl MqttConnection {
         }
     }
 
-    /// 连接到 MQTT 服务器
+    pub fn set_callback(&mut self, callback: impl FnMut(&paho_mqtt::AsyncClient, Option<paho_mqtt::Message>) + Send + 'static) {
+        self.client.as_mut().unwrap().set_message_callback(callback);
+    }
+
+    /// init mqtt server
     /// 传入的 tx 为发送消息的 mpsc 通道，目前支持标准库的多发单收
-    pub fn connect(&mut self, tx: mpsc::Sender<MqttMessageBo>) -> Result<(), paho_mqtt::Error> {
+    pub fn connect(&mut self) -> Result<(), paho_mqtt::Error> {
         let create_opts = paho_mqtt::CreateOptionsBuilder::new()
             .server_uri(format!("tcp://{}:{}", self.host.as_str(), self.port))
             .client_id(self.client_id.as_str())
@@ -52,15 +54,15 @@ impl MqttConnection {
             error!(LOG_TAG, "*** mqtt Connection lost ***");
         });
 
-        client.set_message_callback(move |_cli, msg| {
-            if let Some(msg) = msg {
-                debug!(LOG_TAG, "received message! content {}", msg.payload_str());
-                tx.send(MqttMessageBo {
-                    topic: msg.topic().to_string(),
-                    payload: msg.payload_str().to_string()
-                }).expect("mqtt message sending failed");
-            }
-        });
+        // client.set_message_callback(move |_cli, msg| {
+        //     if let Some(msg) = msg {
+        //         debug!(LOG_TAG, "received message! content {}", msg.payload_str());
+        //         tx.send(MqttMessageDto {
+        //             topic: msg.topic().to_string(),
+        //             payload: msg.payload_str().to_string()
+        //         }).expect("mqtt message sending failed");
+        //     }
+        // });
 
         if let Err(e) = client.connect(conn_opts).wait() {
             error!(LOG_TAG, "cannot connect to mqtt server: {:?}", e);
@@ -106,13 +108,10 @@ mod test {
     #[test]
     fn test() {
         init_logger().expect("初始化日志失败");
-        let (tx, rx) = mpsc::channel();
         let mut mqtt = MqttConnection::new("127.0.0.1", 1883, "test_client");
-        mqtt.connect(tx).unwrap();
+        mqtt.connect().unwrap();
         mqtt.subscribe("test").unwrap();
         println!("wait for message");
-        let message_bo = rx.recv();
-        println!("received: {:?}", message_bo);
         println!("进程已结束，进入等待……");
     }
 }
