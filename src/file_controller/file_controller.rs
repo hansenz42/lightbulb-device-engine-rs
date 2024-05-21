@@ -2,19 +2,19 @@
 //! control file metadata
 //! manage local file cache
 
+use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
-use serde_json::{Value, Map};
 
+use super::file_dao::FileDao;
+use super::file_repo::{FileMetaDto, FileRepo, FILE_FOLDER};
 use crate::common::dao::Dao;
 use crate::common::error::{DeviceServerError, ServerErrorCode};
-use super::file_dao::FileDao;
-use super::file_repo::{FileRepo, FileMetaDto, FILE_FOLDER};
 use crate::common::http;
-use crate::entity::po::file_po::FilePo;
 use crate::entity::dto::file_dto::MediaTypeEnum;
+use crate::entity::po::file_po::FilePo;
+use crate::{debug, error, info, trace, warn};
 use lazy_static::lazy_static;
-use crate::{info, warn, error, trace, debug};
 
 const UPDATE_CONFIG_URL: &str = "api/v1.2/file/config";
 const FILE_DOWNLOAD_URL: &str = "api/v1.2/file";
@@ -23,7 +23,7 @@ const LOG_TAG: &str = "FileManager";
 pub struct FileController {
     file_dao: FileDao,
     file_repo: FileRepo,
-    cache: Arc<Mutex<HashMap<String, FilePo>>>
+    cache: Arc<Mutex<HashMap<String, FilePo>>>,
 }
 
 impl FileController {
@@ -31,7 +31,7 @@ impl FileController {
         let mut obj = FileController {
             file_dao: FileDao::new(),
             file_repo: FileRepo::new(),
-            cache: Arc::new(Mutex::new(HashMap::new()))
+            cache: Arc::new(Mutex::new(HashMap::new())),
         };
         obj.update().expect("init file controller failed");
         obj
@@ -58,9 +58,9 @@ impl FileController {
                 } else {
                     error!(LOG_TAG, "remote file data format error");
                     return Err(DeviceServerError {
-                        code: ServerErrorCode::FileConfigError, 
-                        msg: format!("remote file data format error") }
-                    );
+                        code: ServerErrorCode::FileConfigError,
+                        msg: format!("remote file data format error"),
+                    });
                 }
             }
             Err(e) => {
@@ -71,21 +71,26 @@ impl FileController {
     }
 
     /// save local cache to db
-    async fn save_to_db(&self, map_to_write: HashMap<String, FilePo>) -> Result<(), DeviceServerError> {
+    async fn save_to_db(
+        &self,
+        map_to_write: HashMap<String, FilePo>,
+    ) -> Result<(), DeviceServerError> {
         // clear local table
-        self.file_dao.clear_table().await.map_err(
-            |e| DeviceServerError {
+        self.file_dao
+            .clear_table()
+            .await
+            .map_err(|e| DeviceServerError {
                 code: ServerErrorCode::DatabaseError,
-                msg: format!("cannot save file config to db, clear table error: {}", e)
-            }
-        )?;
+                msg: format!("cannot save file config to db, clear table error: {}", e),
+            })?;
         for (_, file_po) in map_to_write.iter() {
-            self.file_dao.add_file_info(file_po.clone()).await.map_err(
-                |e| DeviceServerError {
+            self.file_dao
+                .add_file_info(file_po.clone())
+                .await
+                .map_err(|e| DeviceServerError {
                     code: ServerErrorCode::DatabaseError,
-                    msg: format!("cannot add file cache info data to db, error: {}", e)
-                }
-            )?;
+                    msg: format!("cannot add file cache info data to db, error: {}", e),
+                })?;
         }
         Ok(())
     }
@@ -98,28 +103,41 @@ impl FileController {
                 if let Some(file_po) = json_object_to_single_po(file) {
                     file_po_list.push(file_po);
                 } else {
-                    warn!(LOG_TAG, "single file data format error, parse failed data: {:?}", file);
+                    warn!(
+                        LOG_TAG,
+                        "single file data format error, parse failed data: {:?}", file
+                    );
                 }
             }
             Ok(file_po_list)
         } else {
-            error!(LOG_TAG, "cannot transform json to file_po, data format error, parse failed data: {:?}", json_array);
+            error!(
+                LOG_TAG,
+                "cannot transform json to file_po, data format error, parse failed data: {:?}",
+                json_array
+            );
             return Err(DeviceServerError {
                 code: ServerErrorCode::FileConfigError,
-                msg: format!("cannot transform json to file_po, data format error, parse failed data: {:?}", json_array)
-            })
+                msg: format!(
+                    "cannot transform json to file_po, data format error, parse failed data: {:?}",
+                    json_array
+                ),
+            });
         }
     }
 
     /// read file config data from database
-    async fn load_from_db(& self) -> Result<HashMap<String, FilePo>, DeviceServerError> {
+    async fn load_from_db(&self) -> Result<HashMap<String, FilePo>, DeviceServerError> {
         let mut ret = HashMap::new();
-        let file_po_list: Vec<FilePo> = self.file_dao.get_all().await
-            .map_err(|e| DeviceServerError {
-                code: ServerErrorCode::DatabaseError,
-                msg: format!("cannot read file meta from db, error: {}", e)
-            })?;
-        // 将 Vec 转换为 Hashmap 
+        let file_po_list: Vec<FilePo> =
+            self.file_dao
+                .get_all()
+                .await
+                .map_err(|e| DeviceServerError {
+                    code: ServerErrorCode::DatabaseError,
+                    msg: format!("cannot read file meta from db, error: {}", e),
+                })?;
+        // 将 Vec 转换为 Hashmap
         for file_po in file_po_list {
             ret.insert(file_po.hash.clone(), file_po);
         }
@@ -129,16 +147,18 @@ impl FileController {
     /// download file from remote
     async fn download_file_from_remote(&self, file_po: &FilePo) -> Result<(), DeviceServerError> {
         let url = format!("{}/{}", FILE_DOWNLOAD_URL, file_po.hash);
-        self.file_repo.download(url.as_str()).await
+        self.file_repo
+            .download(url.as_str())
+            .await
             .map_err(|e| DeviceServerError {
                 code: ServerErrorCode::FileSystemError,
-                msg: format!("download file error: {e}")
+                msg: format!("download file error: {e}"),
             })?;
         Ok(())
     }
 
     /// start the file manager
-    /// 1 read local database 
+    /// 1 read local database
     /// 2 scan files on the disk, check if the file exists, and update file meta
     /// 3 get remote file meta
     /// 4 check if there is new file on the remote server
@@ -146,7 +166,7 @@ impl FileController {
     /// 6 save file config cache to db
     /// caution:
     /// - the file deleted on the remote, will not removed
-    pub fn update(& self) -> Result<(), DeviceServerError> {
+    pub fn update(&self) -> Result<(), DeviceServerError> {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             // make sure file table exists
@@ -161,7 +181,6 @@ impl FileController {
 
             // scan disk, check if the file exists, and update file meta
             let scanned_file_list = self.file_repo.scan_files().await?;
-            // vec 转换为 hashmap
             let scanned_file_hashmap: HashMap<String, FileMetaDto> = scanned_file_list.into_iter().map(|x| (x.hash.clone(), x.clone())).collect();
 
             for file in local_file_map.clone().values() {
@@ -221,7 +240,6 @@ impl FileController {
         })
     }
 
-
     /// get file path by file hash
     pub fn get_path_by_hash(&self, hash_str: &str) -> Option<String> {
         {
@@ -237,25 +255,29 @@ fn json_object_to_single_po(json_obj: &Value) -> Option<FilePo> {
     let file_data = json_obj.as_object().expect("file field incorrect");
     let file_po = FilePo {
         // tag can be empty
-        tag: file_data.get("tag").expect("get tag from file_data").as_str().or_else(|| Some(""))?.to_string(),
+        tag: file_data
+            .get("tag")
+            .expect("get tag from file_data")
+            .as_str()
+            .or_else(|| Some(""))?
+            .to_string(),
         filename: file_data.get("filename")?.as_str()?.to_string(),
         hash: file_data.get("hash")?.as_str()?.to_string(),
         media_type: match file_data.get("type")?.as_str()? {
             "audio" => MediaTypeEnum::Audio,
             "video" => MediaTypeEnum::Video,
-            _ => panic!("media_type field incorrect")
+            _ => panic!("media_type field incorrect"),
         },
         // delete 字段将数据库中的 int 转换为 bool
-        deleted: file_data.get("deleted")?.as_bool()?
+        deleted: file_data.get("deleted")?.as_bool()?,
     };
     Some(file_po)
 }
 
-
 #[cfg(test)]
 mod test {
     use super::*;
-    use crate::common::logger::{init_logger};
+    use crate::common::logger::init_logger;
 
     #[test]
     fn test() {
