@@ -1,0 +1,14 @@
+status/lightbulb/futureworld_D/deviceserver/HZ-B1/do/B1-1-2DO-01
+
+{
+    "code": 200,
+    "msg": "ok",
+    "source_type": "deviceserver",
+    "source_id": "HZ-B1",
+    "target_type": "flowserver",
+    "target_id": "B1-1-2DO-01",
+    "timestamp":  1646193505937,
+    "data": {
+        "active": true
+    }
+}

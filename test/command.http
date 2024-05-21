@@ -1,0 +1,13 @@
+cmd/lightbulb/default_scenario/deviceserver/default_server/do/device_id
+
+{
+	"code":200,
+	"msg":"send command, server to device",
+	"source_type":"flowserver",
+	"source_id":"F1",
+	"target_type":"flowserver",
+	"target_id":"debug_server_id",
+	"session_id":"some_session_id",
+	"timestamp":1714044693341,
+	"data":{"action":"on","param":null}
+}

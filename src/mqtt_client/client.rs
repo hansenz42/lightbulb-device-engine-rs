@@ -1,6 +1,7 @@
 use std::os::linux::raw;
 use std::sync::mpsc::{self, Receiver, Sender};
 
+
 use super::protocol::Protocol;
 use crate::common::error::{DeviceServerError, ServerErrorCode};
 use crate::common::mqtt;
@@ -9,8 +10,9 @@ use crate::entity::dto::device_command_dto::DeviceCommandDto;
 use crate::entity::dto::device_state_dto::DeviceStateDto;
 use crate::entity::dto::mqtt_dto::{MqttDataDeviceCommandDto, MqttPayloadDto};
 use crate::entity::dto::server_state_dto::ServerStateDto;
-use crate::{debug, error, info};
+use crate::{debug, error, info, warn};
 use std::result::Result;
+use super::message_listener::on_message;
 
 const LOG_TAG: &str = "mqtt_client";
 
@@ -21,6 +23,7 @@ pub struct MqttClient {
     // message protocol
     protocol: Protocol,
 }
+
 
 impl MqttClient {
     pub fn new() -> Self {
@@ -55,61 +58,29 @@ impl MqttClient {
 
         con.set_callback(move |_cli, msg| {
             if let Some(msg) = msg {
-                debug!(LOG_TAG, "received mqtt msg, content: {}", msg.payload_str());
-
-                // 1. parse topic
-                match Protocol::parse_topic(msg.topic()) {
-                    Ok(topic_dto) => {
-                        let raw_payload = msg.payload_str().to_string();
-
-                        // 2. parse mqtt payload
-                        match MqttPayloadDto::from_json(raw_payload.as_str()) {
-                            Ok(payload_dto) => {
-                                debug!(LOG_TAG, "parse mqtt payload: {:?}", payload_dto);
-
-                                // device command message: if there is device id in topic
-                                if let Some(device_id) = topic_dto.device_id {
-                                    // 2.1 parse device command dto
-                                    match serde_json::from_value::<MqttDataDeviceCommandDto>(payload_dto.data) {
-                                        Ok(mqtt_device_command_dto) => {
-                                                    
-                                            let device_command_dto = DeviceCommandDto {
-                                                server_id: topic_dto.server_id.unwrap(),
-                                                device_id: device_id,
-                                                action: mqtt_device_command_dto.action,
-                                                params: mqtt_device_command_dto.params,
-                                            };
-                                            command_tx.send(device_command_dto).unwrap();
-
-                                        }
-                                        Err(e) => {
-                                            error!(LOG_TAG, "parse mqtt payload from json to dto (MqttDataDeviceCommandDto) error: {:?}", e);
-                                            return;
-                                        }
-                                    }
-                                }
-
-                            }
-
-                            Err(e) => {
-                                error!(LOG_TAG, "parse mqtt payload from json to dto (MqttPayloadDto) error: {:?}", e);
-                                return;
-                            }
-                        }
+                info!(LOG_TAG, "mqtt message callback msg, topic: {:?}", msg.topic());
+                let msg_copy = msg.clone();
+                match on_message(msg, command_tx.clone()) {
+                    Ok(_) => {}
+                    Err(e) => {
+                        error!(LOG_TAG, "mqtt message callback on_message error, msg: {msg_copy} err: {e}");
                     }
-                    Err(e) => {}
                 }
+            } else {
+                warn!(LOG_TAG, "mqtt message callback on none message");
             }
         });
 
         self.con = Some(con);
+
+        self.subscribe_topics()
+            .map_err(|e| DeviceServerError {code: ServerErrorCode::MqttError, msg: format!("mqtt subscribe topics error: {e}")})?;
+
         log::info!(
             "mqtt connect successful host: {} port: {}",
             setting.mqtt.broker_host,
             setting.mqtt.broker_port
         );
-
-        self.subscribe_topics().expect("subscribe topics failed");
 
         Ok(())
     }
@@ -205,24 +176,15 @@ impl MqttClient {
 
                 // cmd for device server topic
                 let server_topic = format!(
-                    "cmd/{}/{}/deviceserver/{}",
+                    "cmd/{}/{}/deviceserver/{}/#",
                     setting.meta.application_name,
                     setting.meta.scenario_name,
                     setting.meta.server_name
                 );
                 self.subscribe(server_topic.as_str())?;
 
-                // cmd for device topic
-                let device_topic = format!(
-                    "cmd/{}/{}/device/{}/+/+/+",
-                    setting.meta.application_name,
-                    setting.meta.scenario_name,
-                    setting.meta.server_name
-                );
-                self.subscribe(device_topic.as_str())?;
-
                 // broadcast topic
-                let broadcast_topic = format!("broadcast/{}", setting.meta.application_name);
+                let broadcast_topic = format!("broadcast/{}/#", setting.meta.application_name);
                 self.subscribe(broadcast_topic.as_str())?;
 
                 Ok(())
@@ -237,6 +199,7 @@ impl MqttClient {
     fn subscribe(&self, topic: &str) -> Result<(), DeviceServerError> {
         match &self.con {
             Some(con) => {
+                info!(LOG_TAG, "mqtt subscribe topic: {}", topic);
                 con.subscribe(topic).map_err(|e| DeviceServerError {
                     code: ServerErrorCode::MqttError,
                     msg: format!("mqtt subscribe error: {e}"),
@@ -263,11 +226,16 @@ mod test {
     /// recv message test
     #[test]
     fn test() {
-        init_logger();
+        let _ = init_logger();
         let mut client = MqttClient::new();
 
-        println!("等待消息一条");
-        println!("接收到消息: {:?}", "test");
+        let (tx, rx) = mpsc::channel();
+        let _ = client.start(tx);
+
+        // listen on rx
+        let result = rx.recv().unwrap();
+
+        println!("接收到消息: {:?}", result);
     }
 
     #[test]

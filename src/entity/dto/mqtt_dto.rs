@@ -90,7 +90,7 @@ pub struct MqttDataDeviceCommandDto {
 }
 
 
-pub struct MqttTopicInfoDto {
+pub struct MqttTopicDto {
     pub command: String,
     pub application: String,
     pub scenario: Option<String>,

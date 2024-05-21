@@ -1,16 +1,16 @@
 
 use std::error::Error;
-use crate::entity::dto::mqtt_dto::{MqttTopicInfoDto, MqttPayloadDto};
+use crate::entity::dto::mqtt_dto::{MqttTopicDto, MqttPayloadDto};
 use crate::common::setting::Settings;
 
 // 对 TopicInfo 结构体做二次包装，使其支持默认值的调用方法
-struct TopicConfig(MqttTopicInfoDto);
+struct TopicConfig(MqttTopicDto);
 
 impl Default for TopicConfig {
     // 使用 wrapper 包裹 TopicConfig 结构体，用于生成 Topic Config 的默认值
     fn default() -> Self {
         let setting = Settings::get();
-        TopicConfig(MqttTopicInfoDto {
+        TopicConfig(MqttTopicDto {
             command: "".to_string(),
             application: setting.meta.application_name.clone(),
             scenario: Some(setting.meta.scenario_name.clone()),
@@ -42,7 +42,7 @@ impl Protocol {
     }
 
     /// parse topic to dto
-    pub fn parse_topic(topic_str: &str) -> Result<MqttTopicInfoDto, Box<dyn Error>>{
+    pub fn parse_topic(topic_str: &str) -> Result<MqttTopicDto, Box<dyn Error>>{
         let topic_vec: Vec<&str> = topic_str.split("/").collect();
         let command = topic_vec[0].to_string();
         let application = topic_vec[1].to_string();
@@ -66,7 +66,7 @@ impl Protocol {
             device_id = Some(topic_vec[6].to_string());
         }
 
-        Ok(MqttTopicInfoDto {
+        Ok(MqttTopicDto {
             command,
             application,
             scenario,
@@ -80,7 +80,7 @@ impl Protocol {
     /// 生成 topic String 字符串
     fn make_topic_str (wrapper : TopicConfig) -> String {
         let mut topic = String::new();
-        let dto: MqttTopicInfoDto = wrapper.0;
+        let dto: MqttTopicDto = wrapper.0;
         topic.push_str(dto.command.as_str());
         topic.push_str("/");
         topic.push_str(dto.application.as_str());
