@@ -261,7 +261,6 @@ mod test {
     fn test() {
         init_logger();
         let mut file_manager = FileController::new();
-        file_manager.update().unwrap();
         let file_path = file_manager.get_path_by_hash("61b62be9d1715598003e71ec9ea52010");
 
         println!("{:?}", file_path);
