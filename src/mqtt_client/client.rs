@@ -223,7 +223,7 @@ mod test {
         entity::dto::device_state_dto::{DoStateDto, StateDtoEnum},
     };
 
-    /// recv message test
+    /// transform mqtt dto message to device command
     #[test]
     fn test() {
         let _ = init_logger();

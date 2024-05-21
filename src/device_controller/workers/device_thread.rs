@@ -63,17 +63,19 @@ pub fn device_thread(
 
         loop {
             info!(LOG_TAG, "waitting for device command");
+
+            // listen on device command
             let recv_message = command_rx.recv();
             match recv_message {
-                Ok(command) => {
-                    let device_id = &command.device_id;
-                    info!(LOG_TAG, "command device, dto: {:?}", command);
+                Ok(dto) => {
+                    let device_id = &dto.device_id;
+                    info!(LOG_TAG, "got device command, dto: {:?}", dto);
                     // get device enum from map, if is none then print error msg
                     match device_enum_map.get(device_id) {
                         Some(device_enum) => {
-                            info!(LOG_TAG, "sending command to device {:?}", command);
+                            info!(LOG_TAG, "sending command to device {:?}", dto);
                             // send command to device
-                            match command_device(device_enum, command) {
+                            match send_command_to_device(device_enum, dto) {
                                 Ok(_) => {}
                                 Err(e) => {
                                     error!(LOG_TAG, "command device error, error msg: {}", e);
@@ -131,7 +133,7 @@ pub fn start_device(device_enum_map: &HashMap<String, DeviceRefEnum>) -> Result<
 /// command device method
 /// only limited type of device can be called.
 /// selected type of device can only be called by specific params in device command dto
-pub fn command_device(
+pub fn send_command_to_device(
     device_ref: &DeviceRefEnum,
     command_dto: DeviceCommandDto,
 ) -> Result<(), DriverError> {

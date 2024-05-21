@@ -35,9 +35,11 @@ fn make_device_command_dto(
             msg: format!("cannot get action from payload"),
         })?.to_string();
 
+    let param = payload.data["param"].clone();
+
     // set pararms according to different device type
     if topic.device_type == Some("audio".to_string()) {
-        let audio_params: AudioParamsDto = serde_json::from_value(payload.data).map_err(|e| DeviceServerError {
+        let audio_params: AudioParamsDto = serde_json::from_value(param).map_err(|e| DeviceServerError {
             code: ServerErrorCode::MqttError,
             msg: format!("parse audio params from json to dto error: {e}"),
         })?;
