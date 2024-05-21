@@ -5,7 +5,14 @@ use crate::util::gen_id::generate_uuid;
 use crate::common::setting::Settings;
 
 use super::device_command_dto::CommandParamsEnum;
+use super::device_state_dto::DeviceStateDto;
+use super::server_state_dto::ServerStateDto;
 
+/// for sending mqtt message
+pub enum DeviceToMqttEnum {
+    ServerState(ServerStateDto),
+    DeviceState(DeviceStateDto)
+}
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct MqttPayloadDto {

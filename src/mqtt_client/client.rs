@@ -1,29 +1,27 @@
 use std::os::linux::raw;
 use std::sync::mpsc::{self, Receiver, Sender};
+use std::thread;
 
-
+use super::message_listener::on_message;
 use super::protocol::Protocol;
 use crate::common::error::{DeviceServerError, ServerErrorCode};
 use crate::common::mqtt;
 use crate::common::setting::Settings;
 use crate::entity::dto::device_command_dto::DeviceCommandDto;
 use crate::entity::dto::device_state_dto::DeviceStateDto;
-use crate::entity::dto::mqtt_dto::{MqttDataDeviceCommandDto, MqttPayloadDto};
-use crate::entity::dto::server_state_dto::ServerStateDto;
+use crate::entity::dto::mqtt_dto::{DeviceToMqttEnum, MqttDataDeviceCommandDto, MqttPayloadDto};
+use crate::entity::dto::server_state_dto::{self, ServerStateDto};
 use crate::{debug, error, info, warn};
 use std::result::Result;
-use super::message_listener::on_message;
 
 const LOG_TAG: &str = "mqtt_client";
 
 pub struct MqttClient {
     // mqtt connection
     con: Option<mqtt::MqttConnection>,
-
     // message protocol
     protocol: Protocol,
 }
-
 
 impl MqttClient {
     pub fn new() -> Self {
@@ -37,50 +35,82 @@ impl MqttClient {
     /// start event loop thread and communicate with the flow server
     /// mqtt start will return message receiver channel
     /// command_tx: for sending device command dto
-    pub fn start(&mut self, command_tx: Sender<DeviceCommandDto>) -> Result<(), DeviceServerError> {
-        let setting = Settings::get();
+    /// after calling this function, ownership of mqtt client will be transferred into new thread
+    pub fn start(
+        mut self,
+        mqtt_to_device_tx: Sender<DeviceCommandDto>,
+        device_to_mqtt_rx: Receiver<DeviceToMqttEnum>,
+    ) -> Result<(), DeviceServerError> {
+        thread::spawn(move || {
+            let setting = Settings::get();
 
-        // create new MqttConnection in the thread，use mpsc channel to communicate between threads
-        let mut con = mqtt::MqttConnection::new(
-            setting.mqtt.broker_host.as_str(),
-            setting
-                .mqtt
-                .broker_port
-                .try_into()
-                .expect("mqtt broker port data type error, is not u16"),
-            setting.mqtt.client_id.as_str(),
-        );
+            // create new MqttConnection in the thread，use mpsc channel to communicate between threads
+            let mut con = mqtt::MqttConnection::new(
+                setting.mqtt.broker_host.as_str(),
+                setting
+                    .mqtt
+                    .broker_port
+                    .try_into()
+                    .expect("mqtt broker port data type error, is not u16"),
+                setting.mqtt.client_id.as_str(),
+            );
 
-        con.connect().map_err(|e| DeviceServerError {
-            code: ServerErrorCode::MqttError,
-            msg: format!("mqtt connect error: {e}"),
-        })?;
+            con.connect().expect("mqtt connect error");
 
-        con.set_callback(move |_cli, msg| {
-            if let Some(msg) = msg {
-                info!(LOG_TAG, "mqtt message callback msg, topic: {:?}", msg.topic());
-                let msg_copy = msg.clone();
-                match on_message(msg, command_tx.clone()) {
-                    Ok(_) => {}
-                    Err(e) => {
-                        error!(LOG_TAG, "mqtt message callback on_message error, msg: {msg_copy} err: {e}");
+            con.set_callback(move |_cli, msg| {
+                if let Some(msg) = msg {
+                    info!(
+                        LOG_TAG,
+                        "mqtt message callback msg, topic: {:?}",
+                        msg.topic()
+                    );
+                    let msg_copy = msg.clone();
+                    match on_message(msg, mqtt_to_device_tx.clone()) {
+                        Ok(_) => {}
+                        Err(e) => {
+                            error!(
+                                LOG_TAG,
+                                "mqtt message callback on_message error, msg: {msg_copy} err: {e}"
+                            );
+                        }
+                    }
+                } else {
+                    warn!(LOG_TAG, "mqtt message callback on none message");
+                }
+            });
+
+            self.con = Some(con);
+
+            self.subscribe_topics()
+                .expect("mqtt subscribe topics error");
+
+            info!(
+                LOG_TAG,
+                "mqtt connect done, host: {} port: {}, waiting for inbound messages",
+                setting.mqtt.broker_host,
+                setting.mqtt.broker_port
+            );
+
+            // mqtt start ok, wait for inbounding messages
+            loop {
+                if let Ok(msg) = device_to_mqtt_rx.recv() {
+                    match msg {
+                        DeviceToMqttEnum::ServerState(server_state_dto) => {
+                            // server state message
+                            if let Err(e) = self.publish_heartbeat(server_state_dto) {
+                                error!(LOG_TAG, "mqtt publish heartbeat error, err: {e}");
+                            }
+                        }
+                        DeviceToMqttEnum::DeviceState(state_dto) => {
+                            // device state message
+                            if let Err(e) = self.publish_status(state_dto) {
+                                error!(LOG_TAG, "mqtt publish status error, err: {e}");
+                            }
+                        }
                     }
                 }
-            } else {
-                warn!(LOG_TAG, "mqtt message callback on none message");
             }
         });
-
-        self.con = Some(con);
-
-        self.subscribe_topics()
-            .map_err(|e| DeviceServerError {code: ServerErrorCode::MqttError, msg: format!("mqtt subscribe topics error: {e}")})?;
-
-        log::info!(
-            "mqtt connect successful host: {} port: {}",
-            setting.mqtt.broker_host,
-            setting.mqtt.broker_port
-        );
 
         Ok(())
     }
@@ -223,14 +253,23 @@ mod test {
         entity::dto::device_state_dto::{DoStateDto, StateDtoEnum},
     };
 
-    /// transform mqtt dto message to device command
     #[test]
-    fn test() {
+    fn test_transforming_mqtt_dto_to_device_command() {
         let _ = init_logger();
         let mut client = MqttClient::new();
 
         let (tx, rx) = mpsc::channel();
-        let _ = client.start(tx);
+        let (tx2, rx2) = mpsc::channel();
+        let _ = client.start(tx, rx2);
+
+        // send to tx2
+        let dto = DeviceToMqttEnum::DeviceState(DeviceStateDto{
+            device_id: "test_device_id".to_string(),
+            device_class: "test_class".to_string(),
+            device_type: "test_type".to_string(),
+            state: StateDtoEnum::Do(DoStateDto { on: true }),
+        });
+        tx2.send(dto).unwrap();
 
         // listen on rx
         let result = rx.recv().unwrap();

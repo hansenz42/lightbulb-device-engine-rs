@@ -5,6 +5,7 @@
 use std::collections::HashMap;
 use std::error::Error;
 use std::fmt::format;
+use std::sync::{Arc, Mutex};
 use serde_json::{Value, Map};
 
 use crate::common::dao::Dao;
@@ -24,22 +25,32 @@ const LOG_TAG: &str = "FileManager";
 pub struct FileController {
     file_dao: FileDao,
     file_repo: FileRepo,
-    cache: HashMap<String, FilePo>
+    cache: Arc<Mutex<HashMap<String, FilePo>>>
 }
 
 impl FileController {
     pub fn new() -> Self {
-        FileController {
+        let mut obj = FileController {
             file_dao: FileDao::new(),
             file_repo: FileRepo::new(),
-            cache: HashMap::new()
+            cache: Arc::new(Mutex::new(HashMap::new()))
+        };
+        obj.update().expect("init file controller failed");
+        obj
+    }
+
+    /// get singleton
+    pub fn get() -> &'static Self {
+        lazy_static! {
+            static ref FILE_CONTROLLER: FileController = FileController::new();
         }
+        &FILE_CONTROLLER
     }
 
     /// get remote file config files
     /// - if remote has config file, it must be according to remote
     /// - if remote read config file failed, use local cache
-    async fn get_remote(&mut self) -> Result<Value, DeviceServerError> {
+    async fn get_remote(&self) -> Result<Value, DeviceServerError> {
         let response_data = http::api_get(UPDATE_CONFIG_URL).await;
         match response_data {
             Ok(json_data) => {
@@ -62,7 +73,7 @@ impl FileController {
     }
 
     /// save local cache to db
-    async fn save_to_db(&self) -> Result<(), DeviceServerError> {
+    async fn save_to_db(&self, map_to_write: HashMap<String, FilePo>) -> Result<(), DeviceServerError> {
         // clear local table
         self.file_dao.clear_table().await.map_err(
             |e| DeviceServerError {
@@ -70,7 +81,7 @@ impl FileController {
                 msg: format!("cannot save file config to db, clear table error: {}", e)
             }
         )?;
-        for (_, file_po) in self.cache.iter() {
+        for (_, file_po) in map_to_write.iter() {
             self.file_dao.add_file_info(file_po.clone()).await.map_err(
                 |e| DeviceServerError {
                     code: ServerErrorCode::DatabaseError,
@@ -103,7 +114,8 @@ impl FileController {
     }
 
     /// read file config data from database
-    async fn load_from_db(&mut self) -> Result<(), DeviceServerError> {
+    async fn load_from_db(& self) -> Result<HashMap<String, FilePo>, DeviceServerError> {
+        let mut ret = HashMap::new();
         let file_po_list: Vec<FilePo> = self.file_dao.get_all().await
             .map_err(|e| DeviceServerError {
                 code: ServerErrorCode::DatabaseError,
@@ -111,9 +123,9 @@ impl FileController {
             })?;
         // 将 Vec 转换为 Hashmap 
         for file_po in file_po_list {
-            self.cache.insert(file_po.hash.clone(), file_po);
+            ret.insert(file_po.hash.clone(), file_po);
         }
-        Ok(())
+        Ok(ret)
     }
 
     /// download file from remote
@@ -136,7 +148,7 @@ impl FileController {
     /// 6 save file config cache to db
     /// caution:
     /// - the file deleted on the remote, will not removed
-    pub fn ready(&mut self) -> Result<(), DeviceServerError> {
+    pub fn update(& self) -> Result<(), DeviceServerError> {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {
             // make sure file table exists
@@ -147,21 +159,14 @@ impl FileController {
                 })?;
 
             // make local cache, load from database
-            match self.load_from_db().await {
-                Ok(_) => {
-                    info!(LOG_TAG, "read file config cache from db success");
-                }
-                Err(e) => {
-                    warn!(LOG_TAG, "read file config cache from db failed, error: {}", e);
-                }
-            }
+            let mut local_file_map = self.load_from_db().await?;
 
             // scan disk, check if the file exists, and update file meta
             let scanned_file_list = self.file_repo.scan_files().await?;
             // vec 转换为 hashmap
             let scanned_file_hashmap: HashMap<String, FileMetaDto> = scanned_file_list.into_iter().map(|x| (x.hash.clone(), x.clone())).collect();
 
-            for file in self.cache.clone().values() {
+            for file in local_file_map.clone().values() {
                 info!(LOG_TAG, "check cache record file name: {}; hash {}", file.filename, file.hash);
                 if !scanned_file_hashmap.contains_key(&file.hash) {
                     // if file cannot find on the disk, delete database and cache record
@@ -169,7 +174,7 @@ impl FileController {
                         code: ServerErrorCode::DatabaseError,
                         msg: format!("cannot delete file cache info data to db, error: {}", e)
                     })?;
-                    self.cache.remove(&file.hash);
+                    local_file_map.remove(&file.hash);
                     warn!(LOG_TAG, "checking cache file on the disk, file does not exist on disk, deleted database record, name: {}, hash: {}", file.filename, file.hash);
                 }
             }
@@ -180,7 +185,7 @@ impl FileController {
                     let mut new_file_po: Vec<FilePo> = Vec::new();
                     // compare with local cache ...
                     for file_po in &file_po_list {
-                        if !self.cache.contains_key(&file_po.hash) {
+                        if !local_file_map.contains_key(&file_po.hash) {
                             new_file_po.push(file_po.clone());
                             info!(LOG_TAG, "record new file {} to cache", file_po.filename);
                         }
@@ -190,7 +195,7 @@ impl FileController {
                     for file_po in &new_file_po {
                         match self.download_file_from_remote(file_po).await {
                             Ok(_) => {
-                                self.cache.insert(file_po.hash.clone(), file_po.clone());
+                                local_file_map.insert(file_po.hash.clone(), file_po.clone());
                                 info!(LOG_TAG, "downloaded file and record to cache, name: {}, hash: {}", file_po.filename, file_po.hash);
                             }
                             Err(e) => {
@@ -199,8 +204,14 @@ impl FileController {
                         }
                     }
 
+                    // replace object cache with new data
+                    {
+                        let mut map_guard = self.cache.lock().unwrap();
+                        map_guard.clear();
+                        map_guard.extend(local_file_map.clone());
+                    }
                     // refresh database file meta with new data
-                    self.save_to_db().await?;
+                    self.save_to_db(local_file_map).await?;
                     info!(LOG_TAG, "file config cache successfully updated");
                 } else {
                     warn!(LOG_TAG, "cannot transform json to file_po, data format error, will use local cache, parse failed data: {:?}", json_array);
@@ -215,24 +226,11 @@ impl FileController {
 
     /// get file path by file hash
     pub fn get_path_by_hash(&self, hash_str: &str) -> Option<String> {
-        let filename = self.cache.get(hash_str)?.filename.clone();
-        Some(format!("{}/{}", FILE_FOLDER, filename))
-    }
-
-    pub fn get() -> &'static FileController {
-        lazy_static! {
-            static ref FILE_CONTROLLER: FileController = FileController::default();
+        {
+            let map_guard = self.cache.lock().unwrap();
+            let filename = map_guard.get(hash_str)?.filename.clone();
+            return Some(format!("{}/{}", FILE_FOLDER, filename));
         }
-        &FILE_CONTROLLER
-    }
-    
-}
-
-impl Default for FileController {
-    fn default() -> Self {
-        let mut s = Self::new();
-        s.ready().unwrap();
-        s
     }
 }
 
@@ -265,8 +263,9 @@ mod test {
     fn test() {
         init_logger();
         let mut file_manager = FileController::new();
-        file_manager.ready().unwrap();
+        file_manager.update().unwrap();
         let file_path = file_manager.get_path_by_hash("61b62be9d1715598003e71ec9ea52010");
+
         println!("{:?}", file_path);
     }
 

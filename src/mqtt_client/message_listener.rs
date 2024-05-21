@@ -12,7 +12,7 @@ use crate::{
     },
 };
 
-use super::{controller::device_commander::device_command_controller, protocol::Protocol};
+use super::{controller::device_commander::control_device_command, protocol::Protocol, controller::server_updater::update};
 
 pub fn on_message(
     msg: Message,
@@ -35,9 +35,10 @@ pub fn on_message(
 
     if let Some(ref device_id) = topic_dto.device_id {
         // 3.1 if there is device_id in topic_dto, which means that is a device command
-        device_command_controller(topic_dto, payload_dto, command_tx)?;
+        control_device_command(topic_dto, payload_dto, command_tx)?;
     } else {
         // 3.2 if there is not device_id, which means the target of the message is server
+        update(topic_dto, payload_dto)?;
     }
 
     Ok(())
