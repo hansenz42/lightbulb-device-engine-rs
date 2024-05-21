@@ -3,8 +3,6 @@
 //! manage local file cache
 
 use std::collections::HashMap;
-use std::error::Error;
-use std::fmt::format;
 use std::sync::{Arc, Mutex};
 use serde_json::{Value, Map};
 
