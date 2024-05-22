@@ -1,14 +1,14 @@
-use crate::entity::dto::device_state_dto::DeviceStateDto;
+use crate::entity::dto::device_state_dto::StateToDeviceControllerDto;
 use crate::{common::error::DriverError, entity::dto::device_command_dto::DeviceCommandDto};
 use std::{rc::Rc, sync::mpsc};
 
 /// the device that can send data to upward channel
 pub trait ReportUpward {
-    fn get_upward_channel(&self) -> &mpsc::Sender<DeviceStateDto>;
+    fn get_upward_channel(&self) -> &mpsc::Sender<StateToDeviceControllerDto>;
 
     fn report(&self) -> Result<(), DriverError>;
 
-    fn notify_upward(&self, message: DeviceStateDto) -> Result<(), DriverError> {
+    fn notify_upward(&self, message: StateToDeviceControllerDto) -> Result<(), DriverError> {
         let upward_channel = self.get_upward_channel();
         upward_channel.send(message).map_err(|e| {
             DriverError(format!(

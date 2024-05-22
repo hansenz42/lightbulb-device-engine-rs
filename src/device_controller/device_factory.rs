@@ -6,7 +6,7 @@ use super::factory::*;
 use crate::driver::modbus::traits::{ModbusDiControllerListener, ModbusListener};
 use crate::driver::modbus::{modbus_bus, modbus_di_controller};
 use crate::entity::dto::device_meta_info_dto::{DeviceMetaInfoDto, DeviceStatusEnum};
-use crate::entity::dto::device_state_dto::DeviceStateDto;
+use crate::entity::dto::device_state_dto::StateToDeviceControllerDto;
 use crate::{common::error::DriverError, driver::modbus::modbus_bus::ModbusBus};
 use crate::{debug, error, info, trace, warn};
 use std::cell::RefCell;
@@ -24,11 +24,11 @@ pub struct DeviceInstanceFactory {
     device_enum_map: HashMap<String, DeviceRefEnum>,
     device_info_map: Arc<Mutex<HashMap<String, DeviceMetaInfoDto>>>,
     device_po_list: Vec<DevicePo>,
-    report_tx_dummy: mpsc::Sender<DeviceStateDto>,
+    report_tx_dummy: mpsc::Sender<StateToDeviceControllerDto>,
 }
 
 impl DeviceInstanceFactory {
-    pub fn new(report_tx_dummy: mpsc::Sender<DeviceStateDto>) -> DeviceInstanceFactory {
+    pub fn new(report_tx_dummy: mpsc::Sender<StateToDeviceControllerDto>) -> DeviceInstanceFactory {
         DeviceInstanceFactory {
             device_enum_map: HashMap::new(),
             device_info_map: Arc::new(Mutex::new(HashMap::new())),
@@ -131,13 +131,18 @@ impl DeviceInstanceFactory {
             let _ = self.make_remote_controller(dto)?;
         } else if dto.device_type == "audio" {
             let _ = self.make_audio(dto)?;
+        } else if dto.device_type == "dmx_channel" {
+            let _ = self.make_dmx_channel_device(dto)?;
         } else {
             return Err(DriverError(format!(
                 "unknown device type. device_type={}",
                 dto.device_type
             )));
         }
-        info!(LOG_TAG, "device created! device_id: {}, device_type: {}", dto.device_id, dto.device_type);
+        info!(
+            LOG_TAG,
+            "device created! device_id: {}, device_type: {}", dto.device_id, dto.device_type
+        );
         Ok(())
     }
 
@@ -179,6 +184,38 @@ impl DeviceInstanceFactory {
         Ok(())
     }
 
+    fn make_dmx_channel_device(&mut self, dto: &DeviceMetaInfoDto) -> Result<(), DriverError> {
+        if let Some(master_device_id) = &dto.master_device_id {
+            // 1 get dmx bus master device
+            let master_device_enum = self.get_master_device_enum(master_device_id.as_str())?;
+
+            if let DeviceRefEnum::DmxBus(dmx_bus) = master_device_enum {
+                // 2 make dmx channel
+                let dmx_channel = channel_device_factory::make(
+                    &dto,
+                    dmx_bus.clone(),
+                    self.report_tx_dummy.clone(),
+                )?;
+                self.device_enum_map.insert(
+                    dto.device_id.clone(),
+                    DeviceRefEnum::DmxChannel(Rc::new(RefCell::new(dmx_channel))),
+                );
+                Ok(())
+            } else {
+                Err(DriverError(format!(
+                    "device factory: cannot find master device during dmx channel init, master_device_id={}, device_id={}",
+                    master_device_id,
+                    dto.device_id
+                )))
+            }
+        } else {
+            Err(DriverError(format!(
+                "device_factory: no master_device_id for dmx channel, device_id={}",
+                dto.device_id
+            )))
+        }
+    }
+
     fn make_serial_bus(&mut self, dto: &DeviceMetaInfoDto) -> Result<(), DriverError> {
         let serial_bus = serial_bus_factory::make(&dto)?;
         self.device_enum_map.insert(
@@ -194,10 +231,7 @@ impl DeviceInstanceFactory {
             let master_device_enum = self.get_master_device_enum(&master_device_id.as_str())?;
             if let DeviceRefEnum::SerialBus(serial_bus_device) = master_device_enum {
                 // make remote controller
-                let remote_controller = remote_factory::make(
-                    &dto,
-                    self.report_tx_dummy.clone()
-                )?;
+                let remote_controller = remote_factory::make(&dto, self.report_tx_dummy.clone())?;
                 let mut serial_bus = serial_bus_device.borrow_mut();
                 serial_bus.add_listener(Box::new(remote_controller));
                 Ok(())
@@ -220,7 +254,7 @@ impl DeviceInstanceFactory {
         if let Some(master_device_id) = &dto.master_device_id {
             // get modbus master device
             let master_device_enum = self.get_master_device_enum(master_device_id.as_str())?;
-            if let DeviceRefEnum::ModbusBus(master_device) = master_device_enum{
+            if let DeviceRefEnum::ModbusBus(master_device) = master_device_enum {
                 // make do controller device
                 let do_controller =
                     do_controller_factory::make(&dto, master_device, self.report_tx_dummy.clone())?;
@@ -283,7 +317,8 @@ impl DeviceInstanceFactory {
             let master_device_enum = self.get_master_device_enum(master_device_id.as_str())?;
             if let DeviceRefEnum::ModbusBus(master_modbus_ref) = master_device_enum {
                 // make di controller device
-                let di_controller = di_controller_factory::make(&dto, self.report_tx_dummy.clone())?;
+                let di_controller =
+                    di_controller_factory::make(&dto, self.report_tx_dummy.clone())?;
                 // mount to modbus bus device
                 let mut modbus = master_modbus_ref.borrow_mut();
                 modbus.add_di_controller(di_controller.get_unit(), Box::new(di_controller));

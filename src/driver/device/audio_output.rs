@@ -12,7 +12,7 @@ use crate::driver::traits::ReportUpward;
 use crate::entity::dto::device_command_dto::{AudioParamsDto, CommandParamsEnum, DeviceCommandDto};
 use crate::entity::dto::device_report_dto::DeviceReportDto;
 use crate::entity::dto::device_state_dto::{
-    AudioFilePlayingDto, AudioStateDto, DeviceStateDto, StateDtoEnum,
+    AudioFilePlayingDto, AudioStateDto, StateToDeviceControllerDto, StateDtoEnum,
 };
 use std::collections::HashMap;
 use std::io::BufReader;
@@ -39,7 +39,7 @@ pub struct AudioOutput {
     device_id: String,
     soundcard_id: String,
     channel: ChannelEnum,
-    report_tx: Sender<DeviceStateDto>,
+    report_tx: Sender<StateToDeviceControllerDto>,
     // active sink
     sink_map: HashMap<String, Sink>,
     // active output stream
@@ -51,7 +51,7 @@ pub struct AudioOutput {
 }
 
 impl ReportUpward for AudioOutput {
-    fn get_upward_channel(&self) -> &Sender<DeviceStateDto> {
+    fn get_upward_channel(&self) -> &Sender<StateToDeviceControllerDto> {
         &self.report_tx
     }
 
@@ -68,7 +68,7 @@ impl ReportUpward for AudioOutput {
             stream: playing_dto_list
         };
         self.report_tx
-            .send(DeviceStateDto {
+            .send(StateToDeviceControllerDto {
                 device_class: DEVICE_CLASS.to_string(),
                 device_type: DEVICE_TYPE.to_string(),
                 device_id: self.device_id.clone(),
@@ -91,7 +91,7 @@ impl AudioOutput {
         device_id: &str,
         soundcard_id: &str,
         channel: ChannelEnum,
-        report_tx: Sender<DeviceStateDto>,
+        report_tx: Sender<StateToDeviceControllerDto>,
     ) -> AudioOutput {
         AudioOutput {
             device_id: device_id.to_string(),

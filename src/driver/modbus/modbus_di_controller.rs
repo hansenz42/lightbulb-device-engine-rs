@@ -3,7 +3,7 @@ use std::{collections::HashMap, hash::Hash};
 use crate::common::error::DriverError;
 use crate::driver::traits::ReportUpward;
 use crate::entity::dto::device_report_dto::DeviceReportDto;
-use crate::entity::dto::device_state_dto::{DeviceStateDto, DiControllerStateDto, StateDtoEnum};
+use crate::entity::dto::device_state_dto::{StateToDeviceControllerDto, DiControllerStateDto, StateDtoEnum};
 use super::traits::{ModbusListener, ModbusDiControllerListener};
 use super::prelude::*;
 use crate::{info, warn, error, trace, debug};
@@ -24,14 +24,14 @@ pub struct ModbusDiController {
     mount_port_map:  HashMap<ModbusAddrSize, Box<dyn ModbusDiControllerListener + Send>>,
     // port state cache
     port_state_vec: Vec<bool>,
-    report_tx: Sender<DeviceStateDto>,
+    report_tx: Sender<StateToDeviceControllerDto>,
     error_msg: Option<String>,
     error_timestamp: Option<u64>,
     last_update: Option<u64>,
 }
 
 impl ReportUpward for ModbusDiController {
-    fn get_upward_channel(&self) -> &Sender<DeviceStateDto> {
+    fn get_upward_channel(&self) -> &Sender<StateToDeviceControllerDto> {
         return &self.report_tx;
     }
 
@@ -39,7 +39,7 @@ impl ReportUpward for ModbusDiController {
         let state_dto = DiControllerStateDto {
             port: self.port_state_vec.clone()
         };
-        self.notify_upward(DeviceStateDto {
+        self.notify_upward(StateToDeviceControllerDto {
             device_id: self.device_id.clone(),
             device_class: DEVICE_CLASS.to_string(),
             device_type: DEVICE_TYPE.to_string(),
@@ -114,7 +114,7 @@ impl ModbusListener for ModbusDiController {
 }
 
 impl ModbusDiController {
-    pub fn new(device_id: &str, unit: ModbusUnitSize, input_num: ModbusAddrSize, report_tx: Sender<DeviceStateDto>) -> Self {
+    pub fn new(device_id: &str, unit: ModbusUnitSize, input_num: ModbusAddrSize, report_tx: Sender<StateToDeviceControllerDto>) -> Self {
         Self {
             device_id: device_id.to_string(),
             unit,
@@ -137,7 +137,7 @@ impl ModbusDiController {
 mod tests {
     use super::*;
     use super::super::modbus_di_port::ModbusDiPort;
-    use crate::entity::dto::device_state_dto::{DeviceStateDto, DiStateDto, StateDtoEnum};
+    use crate::entity::dto::device_state_dto::{StateToDeviceControllerDto, DiStateDto, StateDtoEnum};
 
     // 测试实例化并向上发送消息
     // #[test]

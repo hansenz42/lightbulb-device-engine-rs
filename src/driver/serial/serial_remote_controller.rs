@@ -3,7 +3,7 @@ use rodio::Device;
 
 use crate::driver::traits::ReportUpward;
 use crate::entity::dto::device_report_dto::DeviceReportDto;
-use crate::entity::dto::device_state_dto::{DeviceStateDto, RemoteStateDto, StateDtoEnum};
+use crate::entity::dto::device_state_dto::{StateToDeviceControllerDto, RemoteStateDto, StateDtoEnum};
 use crate::common::error::DriverError;
 use super::traits::SerialMountable;
 use std::env;
@@ -17,7 +17,7 @@ const DEVICE_TYPE: &str = "remote";
 pub struct SerialRemoteController {
     device_id: String,
     button_num: u8,
-    report_channel: Sender<DeviceStateDto>,
+    report_channel: Sender<StateToDeviceControllerDto>,
     error_msg: Option<String>,
     error_timestamp: Option<u64>,
     last_update: Option<u64>,
@@ -25,7 +25,7 @@ pub struct SerialRemoteController {
 
 
 impl SerialRemoteController {
-    pub fn new(device_id: &str, button_num: u8, report_channel: Sender<DeviceStateDto>) -> Self {
+    pub fn new(device_id: &str, button_num: u8, report_channel: Sender<StateToDeviceControllerDto>) -> Self {
         SerialRemoteController {
             device_id: device_id.to_string(),
             button_num,
@@ -47,7 +47,7 @@ impl SerialMountable for SerialRemoteController {
                 let state = StateDtoEnum::Remote(RemoteStateDto{
                     pressed: pressed_num.clone(),
                 });
-                let dto = DeviceStateDto {
+                let dto = StateToDeviceControllerDto {
                     device_id: self.device_id.clone(),
                     device_class: DEVICE_CLASS.to_string(),
                     device_type: DEVICE_TYPE.to_string(),
@@ -68,7 +68,7 @@ impl SerialMountable for SerialRemoteController {
 }
 
 impl ReportUpward for SerialRemoteController {
-    fn get_upward_channel(&self) -> &Sender<DeviceStateDto> {
+    fn get_upward_channel(&self) -> &Sender<StateToDeviceControllerDto> {
         return &self.report_channel;
     }
 

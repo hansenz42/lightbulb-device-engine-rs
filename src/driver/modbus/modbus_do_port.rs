@@ -10,7 +10,7 @@ use crate::common::error::DriverError;
 use crate::driver::traits::{Commandable, ReportUpward};
 use crate::entity::dto::device_command_dto::DeviceCommandDto;
 use crate::entity::dto::device_report_dto::DeviceReportDto;
-use crate::entity::dto::device_state_dto::{DeviceStateDto, DoStateDto, StateDtoEnum};
+use crate::entity::dto::device_state_dto::{StateToDeviceControllerDto, DoStateDto, StateDtoEnum};
 use crate::{info, warn};
 
 const DEVICE_CLASS: &str = "operable"; 
@@ -21,7 +21,7 @@ pub struct ModbusDoPort {
     device_id: String,
     address: ModbusAddrSize,
     controller_ref: Rc<RefCell<ModbusDoController>>,
-    report_tx: Sender<DeviceStateDto>,
+    report_tx: Sender<StateToDeviceControllerDto>,
     on: bool,
     error_msg: Option<String>,
     error_timestamp: Option<u64>,
@@ -33,7 +33,7 @@ impl ModbusDoPort {
         device_id: &str,
         address: ModbusAddrSize,
         controller_ref: Rc<RefCell<ModbusDoController>>,
-        report_tx: Sender<DeviceStateDto>,
+        report_tx: Sender<StateToDeviceControllerDto>,
     ) -> Self {
         ModbusDoPort {
             device_id: device_id.to_string(),
@@ -49,7 +49,7 @@ impl ModbusDoPort {
 }
 
 impl ReportUpward for ModbusDoPort {
-    fn get_upward_channel(&self) -> &Sender<DeviceStateDto> {
+    fn get_upward_channel(&self) -> &Sender<StateToDeviceControllerDto> {
         return &self.report_tx;
     }
 
@@ -57,7 +57,7 @@ impl ReportUpward for ModbusDoPort {
         let state_dto = DoStateDto {
             on: self.on,
         };
-        self.notify_upward(DeviceStateDto {
+        self.notify_upward(StateToDeviceControllerDto {
             device_id: self.device_id.clone(),
             device_class: DEVICE_CLASS.to_string(),
             device_type: DEVICE_TYPE.to_string(),

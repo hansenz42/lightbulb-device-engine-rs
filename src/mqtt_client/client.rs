@@ -8,7 +8,7 @@ use crate::common::error::{DeviceServerError, ServerErrorCode};
 use crate::common::mqtt;
 use crate::common::setting::Settings;
 use crate::entity::dto::device_command_dto::DeviceCommandDto;
-use crate::entity::dto::device_state_dto::DeviceStateDto;
+use crate::entity::dto::device_state_dto::StateToDeviceControllerDto;
 use crate::entity::dto::mqtt_dto::{DeviceToMqttEnum, MqttDataDeviceCommandDto, MqttPayloadDto};
 use crate::entity::dto::server_state_dto::{self, ServerStateDto};
 use crate::{debug, error, info, warn};
@@ -155,7 +155,7 @@ impl MqttClient {
     }
 
     /// publish device status message
-    pub fn publish_status(&self, state_dto: DeviceStateDto) -> Result<(), DeviceServerError> {
+    pub fn publish_status(&self, state_dto: StateToDeviceControllerDto) -> Result<(), DeviceServerError> {
         let topic = self.protocol.topic_self_declare(
             "status",
             Some(state_dto.device_class.clone()),
@@ -248,7 +248,6 @@ mod test {
     use super::*;
     use crate::{
         common::logger::init_logger,
-        entity::dto::device_state_dto::{DoStateDto, StateDtoEnum},
     };
 
     #[test]

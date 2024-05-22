@@ -14,6 +14,7 @@ pub enum DeviceStatusEnum{
 /// used for device manager tracking device status
 #[derive(Debug, Clone)]
 pub struct DeviceMetaInfoDto {
+    // for device base information
     pub device_id: String,
     pub master_device_id: Option<String>,
     pub device_type: String,

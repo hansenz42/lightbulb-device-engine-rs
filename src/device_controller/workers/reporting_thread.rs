@@ -7,7 +7,7 @@ use std::{
 
 use crate::entity::dto::{
     device_meta_info_dto::{DeviceMetaInfoDto, DeviceStatusEnum},
-    device_state_dto::DeviceStateDto,
+    device_state_dto::StateToDeviceControllerDto,
     mqtt_dto::DeviceToMqttEnum,
 };
 
@@ -19,7 +19,7 @@ const LOG_TAG: &'static str = "reporting_thread";
 /// used to report device state to upward controllers
 /// the thread using tokio runtime because mqtt client is async
 pub fn reporting_thread(
-    state_report_rx: mpsc::Receiver<DeviceStateDto>,
+    state_report_rx: mpsc::Receiver<StateToDeviceControllerDto>,
     device_to_mqtt_tx: mpsc::Sender<DeviceToMqttEnum>,
     device_info_map: Arc<Mutex<HashMap<String, DeviceMetaInfoDto>>>,
 ) -> thread::JoinHandle<()> {

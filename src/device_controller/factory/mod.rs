@@ -7,3 +7,4 @@ pub mod di_port_factory;
 pub mod do_port_factory;
 pub mod remote_factory;
 pub mod audio_factory;
+pub mod channel_device_factory;

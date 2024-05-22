@@ -19,7 +19,7 @@ use super::{
     prelude::ModbusAddrSize,
     traits::ModbusListener,
 };
-use crate::entity::dto::device_state_dto::{DeviceStateDto, StateDtoEnum};
+use crate::entity::dto::device_state_dto::{StateToDeviceControllerDto, StateDtoEnum};
 use crate::{common::error::DriverError};
 use std::collections::HashMap;
 use std::sync::mpsc;
@@ -37,7 +37,7 @@ pub struct ModbusBus {
     di_controller_vec: Vec<Box<dyn ModbusListener + Send>>,
     // sender to send command to modbus outputing thread
     modbus_thread_command_tx: Option<Sender<ModbusThreadCommandEnum>>,
-    report_tx: Sender<DeviceStateDto>,
+    report_tx: Sender<StateToDeviceControllerDto>,
 }
 
 impl ModbusBus {
@@ -84,7 +84,7 @@ impl ModbusBus {
         device_id: &str,
         serial_port: &str,
         baudrate: u32,
-        report_tx: Sender<DeviceStateDto>,
+        report_tx: Sender<StateToDeviceControllerDto>,
     ) -> Self {
         Self {
             device_id: device_id.to_string(),

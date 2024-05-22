@@ -3,15 +3,14 @@ use std::{cell::RefCell, rc::Rc, sync::mpsc::Sender};
 use crate::{
     common::error::DriverError,
     driver::modbus::{modbus_do_controller::ModbusDoController, modbus_do_port::ModbusDoPort},
-    entity::dto::{device_meta_info_dto::DeviceMetaInfoDto, device_state_dto::DeviceStateDto},
+    entity::dto::{device_meta_info_dto::DeviceMetaInfoDto, device_state_dto::StateToDeviceControllerDto},
     util::json,
 };
-use serde_json::Value;
 
 pub fn make(
     device_info: &DeviceMetaInfoDto,
     modbus_do_controller_ref: Rc<RefCell<ModbusDoController>>,
-    report_tx: Sender<DeviceStateDto>,
+    report_tx: Sender<StateToDeviceControllerDto>,
 ) -> Result<ModbusDoPort, DriverError> {
     let address = json::get_config_int(&device_info.config, "address")?;
     let obj = ModbusDoPort::new(

@@ -3,7 +3,7 @@ use std::{cell::RefCell, rc::Rc};
 
 use crate::driver::{
     device::audio_output::AudioOutput,
-    dmx::dmx_bus::DmxBus,
+    dmx::{dmx_bus::DmxBus, dmx_channel_device::DmxChannelDevice},
     modbus::{
         modbus_bus::ModbusBus, modbus_di_controller::ModbusDiController,
         modbus_di_port::ModbusDiPort, modbus_do_controller::ModbusDoController,
@@ -15,6 +15,7 @@ use crate::driver::{
 /// the base device type should managed by device manager
 pub enum DeviceRefEnum {
     DmxBus(Rc<RefCell<DmxBus>>),
+    DmxChannel(Rc<RefCell<DmxChannelDevice>>),
     SerialBus(Rc<RefCell<SerialBus>>),
     ModbusBus(Rc<RefCell<ModbusBus>>),
     ModbusDoController(Rc<RefCell<ModbusDoController>>),

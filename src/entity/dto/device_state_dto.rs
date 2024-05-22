@@ -21,16 +21,16 @@ pub enum StateDtoEnum {
     Do(DoStateDto),
 }
 
-/// used for device report to device manager
+/// used for device report to device controller
 #[derive(Debug, Serialize, Deserialize)]
-pub struct DeviceStateDto {
+pub struct StateToDeviceControllerDto {
     pub device_id: String,
     pub device_class: String,
     pub device_type: String,
     pub status: DeviceReportDto,
 }
 
-impl DeviceStateDto {
+impl StateToDeviceControllerDto {
     pub fn to_json(&self) -> Result<String, Box<dyn Error>> {
         Ok(serde_json::to_string(self)?)
     }

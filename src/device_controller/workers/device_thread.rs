@@ -13,7 +13,7 @@ use crate::{
     common::error::DriverError,
     entity::dto::{
         device_command_dto::DeviceCommandDto,
-        device_state_dto::DeviceStateDto,
+        device_state_dto::StateToDeviceControllerDto,
     },
 };
 
@@ -29,7 +29,7 @@ const LOG_TAG: &'static str = "device_thread";
 
 /// device thread, use config to create device object, and send command to them
 pub fn device_thread(
-    state_report_tx_dummy: mpsc::Sender<DeviceStateDto>,
+    state_report_tx_dummy: mpsc::Sender<StateToDeviceControllerDto>,
     command_rx: mpsc::Receiver<DeviceCommandDto>,
     device_po_list: Vec<DevicePo>,
     device_info_map: Arc<Mutex<HashMap<String, DeviceMetaInfoDto>>>,

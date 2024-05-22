@@ -1,12 +1,15 @@
 use std::sync::mpsc::Sender;
 
+use crate::common::error::DriverError;
 use crate::driver::device::audio_output::{AudioOutput, ChannelEnum};
 use crate::entity::dto::device_meta_info_dto::DeviceMetaInfoDto;
-use crate::entity::dto::device_state_dto::DeviceStateDto;
-use crate::{common::error::DriverError};
+use crate::entity::dto::device_state_dto::StateToDeviceControllerDto;
 use crate::util::json;
 
-pub fn make( device_info: &DeviceMetaInfoDto, report_tx: Sender<DeviceStateDto>) -> Result<AudioOutput, DriverError> {
+pub fn make(
+    device_info: &DeviceMetaInfoDto,
+    report_tx: Sender<StateToDeviceControllerDto>,
+) -> Result<AudioOutput, DriverError> {
     let soundcard_id = json::get_config_str(&device_info.config, "soundcard_id")?;
     let channel = json::get_config_str(&device_info.config, "channel")?;
     let channel_enum: ChannelEnum;
@@ -15,13 +18,16 @@ pub fn make( device_info: &DeviceMetaInfoDto, report_tx: Sender<DeviceStateDto>)
     } else if channel == "right" {
         channel_enum = ChannelEnum::Right;
     } else {
-        return Err(DriverError(format!("device factory: invalid channel str, channel: {}, device_id: {}", channel, device_info.device_id)));
+        return Err(DriverError(format!(
+            "device factory: invalid channel str, channel: {}, device_id: {}",
+            channel, device_info.device_id
+        )));
     }
     let obj = AudioOutput::new(
-        device_info.device_id.as_str(), 
+        device_info.device_id.as_str(),
         soundcard_id.as_str(),
         channel_enum,
-        report_tx
-    ); 
+        report_tx,
+    );
     Ok(obj)
 }

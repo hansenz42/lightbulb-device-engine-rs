@@ -18,7 +18,7 @@ use std::{thread, time, error::Error};
 use std::time::Duration;
 use crate::common::error::DriverError;
 use crate::{info, warn, error, trace, debug};
-use crate::entity::dto::device_state_dto::{StateDtoEnum, DeviceStateDto, DmxBusStateDto};
+use crate::entity::dto::device_state_dto::{StateDtoEnum, StateToDeviceControllerDto, DmxBusStateDto};
 use crate::common::logger::init_logger;
 use super::prelude::{DmxValue, DmxChannelLen};
 use super::dmx_thread::*;
@@ -35,14 +35,14 @@ pub struct DmxBus {
     data: [DmxValue; DmxChannelLen],
     // thread command sending channel
     thread_tx: Option<mpsc::Sender<DmxThreadCommandEnum>>,
-    report_tx: Sender<DeviceStateDto>,
+    report_tx: Sender<StateToDeviceControllerDto>,
     error_msg: Option<String>,
     error_timestamp: Option<u64>,
     last_update: Option<u64>,
 }
 
 impl ReportUpward for DmxBus {
-    fn get_upward_channel(&self) -> &Sender<DeviceStateDto> {
+    fn get_upward_channel(&self) -> &Sender<StateToDeviceControllerDto> {
         return &self.report_tx;
     }
 
@@ -51,7 +51,7 @@ impl ReportUpward for DmxBus {
         let state = DmxBusStateDto {
             channel: Vec::from(self.data.clone())
         };
-        self.notify_upward(DeviceStateDto {
+        self.notify_upward(StateToDeviceControllerDto {
             device_id: self.device_id.clone(),
             device_class: DEVICE_CLASS.to_string(),
             device_type: DEVICE_TYPE.to_string(),
@@ -70,7 +70,7 @@ impl ReportUpward for DmxBus {
 impl DmxBus {
 
     /// create a new dmx bus device
-    pub fn new(device_id: &str, serial_port: &str, report_tx: Sender<DeviceStateDto>) -> Self {
+    pub fn new(device_id: &str, serial_port: &str, report_tx: Sender<StateToDeviceControllerDto>) -> Self {
         Self {
             device_id: device_id.to_string(),
             serial_port: serial_port.to_string(),

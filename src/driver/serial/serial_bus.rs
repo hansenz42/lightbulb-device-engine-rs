@@ -16,7 +16,7 @@ use super::{
 use crate::{
     common::error::DriverError,
     entity::po::{device_config_po::ConfigPo},
-    entity::dto::device_state_dto::DeviceStateDto
+    entity::dto::device_state_dto::StateToDeviceControllerDto
 };
 use actix_web::http::uri::Port;
 use futures::{stream::SplitSink, SinkExt, StreamExt};
@@ -38,7 +38,7 @@ pub struct SerialBus {
     baudrate: u32,
     // upward channel reporting device state
     // CAUTION: it is the std Sender
-    upward_channel: Option<Sender<DeviceStateDto>>,
+    upward_channel: Option<Sender<StateToDeviceControllerDto>>,
     // command sending channel to serial port
     // caution: it is the TOKIO Sender
     command_channel_tx: Option<tokio::sync::mpsc::Sender<SerialThreadCommand>>,

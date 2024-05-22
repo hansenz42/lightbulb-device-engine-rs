@@ -10,7 +10,7 @@ use super::entity::{ModbusThreadCommandEnum, WriteMultiBo, WriteSingleBo};
 use crate::common::error::DriverError;
 use crate::driver::traits::{Refable, ReportUpward};
 use crate::entity::dto::device_report_dto::DeviceReportDto;
-use crate::entity::dto::device_state_dto::{DeviceStateDto, DoControllerStateDto, StateDtoEnum};
+use crate::entity::dto::device_state_dto::{StateToDeviceControllerDto, DoControllerStateDto, StateDtoEnum};
 
 const DEVICE_CLASS: &str = "controller";
 const DEVICE_TYPE: &str = "modbus_do_controller";
@@ -26,7 +26,7 @@ pub struct ModbusDoController {
     port_state_vec: Vec<bool>,
     // the type here should be modbus
     modbus_ref: Rc<RefCell<ModbusBus>>,
-    report_tx: Sender<DeviceStateDto>,
+    report_tx: Sender<StateToDeviceControllerDto>,
     error_msg: Option<String>,
     error_timestamp: Option<u64>,
     last_update: Option<u64>,
@@ -101,7 +101,7 @@ impl ModbusCaller for ModbusDoController {
 }
 
 impl ReportUpward for ModbusDoController {
-    fn get_upward_channel(&self) -> &Sender<DeviceStateDto> {
+    fn get_upward_channel(&self) -> &Sender<StateToDeviceControllerDto> {
         return &self.report_tx;
     }
 
@@ -110,7 +110,7 @@ impl ReportUpward for ModbusDoController {
             port: self.port_state_vec.clone()
         };
         
-        self.notify_upward(DeviceStateDto{
+        self.notify_upward(StateToDeviceControllerDto{
             device_id: self.device_id.clone(),
             device_class: DEVICE_CLASS.to_string(),
             device_type: DEVICE_TYPE.to_string(),
@@ -132,7 +132,7 @@ impl ModbusDoController {
         unit: ModbusUnitSize, 
         output_num: ModbusAddrSize, 
         modbus_ref: Rc<RefCell<ModbusBus>>,
-        report_tx: Sender<DeviceStateDto>
+        report_tx: Sender<StateToDeviceControllerDto>
     ) -> Self {
         ModbusDoController {
             device_id: device_id.to_string(),
