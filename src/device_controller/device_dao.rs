@@ -20,7 +20,7 @@ const LOG_TAG: &str = "device_dao";
 impl Dao for DeviceDao {
     async fn drop_table(&self) -> tokio_rusqlite::Result<()> {
         let conn = SqliteConnection::get().open().await?;
-        let table_name_copy = self.table_name.clone();
+        let table_name_copy = self.table_name;
 
         conn.call( move|conn| 
             conn.execute(format!("DROP TABLE {}", table_name_copy).as_str(), ())

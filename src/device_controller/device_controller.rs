@@ -4,24 +4,26 @@
 
 use serde_json::{Map, Value};
 use std::collections::HashMap;
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{Receiver, Sender};
+use std::thread::{self, JoinHandle};
 
 use super::device_dao::DeviceDao;
+use super::entity::device_po::DevicePo;
 use super::workers::device_thread::device_thread;
 use super::workers::heartbeating_thread::heartbeating_thread;
 use super::workers::reporting_thread::reporting_thread;
-use super::entity::device_po::DevicePo;
 use crate::common::dao::Dao;
 use crate::common::error::{DeviceServerError, ServerErrorCode};
 use crate::common::http;
+use crate::common::setting::Settings;
 use crate::device_controller::device_info_maker_helper::make_device_info;
 use crate::entity::dto::device_command_dto::DeviceCommandDto;
 use crate::entity::dto::device_meta_info_dto::DeviceMetaInfoDto;
 use crate::entity::dto::device_state_dto::{DeviceStateDto, StateDtoEnum};
+use crate::entity::dto::mqtt_dto::DeviceToMqttEnum;
 use crate::mqtt_client::client::MqttClient;
 use crate::{debug, error, info, trace, warn};
 use std::sync::{mpsc, Arc, Mutex};
-use crate::common::setting::Settings;
 
 // url to update device config
 const UPDATE_CONFIG_URL: &str = "api/v1.2/device/config";
@@ -32,89 +34,88 @@ const HEARTBEAT_INTERVAL: u64 = 10000;
 /// - manage device list
 /// - manage device incoming and outgoing data
 /// - double thread architecture, one thread for outgoing data, one thread for incoming data
-pub struct DeviceManager {
+pub struct DeviceController {
     device_dao: DeviceDao,
     // configuration map of devices
     pub config_map: HashMap<String, DevicePo>,
     // configuration list of devices
     pub config_list: Vec<DevicePo>,
-    // downward receive channel from mqtt
-    device_command_rx: mpsc::Receiver<DeviceCommandDto>,
-    device_command_tx: mpsc::Sender<DeviceCommandDto>,
     // device info map
     pub device_info_map: Arc<Mutex<HashMap<String, DeviceMetaInfoDto>>>,
 }
 
-impl DeviceManager {
+impl DeviceController {
     pub fn new() -> Self {
-        let (device_command_tx, device_command_rx) = mpsc::channel();
-        DeviceManager {
+        DeviceController {
             device_dao: DeviceDao::new(),
             config_map: HashMap::new(),
             config_list: Vec::new(),
-            device_command_rx,
-            device_command_tx,
             device_info_map: Arc::new(Mutex::new(HashMap::new())),
         }
     }
-
-    pub fn get_device_command_tx(&self) -> mpsc::Sender<DeviceCommandDto> {
-        self.device_command_tx.clone()
-    } 
 
     /// start the device manager work
     /// - heartbeating thread: send heartbeat periodically
     /// - device thread: create device and controller command sending
     /// - reporting thread: listen to devices status change and report to mqtt client
-    /// 
-    /// CAUTION: after calling this function, DeviceManager will drop, 
+    ///
+    /// CAUTION: after calling this function, DeviceManager will drop,
     /// so be sure that device_command_tx is cloned before calling this function
-    pub fn run_threads(self, mqtt_client: Arc<Mutex<MqttClient>>) {
+    pub fn run_threads(
+        self,
+        device_to_mqtt_tx: Sender<DeviceToMqttEnum>,
+        device_command_rx: Receiver<DeviceCommandDto>,
+    ) -> Vec<JoinHandle<()>> {
         let (state_report_tx, state_report_rx) = mpsc::channel();
-
+        let mut ret: Vec<JoinHandle<()>> = Vec::new();
         // 1 start device thread
-        device_thread(
+        let device_handle = device_thread(
             state_report_tx,
-            self.device_command_rx,
+            device_command_rx,
             self.config_list.clone(),
             self.device_info_map.clone(),
         );
+        ret.push(device_handle);
         debug!(
             LOG_TAG,
             "device manager worker starting: device thread called"
         );
 
         // 2 start reporting thread
-        reporting_thread(
+        let reporting_handle = reporting_thread(
             state_report_rx,
-            mqtt_client.clone(),
-            self.device_info_map.clone()
+            device_to_mqtt_tx.clone(),
+            self.device_info_map.clone(),
         );
+        ret.push(reporting_handle);
         debug!(
             LOG_TAG,
             "device manager worker starting: reporting thread called"
         );
 
         // 3 start heartbeating thread
-        heartbeating_thread(
+        let heartbeating_handle = heartbeating_thread(
             HEARTBEAT_INTERVAL,
             self.device_info_map.clone(),
             self.config_map.clone(),
-            mqtt_client.clone(),
+            device_to_mqtt_tx.clone(),
         );
+        ret.push(heartbeating_handle);
         debug!(
             LOG_TAG,
             "device manager worker starting: heartbeating thread called"
         );
+
+        ret
     }
 
     pub fn start(
         mut self,
-        mqtt_client: Arc<Mutex<MqttClient>>,
-    ) -> Result<(), DeviceServerError> {
+        device_to_mqtt_tx: Sender<DeviceToMqttEnum>,
+        device_command_rx: Receiver<DeviceCommandDto>,
+    ) -> Result<Vec<JoinHandle<()>>, DeviceServerError> {
         self.ready()?;
-        self.run_threads(mqtt_client);
-        Ok(())
+        Ok(self.run_threads(device_to_mqtt_tx, device_command_rx))
     }
 
     /// init device manager
@@ -173,7 +174,10 @@ impl DeviceManager {
     /// get config data from remote
     async fn get_remote(&mut self) -> Result<Value, DeviceServerError> {
         let url = format!("{}/{}", UPDATE_CONFIG_URL, Settings::get().server.server_id);
-        info!(LOG_TAG, "get remote config data from flow server, url: {}", &url);
+        info!(
+            LOG_TAG,
+            "get remote config data from flow server, url: {}", &url
+        );
         http::api_get(url.as_str()).await
     }
 
@@ -256,8 +260,8 @@ mod tests {
     fn test_device_manager() {
         let _ = init_logger();
         // env::set_var("dummy", "true");
-        let mut manager = DeviceManager::new();
-        let tx = manager.get_device_command_tx();
+        let mut manager = DeviceController::new();
+        // let tx = manager.get_device_command_tx();
         let mut mqtt_client = MqttClient::new();
         // mqtt_client.start().unwrap();
         // let mqtt_client_arc = Arc::new(Mutex::new(mqtt_client));
@@ -272,14 +276,14 @@ mod tests {
         // }).unwrap();
 
         // send audio command
-        tx.send(DeviceCommandDto {
-            device_id: "test_audio".to_string(),
-            server_id: "test".to_string(),
-            action: "play".to_string(),
-            params: CommandParamsEnum::Audio(AudioParamsDto{
-                hash: "61b62be9d1715598003e71ec9ea52010".to_string(),
-            }),
-        }).unwrap();
+        // tx.send(DeviceCommandDto {
+        //     device_id: "test_audio".to_string(),
+        //     server_id: "test".to_string(),
+        //     action: "play".to_string(),
+        //     params: CommandParamsEnum::Audio(AudioParamsDto{
+        //         hash: "61b62be9d1715598003e71ec9ea52010".to_string(),
+        //     }),
+        // }).unwrap();
 
         // sleep 20 sec
         thread::sleep(std::time::Duration::from_secs(20));
@@ -295,7 +299,7 @@ mod tests {
     fn test_device_engine_startup_and_make_devices() {
         let _ = init_logger();
         println!("device engine startup testing");
-        let mut manager = DeviceManager::new();
+        let mut manager = DeviceController::new();
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(async {})
     }

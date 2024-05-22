@@ -32,7 +32,6 @@ pub fn run_loop(
     // listeners
     listener_vec: Vec<RefCell<Box<dyn SerialMountable + Send>>>,
 ) -> Result<(), DriverError> {
-    let port: Option<SerialStream> = None;
     let env_mode = std::env::var("mode").unwrap_or("real".to_string());
     let mut writer_opt: Option<SplitSink<Framed<SerialStream, _>, _>> = None;
     let mut reader_opt: Option<SplitStream<Framed<SerialStream, _>>> = None;
@@ -93,13 +92,12 @@ pub fn run_loop(
 
                 // if there is no data to write, read data
                 _ = interval.tick() => {
-                    let mut buf = bytes::BytesMut::new();
-                    if let Some(mut reader) = reader_opt.as_mut() {
+                    if let Some(reader) = reader_opt.as_mut() {
                         match reader.try_next().await {
                             Ok(Some(data)) => {
                                 trace!(LOG_TAG, "got data: {:?}", &data);
                                 for listener in listener_vec.iter() {
-                                    listener.borrow_mut().notify(data.clone());
+                                    listener.borrow_mut().notify(data.clone())?;
                                 }
                             }
                             Ok(None) => {

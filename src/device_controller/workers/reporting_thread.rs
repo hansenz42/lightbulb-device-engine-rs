@@ -8,9 +8,8 @@ use std::{
 use crate::{
     entity::dto::{
         device_meta_info_dto::{DeviceMetaInfoDto, DeviceStatusEnum},
-        device_state_dto::DeviceStateDto,
+        device_state_dto::DeviceStateDto, mqtt_dto::DeviceToMqttEnum,
     },
-    mqtt_client::client::MqttClient,
 };
 
 use crate::{debug, error, info, trace, warn};
@@ -22,9 +21,9 @@ const LOG_TAG: &'static str = "reporting_thread";
 /// the thread using tokio runtime because mqtt client is async
 pub fn reporting_thread(
     state_report_rx: mpsc::Receiver<DeviceStateDto>,
-    mqtt_client: Arc<Mutex<MqttClient>>,
+    device_to_mqtt_tx: mpsc::Sender<DeviceToMqttEnum>,
     device_info_map: Arc<Mutex<HashMap<String, DeviceMetaInfoDto>>>,
-) {
+) -> thread::JoinHandle<()> {
     thread::spawn(move || loop {
         info!(LOG_TAG, "waiting for device reporting message");
         let message = state_report_rx.recv();
@@ -42,12 +41,7 @@ pub fn reporting_thread(
                     }
                 }
                 // 2 send out mqtt message
-                {
-                    let mqtt_guard = mqtt_client.lock().unwrap();
-                    mqtt_guard
-                        .publish_status(device_state_dto)
-                        .expect("cannot publish upward message to mqtt");
-                }
+                device_to_mqtt_tx.send(DeviceToMqttEnum::DeviceState(device_state_dto));
             }
             Err(e) => {
                 warn!(
@@ -57,5 +51,5 @@ pub fn reporting_thread(
                 return;
             }
         }
-    });
+    })
 }

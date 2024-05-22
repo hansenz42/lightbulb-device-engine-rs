@@ -6,7 +6,7 @@ use std::{
     fmt::format,
     process::exit,
     sync::{mpsc, Arc, Mutex},
-    thread,
+    thread::{self},
 };
 
 use crate::{
@@ -14,7 +14,6 @@ use crate::{
     entity::dto::{
         device_command_dto::DeviceCommandDto, device_meta_info_dto::DeviceStatusEnum,
         device_report_dto::DeviceReportDto, device_state_dto::DeviceStateDto,
-        server_state_dto::ServerStateDto,
     },
 };
 
@@ -34,8 +33,8 @@ pub fn device_thread(
     command_rx: mpsc::Receiver<DeviceCommandDto>,
     device_po_list: Vec<DevicePo>,
     device_info_map: Arc<Mutex<HashMap<String, DeviceMetaInfoDto>>>,
-) {
-    let handle = thread::spawn(move || {
+) -> thread::JoinHandle<()> {
+    thread::spawn(move || {
         // 1. make devices according to config
         let mut device_factory = DeviceInstanceFactory::new(state_report_tx_dummy);
         device_factory
@@ -101,7 +100,7 @@ pub fn device_thread(
                 }
             }
         }
-    });
+    })
 }
 
 

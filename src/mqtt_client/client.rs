@@ -1,6 +1,6 @@
 use std::os::linux::raw;
 use std::sync::mpsc::{self, Receiver, Sender};
-use std::thread;
+use std::thread::{self, JoinHandle};
 
 use super::message_listener::on_message;
 use super::protocol::Protocol;
@@ -40,7 +40,7 @@ impl MqttClient {
         mut self,
         mqtt_to_device_tx: Sender<DeviceCommandDto>,
         device_to_mqtt_rx: Receiver<DeviceToMqttEnum>,
-    ) -> Result<(), DeviceServerError> {
+    ) -> JoinHandle<()> {
         thread::spawn(move || {
             let setting = Settings::get();
 
@@ -110,9 +110,7 @@ impl MqttClient {
                     }
                 }
             }
-        });
-
-        Ok(())
+        })
     }
 
     /// according topic and payload to publish message

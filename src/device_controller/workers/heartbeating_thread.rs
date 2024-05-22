@@ -1,19 +1,15 @@
 use std::{
     collections::HashMap,
     sync::{mpsc, Arc, Mutex},
-    thread,
+    thread::{self},
 };
 
-use crate::{
-    entity::dto::{
-        device_report_dto::DeviceReportDto, server_state_dto::ServerStateDto
-    },
-    mqtt_client::client::MqttClient,
+use crate::entity::dto::{
+    device_report_dto::DeviceReportDto, mqtt_dto::DeviceToMqttEnum,
+    server_state_dto::ServerStateDto,
 };
 
-use super::super::
-    entity::device_po::DevicePo
-;
+use super::super::entity::device_po::DevicePo;
 use crate::entity::dto::device_meta_info_dto::DeviceMetaInfoDto;
 use crate::{debug, error, info, trace, warn};
 
@@ -25,9 +21,9 @@ pub fn heartbeating_thread(
     beat_interval_millis: u64,
     device_info_map: Arc<Mutex<HashMap<String, DeviceMetaInfoDto>>>,
     device_config_map: HashMap<String, DevicePo>,
-    mqtt_client: Arc<Mutex<MqttClient>>,
-) {
-    let _ = thread::spawn(move || {
+    device_to_mqtt_tx: mpsc::Sender<DeviceToMqttEnum>,
+) -> thread::JoinHandle<()> {
+    thread::spawn(move || {
         info!(LOG_TAG, "heartbeating thread starting");
         loop {
             // 1. make device report message
@@ -50,19 +46,10 @@ pub fn heartbeating_thread(
                 "heartbeating thread: send server state, msg len: {}",
                 server_state.device_status.len()
             );
-            {
-                let mqtt_guard = mqtt_client.lock().unwrap();
-                let ret = mqtt_guard.publish_heartbeat(server_state);
-                match ret {
-                    Ok(_) => {}
-                    Err(e) => {
-                        error!(LOG_TAG, "heartbeating thread: cannot publish server state to mqtt, will try in next beat, error msg: {}", e);
-                    }
-                }
-            }
+            device_to_mqtt_tx.send(DeviceToMqttEnum::ServerState(server_state));
 
             // 3. sleep for beat_interval
             thread::sleep(std::time::Duration::from_millis(beat_interval_millis));
         }
-    });
+    })
 }

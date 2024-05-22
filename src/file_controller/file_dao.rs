@@ -21,7 +21,7 @@ impl Dao for FileDao {
     /// drop table
     async fn drop_table(&self) -> tokio_rusqlite::Result<()> {
         let conn = SqliteConnection::get().open().await?;
-        let table_name_copy = self.table_name.clone();
+        let table_name_copy = self.table_name;
 
         conn.call(move |conn| {
             conn.execute(
@@ -36,7 +36,7 @@ impl Dao for FileDao {
     /// create file table
     async fn create_table(&self) -> tokio_rusqlite::Result<()> {
         let conn = SqliteConnection::get().open().await?;
-        let table_name_copy = self.table_name.clone();
+        let table_name_copy = self.table_name;
 
         conn.call( move |conn| {
             conn.execute(
@@ -87,7 +87,7 @@ impl FileDao {
         let conn = SqliteConnection::get().open().await?;
 
         let file_info_copy = file_info.clone();
-        let table_name  = self.table_name.clone();
+        let table_name  = self.table_name;
 
         conn.call(move |conn| {
             conn.execute(
@@ -103,7 +103,7 @@ impl FileDao {
     pub async fn delete_file_info(&self, hash: &str) -> Result<(), Box<dyn Error>> {
         let conn = SqliteConnection::get().open().await?;
 
-        let table_name_copy = self.table_name.clone();
+        let table_name_copy = self.table_name;
         let hash_copy = hash.to_string();
 
         conn.call(move |conn| {
@@ -120,7 +120,7 @@ impl FileDao {
     pub async fn get_all(&self) -> Result<Vec<FilePo>, Box<dyn Error>> {
         let conn = SqliteConnection::get().open().await?;
 
-        let table_name_copy = self.table_name.clone();
+        let table_name_copy = self.table_name;
 
         let file_pos = conn.call(move |conn| {
             let mut stmt = conn.prepare(
