@@ -2,6 +2,7 @@ use std::sync::mpsc::Sender;
 use std::{collections::HashMap, hash::Hash};
 use crate::common::error::DriverError;
 use crate::driver::traits::ReportUpward;
+use crate::entity::dto::device_report_dto::DeviceReportDto;
 use crate::entity::dto::device_state_dto::{DeviceStateDto, DiControllerStateDto, StateDtoEnum};
 use super::traits::{ModbusListener, ModbusDiControllerListener};
 use super::prelude::*;
@@ -23,7 +24,10 @@ pub struct ModbusDiController {
     mount_port_map:  HashMap<ModbusAddrSize, Box<dyn ModbusDiControllerListener + Send>>,
     // port state cache
     port_state_vec: Vec<bool>,
-    report_tx: Sender<DeviceStateDto>
+    report_tx: Sender<DeviceStateDto>,
+    error_msg: Option<String>,
+    error_timestamp: Option<u64>,
+    last_update: Option<u64>,
 }
 
 impl ReportUpward for ModbusDiController {
@@ -39,7 +43,13 @@ impl ReportUpward for ModbusDiController {
             device_id: self.device_id.clone(),
             device_class: DEVICE_CLASS.to_string(),
             device_type: DEVICE_TYPE.to_string(),
-            state: StateDtoEnum::DiController(state_dto),
+            status: DeviceReportDto{
+                active: true,
+                error_msg: self.error_msg.clone(),
+                error_timestamp: self.error_timestamp.clone(),
+                last_update: self.last_update.clone(),
+                state: StateDtoEnum::DiController(state_dto.clone())
+            }
         })?;
         Ok(())
     }
@@ -111,7 +121,10 @@ impl ModbusDiController {
             input_num,
             mount_port_map: HashMap::new(),
             port_state_vec: vec![false; input_num as usize],
-            report_tx
+            report_tx,
+            error_msg: None,
+            error_timestamp: None,
+            last_update: None,
         }
     }
 

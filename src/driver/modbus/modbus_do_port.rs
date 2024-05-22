@@ -9,6 +9,7 @@ use super::traits::{ModbusCaller, ModbusDoControllerCaller};
 use crate::common::error::DriverError;
 use crate::driver::traits::{Commandable, ReportUpward};
 use crate::entity::dto::device_command_dto::DeviceCommandDto;
+use crate::entity::dto::device_report_dto::DeviceReportDto;
 use crate::entity::dto::device_state_dto::{DeviceStateDto, DoStateDto, StateDtoEnum};
 use crate::{info, warn};
 
@@ -21,7 +22,10 @@ pub struct ModbusDoPort {
     address: ModbusAddrSize,
     controller_ref: Rc<RefCell<ModbusDoController>>,
     report_tx: Sender<DeviceStateDto>,
-    on: bool
+    on: bool,
+    error_msg: Option<String>,
+    error_timestamp: Option<u64>,
+    last_update: Option<u64>,
 }
 
 impl ModbusDoPort {
@@ -36,7 +40,10 @@ impl ModbusDoPort {
             address,
             controller_ref,
             report_tx,
-            on: false
+            on: false,
+            error_msg: None,
+            error_timestamp: None,
+            last_update: None,
         }
     }
 }
@@ -54,7 +61,13 @@ impl ReportUpward for ModbusDoPort {
             device_id: self.device_id.clone(),
             device_class: DEVICE_CLASS.to_string(),
             device_type: DEVICE_TYPE.to_string(),
-            state: StateDtoEnum::Do(state_dto),
+            status: DeviceReportDto{
+                error_msg: self.error_msg.clone(),
+                error_timestamp: self.error_timestamp,
+                last_update: self.last_update,
+                state: StateDtoEnum::Do(state_dto),
+                active: true
+            }
         })?;
         Ok(())
     }

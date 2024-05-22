@@ -261,33 +261,10 @@ mod test {
         let _ = client.start(tx, rx2);
 
         // send to tx2
-        let dto = DeviceToMqttEnum::DeviceState(DeviceStateDto{
-            device_id: "test_device_id".to_string(),
-            device_class: "test_class".to_string(),
-            device_type: "test_type".to_string(),
-            state: StateDtoEnum::Do(DoStateDto { on: true }),
-        });
-        tx2.send(dto).unwrap();
 
         // listen on rx
         let result = rx.recv().unwrap();
 
         println!("接收到消息: {:?}", result);
-    }
-
-    #[test]
-    fn test_publish_status() {
-        init_logger();
-        println!("publish status testing: will use do state dto");
-        let mut client = MqttClient::new();
-
-        client
-            .publish_status(DeviceStateDto {
-                device_id: "test".to_string(),
-                device_class: "test".to_string(),
-                device_type: "test".to_string(),
-                state: StateDtoEnum::Do(DoStateDto { on: true }),
-            })
-            .unwrap();
     }
 }

@@ -4,6 +4,8 @@ use std::error::Error;
 
 use serde::{Deserialize, Serialize};
 
+use super::device_report_dto::DeviceReportDto;
+
 /// universal device status enum
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(untagged)]
@@ -25,7 +27,7 @@ pub struct DeviceStateDto {
     pub device_id: String,
     pub device_class: String,
     pub device_type: String,
-    pub state: StateDtoEnum
+    pub status: DeviceReportDto,
 }
 
 impl DeviceStateDto {

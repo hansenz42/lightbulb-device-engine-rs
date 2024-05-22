@@ -1,15 +1,14 @@
 use std::{
+    borrow::{Borrow, BorrowMut},
     collections::HashMap,
     sync::{mpsc, Arc, Mutex},
     thread,
-    borrow::{Borrow, BorrowMut},
 };
 
-use crate::{
-    entity::dto::{
-        device_meta_info_dto::{DeviceMetaInfoDto, DeviceStatusEnum},
-        device_state_dto::DeviceStateDto, mqtt_dto::DeviceToMqttEnum,
-    },
+use crate::entity::dto::{
+    device_meta_info_dto::{DeviceMetaInfoDto, DeviceStatusEnum},
+    device_state_dto::DeviceStateDto,
+    mqtt_dto::DeviceToMqttEnum,
 };
 
 use crate::{debug, error, info, trace, warn};
@@ -28,20 +27,29 @@ pub fn reporting_thread(
         info!(LOG_TAG, "waiting for device reporting message");
         let message = state_report_rx.recv();
         match message {
-            Ok(device_state_dto) => {
-                info!(LOG_TAG, "report message to mqtt: {:?}", &device_state_dto);
-                let device_id = device_state_dto.device_id.clone();
-                let device_state_copy = device_state_dto.state.clone();
+            Ok(dto) => {
+                info!(LOG_TAG, "report message to mqtt: {:?}", &dto);
+                let device_id = dto.device_id.clone();
                 // 1 update device state and mark device status to "active"
                 {
                     let mut map_guard = device_info_map.lock().unwrap();
                     if let Some(device_info) = map_guard.borrow_mut().get_mut(device_id.as_str()) {
-                        device_info.state = device_state_copy;
+                        device_info.state = dto.status.state.clone();
+                        // conditionally update when data is not none
+                        if !dto.status.error_msg.is_none() {
+                            device_info.error_msg = dto.status.error_msg.clone();
+                        }
+                        if !dto.status.error_timestamp.is_none() {
+                            device_info.error_timestamp = dto.status.error_timestamp.clone();
+                        }
+                        if !dto.status.last_update.is_none() {
+                            device_info.last_update = dto.status.last_update.clone();
+                        }
                         device_info.status = DeviceStatusEnum::ACTIVE;
                     }
                 }
                 // 2 send out mqtt message
-                device_to_mqtt_tx.send(DeviceToMqttEnum::DeviceState(device_state_dto));
+                device_to_mqtt_tx.send(DeviceToMqttEnum::DeviceState(dto));
             }
             Err(e) => {
                 warn!(

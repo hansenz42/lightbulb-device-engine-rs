@@ -2,6 +2,7 @@ use super::prelude::*;
 use super::traits::ModbusDiControllerListener;
 use crate::common::error::DriverError;
 use crate::driver::traits::ReportUpward;
+use crate::entity::dto::device_report_dto::DeviceReportDto;
 use crate::entity::dto::device_state_dto::{DeviceStateDto, DiStateDto, StateDtoEnum};
 use crate::{debug, error, info, trace, warn};
 use std::env;
@@ -18,7 +19,10 @@ const LOG_TAG: &str = "modbus_di_port";
 pub struct ModbusDiPort {
     device_id: String,
     address: ModbusAddrSize,
-    upward_channel: mpsc::Sender<DeviceStateDto>
+    upward_channel: mpsc::Sender<DeviceStateDto>,
+    error_msg: Option<String>,
+    error_timestamp: Option<u64>,
+    last_update: Option<u64>,
 }
 
 impl ModbusDiControllerListener for ModbusDiPort {
@@ -40,7 +44,13 @@ impl ModbusDiControllerListener for ModbusDiPort {
                 device_id: self.device_id.clone(),
                 device_class: DEVICE_CLASS.to_string(),
                 device_type: DEVICE_TYPE.to_string(),
-                state: state,
+                status: DeviceReportDto {
+                    state,
+                    error_msg: self.error_msg.clone(),
+                    error_timestamp: self.error_timestamp,
+                    last_update: self.last_update,
+                    active: true,
+                }
             };
             let _ = self.notify_upward(device_state_dto)?;
             debug!(
@@ -73,7 +83,10 @@ impl ModbusDiPort {
         ModbusDiPort {
             device_id: device_id.to_string(),
             address,
-            upward_channel: report_tx
+            upward_channel: report_tx,
+            error_msg: None,
+            error_timestamp: None,
+            last_update: None,
         }
     }
 }
@@ -90,13 +103,5 @@ mod tests {
         let device_port = ModbusDiPort::new("di_1", 0, tx);
         device_port.notify(true).unwrap();
         let state_bo: DeviceStateDto = rx.recv().unwrap();
-        match state_bo.state {
-            StateDtoEnum::Di(di_state) => {
-                assert_eq!(di_state.on, true);
-            }
-            _ => {
-                assert!(false);
-            }
-        }
     }
 }

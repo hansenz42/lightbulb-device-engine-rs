@@ -6,11 +6,11 @@ use super::{device_meta_info_dto::{DeviceMetaInfoDto, DeviceStatusEnum}, device_
 /// includes device information
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DeviceReportDto {
-    active: bool,
-    error_msg: Option<String>,
-    error_timestamp: Option<f64>,
-    last_update: Option<f64>,
-    state: StateDtoEnum
+    pub active: bool,
+    pub error_msg: Option<String>,
+    pub error_timestamp: Option<u64>,
+    pub last_update: Option<u64>,
+    pub state: StateDtoEnum
 }
 
 impl DeviceReportDto {

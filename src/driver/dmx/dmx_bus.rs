@@ -11,6 +11,7 @@ use dmx::{self, DmxTransmitter};
 use serde_json::Value;
 use crate::common;
 use crate::driver::traits::ReportUpward;
+use crate::entity::dto::device_report_dto::DeviceReportDto;
 use std::sync::mpsc::Sender;
 use std::sync::{mpsc, Arc, Mutex};
 use std::{thread, time, error::Error};
@@ -35,6 +36,9 @@ pub struct DmxBus {
     // thread command sending channel
     thread_tx: Option<mpsc::Sender<DmxThreadCommandEnum>>,
     report_tx: Sender<DeviceStateDto>,
+    error_msg: Option<String>,
+    error_timestamp: Option<u64>,
+    last_update: Option<u64>,
 }
 
 impl ReportUpward for DmxBus {
@@ -51,7 +55,13 @@ impl ReportUpward for DmxBus {
             device_id: self.device_id.clone(),
             device_class: DEVICE_CLASS.to_string(),
             device_type: DEVICE_TYPE.to_string(),
-            state: StateDtoEnum::DmxBus(state)
+            status: DeviceReportDto {
+                error_msg: self.error_msg.clone(),
+                error_timestamp: self.error_timestamp,
+                last_update: self.last_update,
+                active: true,
+                state: StateDtoEnum::DmxBus(state)
+            }
         })?;
         Ok(())
     }
@@ -66,7 +76,10 @@ impl DmxBus {
             serial_port: serial_port.to_string(),
             data: [0; 512],
             thread_tx: None,
-            report_tx
+            report_tx,
+            error_msg: None,
+            error_timestamp: None,
+            last_update: None,
         }
     }
 

@@ -22,7 +22,7 @@ pub struct DeviceMetaInfoDto {
 
     // for reporting device state part 
     pub error_msg: Option<String>,
-    pub error_timestamp: Option<f64>,
-    pub last_update: Option<f64>,
+    pub error_timestamp: Option<u64>,
+    pub last_update: Option<u64>,
     pub state: StateDtoEnum
 }

@@ -10,6 +10,7 @@
 use crate::common::error::DriverError;
 use crate::driver::traits::ReportUpward;
 use crate::entity::dto::device_command_dto::{AudioParamsDto, CommandParamsEnum, DeviceCommandDto};
+use crate::entity::dto::device_report_dto::DeviceReportDto;
 use crate::entity::dto::device_state_dto::{
     AudioFilePlayingDto, AudioStateDto, DeviceStateDto, StateDtoEnum,
 };
@@ -44,6 +45,9 @@ pub struct AudioOutput {
     // active output stream
     // CAUTION: need to save output stream to avoid output being recycled
     stream_map: HashMap<String, OutputStream>,
+    error_msg: Option<String>,
+    error_timestamp: Option<u64>,
+    last_update: Option<u64>,
 }
 
 impl ReportUpward for AudioOutput {
@@ -68,7 +72,13 @@ impl ReportUpward for AudioOutput {
                 device_class: DEVICE_CLASS.to_string(),
                 device_type: DEVICE_TYPE.to_string(),
                 device_id: self.device_id.clone(),
-                state: StateDtoEnum::Audio(state_dto),
+                status: DeviceReportDto {
+                    state: StateDtoEnum::Audio(state_dto),
+                    error_msg: self.error_msg.clone(),
+                    error_timestamp: self.error_timestamp,
+                    last_update: self.last_update,
+                    active: true
+                }
             })
             .map_err(|e| DriverError(format!("cannot report audio state, err: {}", e)))?;
 
@@ -90,6 +100,9 @@ impl AudioOutput {
             report_tx: report_tx,
             sink_map: HashMap::new(),
             stream_map: HashMap::new(),
+            error_msg: None,
+            error_timestamp: None,
+            last_update: None,
         }
     }
 

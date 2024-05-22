@@ -1,5 +1,8 @@
 use std::sync::mpsc::Sender;
+use rodio::Device;
+
 use crate::driver::traits::ReportUpward;
+use crate::entity::dto::device_report_dto::DeviceReportDto;
 use crate::entity::dto::device_state_dto::{DeviceStateDto, RemoteStateDto, StateDtoEnum};
 use crate::common::error::DriverError;
 use super::traits::SerialMountable;
@@ -7,23 +10,29 @@ use std::env;
 use crate::{info, warn, error, trace, debug};
 use super::entity::SerialDataBo;
 
-const LOG_TAG: &str = "serial_remote_controller.rs | serial remote controller";
+const LOG_TAG: &str = "serial_remote_controller";
 const DEVICE_CLASS: &str = "operable";
 const DEVICE_TYPE: &str = "remote";
 
 pub struct SerialRemoteController {
     device_id: String,
     button_num: u8,
-    upward_channel: Sender<DeviceStateDto>
+    report_channel: Sender<DeviceStateDto>,
+    error_msg: Option<String>,
+    error_timestamp: Option<u64>,
+    last_update: Option<u64>,
 }
 
 
 impl SerialRemoteController {
-    pub fn new(device_id: &str, button_num: u8, upward_channel: Sender<DeviceStateDto>) -> Self {
+    pub fn new(device_id: &str, button_num: u8, report_channel: Sender<DeviceStateDto>) -> Self {
         SerialRemoteController {
             device_id: device_id.to_string(),
             button_num,
-            upward_channel
+            report_channel,
+            error_msg: None,
+            error_timestamp: None,
+            last_update: None,
         }
     }
 }
@@ -38,13 +47,19 @@ impl SerialMountable for SerialRemoteController {
                 let state = StateDtoEnum::Remote(RemoteStateDto{
                     pressed: pressed_num.clone(),
                 });
-                let device_state_bo = DeviceStateDto {
+                let dto = DeviceStateDto {
                     device_id: self.device_id.clone(),
                     device_class: DEVICE_CLASS.to_string(),
                     device_type: DEVICE_TYPE.to_string(),
-                    state,
+                    status: DeviceReportDto{
+                        active: true,
+                        error_msg: self.error_msg.clone(),
+                        error_timestamp: self.error_timestamp.clone(),
+                        last_update: self.last_update.clone(),
+                        state: state
+                    },
                 };
-                let _ = self.notify_upward(device_state_bo)?;
+                let _ = self.notify_upward(dto)?;
                 debug!(LOG_TAG, "the remote controller pressed, number: {}", pressed_num);
             }
         }
@@ -54,7 +69,7 @@ impl SerialMountable for SerialRemoteController {
 
 impl ReportUpward for SerialRemoteController {
     fn get_upward_channel(&self) -> &Sender<DeviceStateDto> {
-        return &self.upward_channel;
+        return &self.report_channel;
     }
 
     fn report(&self) -> Result<(), DriverError> {

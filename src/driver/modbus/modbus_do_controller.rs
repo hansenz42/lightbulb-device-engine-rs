@@ -9,6 +9,7 @@ use std::sync::mpsc::{self, Sender};
 use super::entity::{ModbusThreadCommandEnum, WriteMultiBo, WriteSingleBo};
 use crate::common::error::DriverError;
 use crate::driver::traits::{Refable, ReportUpward};
+use crate::entity::dto::device_report_dto::DeviceReportDto;
 use crate::entity::dto::device_state_dto::{DeviceStateDto, DoControllerStateDto, StateDtoEnum};
 
 const DEVICE_CLASS: &str = "controller";
@@ -25,7 +26,10 @@ pub struct ModbusDoController {
     port_state_vec: Vec<bool>,
     // the type here should be modbus
     modbus_ref: Rc<RefCell<ModbusBus>>,
-    report_tx: Sender<DeviceStateDto>
+    report_tx: Sender<DeviceStateDto>,
+    error_msg: Option<String>,
+    error_timestamp: Option<u64>,
+    last_update: Option<u64>,
 }
 
 impl ModbusCaller for ModbusDoController {
@@ -108,9 +112,15 @@ impl ReportUpward for ModbusDoController {
         
         self.notify_upward(DeviceStateDto{
             device_id: self.device_id.clone(),
-            state: StateDtoEnum::DoController(state_dto),
             device_class: DEVICE_CLASS.to_string(),
-            device_type: DEVICE_TYPE.to_string()
+            device_type: DEVICE_TYPE.to_string(),
+            status: DeviceReportDto {
+                error_msg: self.error_msg.clone(),
+                error_timestamp: self.error_timestamp,
+                last_update: self.last_update,
+                active: true,
+                state: StateDtoEnum::DoController(state_dto),
+            }
         })?;
         Ok(())
     }
@@ -131,7 +141,10 @@ impl ModbusDoController {
             mount_port_map: HashMap::new(),
             port_state_vec: vec![false; output_num as usize],
             modbus_ref: modbus_ref,
-            report_tx
+            report_tx,
+            error_msg: None,
+            error_timestamp: None,
+            last_update: None,
         }
     }
 
