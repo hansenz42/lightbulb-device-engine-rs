@@ -26,7 +26,7 @@ pub fn make_device_info(
             device_type: device_po.device_type.clone(),
             master_device_id: master_device_id,
             config: device_po.config.clone(),
-            status: DeviceStatusEnum::NotInitialized,
+            device_status: DeviceStatusEnum::NotInitialized,
 
             error_msg: None,
             error_timestamp: None,

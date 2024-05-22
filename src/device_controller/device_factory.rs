@@ -86,7 +86,7 @@ impl DeviceInstanceFactory {
                     .lock()
                     .map_err(|e| DriverError(format!("get device info map mutex error: {}", e)))?;
                 if let Some(data_mut) = device_map_guard.get_mut(device_po.device_id.as_str()) {
-                    data_mut.status = DeviceStatusEnum::Initialized;
+                    data_mut.device_status = DeviceStatusEnum::Initialized;
                 } else {
                     return Err(DriverError(format!(
                         "update device status failed, getting mut reference failed, device_id: {}",

@@ -17,7 +17,7 @@ impl DeviceReportDto {
     pub fn from_device_meta_info(meta_info: &DeviceMetaInfoDto) -> DeviceReportDto {
         DeviceReportDto {
             // active is according to status
-            active: meta_info.status == DeviceStatusEnum::ACTIVE,
+            active: meta_info.device_status == DeviceStatusEnum::ACTIVE,
             error_msg: meta_info.error_msg.clone(),
             error_timestamp: meta_info.error_timestamp,
             last_update: meta_info.last_update,

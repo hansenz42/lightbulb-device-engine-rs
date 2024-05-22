@@ -45,11 +45,16 @@ pub fn reporting_thread(
                         if !dto.status.last_update.is_none() {
                             device_info.last_update = dto.status.last_update.clone();
                         }
-                        device_info.status = DeviceStatusEnum::ACTIVE;
+                        // make device status, according to device reporting dto
+                        if dto.status.active == true {
+                            device_info.device_status = DeviceStatusEnum::ACTIVE;
+                        } else {
+                            device_info.device_status = DeviceStatusEnum::ERROR;
+                        }
                     }
                 }
                 // 2 send out mqtt message
-                device_to_mqtt_tx.send(DeviceToMqttEnum::DeviceState(dto));
+                device_to_mqtt_tx.send(DeviceToMqttEnum::DeviceState(dto)).expect("send mqtt message error");
             }
             Err(e) => {
                 warn!(

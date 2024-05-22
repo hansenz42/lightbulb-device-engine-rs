@@ -19,7 +19,7 @@ const LOG_TAG: &str = "main";
 const SLEEP_INTERVAL: u64 = 1000;
 
 fn main() {
-    init_logger().expect("Failed to initialize logger");
+    init_logger().expect("Fail to initialize logger");
 
     let (device_to_mqtt_tx, device_to_mqtt_rx) = mpsc::channel();
     let (mqtt_to_device_tx, mqtt_to_device_rx) = mpsc::channel();

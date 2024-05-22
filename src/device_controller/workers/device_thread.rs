@@ -12,8 +12,8 @@ use std::{
 use crate::{
     common::error::DriverError,
     entity::dto::{
-        device_command_dto::DeviceCommandDto, device_meta_info_dto::DeviceStatusEnum,
-        device_report_dto::DeviceReportDto, device_state_dto::DeviceStateDto,
+        device_command_dto::DeviceCommandDto,
+        device_state_dto::DeviceStateDto,
     },
 };
 
@@ -102,7 +102,6 @@ pub fn device_thread(
         }
     })
 }
-
 
 /// check all devices and run the threads if device has one
 pub fn start_device(device_enum_map: &HashMap<String, DeviceRefEnum>) -> Result<(), DriverError> {

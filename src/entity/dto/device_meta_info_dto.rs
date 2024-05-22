@@ -18,7 +18,7 @@ pub struct DeviceMetaInfoDto {
     pub master_device_id: Option<String>,
     pub device_type: String,
     pub config: Value,
-    pub status: DeviceStatusEnum,
+    pub device_status: DeviceStatusEnum,
 
     // for reporting device state part 
     pub error_msg: Option<String>,

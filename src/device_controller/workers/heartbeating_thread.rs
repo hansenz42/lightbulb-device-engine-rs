@@ -46,7 +46,7 @@ pub fn heartbeating_thread(
                 "heartbeating thread: send server state, msg len: {}",
                 server_state.device_status.len()
             );
-            device_to_mqtt_tx.send(DeviceToMqttEnum::ServerState(server_state));
+            device_to_mqtt_tx.send(DeviceToMqttEnum::ServerState(server_state)).expect("send server state failed");
 
             // 3. sleep for beat_interval
             thread::sleep(std::time::Duration::from_millis(beat_interval_millis));
