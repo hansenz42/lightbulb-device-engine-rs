@@ -38,7 +38,16 @@ pub fn on_message(
         control_device_command(topic_dto, payload_dto, command_tx)?;
     } else {
         // 3.2 if there is not device_id, which means the target of the message is server
-        update(topic_dto, payload_dto)?;
+        // updating file controller data
+        let action = payload_dto.data["action"].as_str().ok_or(
+            DeviceServerError {
+                code: ServerErrorCode::MqttError,
+                msg: "action not found".to_string(),
+            },
+        )?;
+        if action == "update" {
+            update(topic_dto, payload_dto)?;
+        }
     }
 
     Ok(())
