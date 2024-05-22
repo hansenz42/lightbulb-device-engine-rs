@@ -5,7 +5,7 @@
 use serde_json::{Map, Value};
 use std::collections::HashMap;
 use std::sync::mpsc::{Receiver, Sender};
-use std::thread::{self, JoinHandle};
+use std::thread::JoinHandle;
 
 use super::device_dao::DeviceDao;
 use super::entity::device_po::DevicePo;
@@ -19,9 +19,7 @@ use crate::common::setting::Settings;
 use crate::device_controller::device_info_maker_helper::make_device_info;
 use crate::entity::dto::device_command_dto::DeviceCommandDto;
 use crate::entity::dto::device_meta_info_dto::DeviceMetaInfoDto;
-use crate::entity::dto::device_state_dto::{DeviceStateDto, StateDtoEnum};
 use crate::entity::dto::mqtt_dto::DeviceToMqttEnum;
-use crate::mqtt_client::client::MqttClient;
 use crate::{debug, error, info, trace, warn};
 use std::sync::{mpsc, Arc, Mutex};
 
