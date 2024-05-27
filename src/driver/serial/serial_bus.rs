@@ -15,16 +15,11 @@ use super::{
 };
 use crate::{
     common::error::DriverError,
-    entity::po::{device_config_po::ConfigPo},
     entity::dto::device_state_dto::StateToDeviceControllerDto
 };
-use actix_web::http::uri::Port;
-use futures::{stream::SplitSink, SinkExt, StreamExt};
 use std::sync::mpsc::Sender;
 use std::{
     cell::RefCell,
-    rc::Rc,
-    sync::{Arc, Mutex},
     thread,
 };
 
