@@ -87,13 +87,9 @@ pub async fn run_loop(
             
             let mut result = Ok(vec![]);
 
-            if env_mode == "dummy" {
-                result = read_from_modbus_dummy(unit, *address as ModbusAddrSize, port_num);
-            } else {
-                let context_ref = context.as_mut();
-                // read port status from modbus
-                result = read_from_modbus(&mut context_ref.unwrap(), unit,  *address as ModbusAddrSize, port_num).await;
-            }
+            let context_ref = context.as_mut();
+            // read port status from modbus
+            result = read_coils(&mut context_ref.unwrap(), unit,  *address as ModbusAddrSize, port_num).await;
             
             match result {
                 Ok(ret) => {
@@ -110,9 +106,9 @@ pub async fn run_loop(
     }
 }
 
+// MODBUS READING FUNCTIONS
 
-/// 从 modbus 端口一次性读取多个数据
-pub async fn read_from_modbus(ctx: &mut Context, unit: ModbusUnitSize, address: ModbusAddrSize, count: ModbusAddrSize) -> Result<Vec<bool>, DriverError> {
+pub async fn read_coils(ctx: &mut Context, unit: ModbusUnitSize, address: ModbusAddrSize, count: ModbusAddrSize) -> Result<Vec<bool>, DriverError> {
     let slave = Slave(unit);
     ctx.set_slave(slave);
     let ret = ctx.read_coils(address, count).await.map_err(
@@ -121,12 +117,25 @@ pub async fn read_from_modbus(ctx: &mut Context, unit: ModbusUnitSize, address: 
     Ok(ret)
 }
 
-pub fn read_from_modbus_dummy(unit: ModbusUnitSize, address: ModbusAddrSize, count: ModbusAddrSize) -> Result<Vec<bool>, DriverError>{
-    info!(LOG_TAG, "模拟读取 modbus 端口，unit: {}, address: {}, count: {}", unit, address, count);
-    Ok(vec![true; count as usize])
+pub async fn read_holding_registers(ctx: &mut Context, unit: ModbusUnitSize, address: ModbusAddrSize, count: ModbusAddrSize) -> Result<Vec<u16>, DriverError> {
+    let slave = Slave(unit);
+    ctx.set_slave(slave);
+    let ret = ctx.read_holding_registers(address, count).await.map_err(
+        |e| DriverError(format!("modbus worker thread, read modbus port failed, exc: {}", e))
+    )?;
+    Ok(ret)
 }
 
-// writing to modbus
+pub async fn read_input_registers(ctx: &mut Context, unit: ModbusUnitSize, address: ModbusAddrSize, count: ModbusAddrSize) -> Result<Vec<u16>, DriverError> {
+    let slave = Slave(unit);
+    ctx.set_slave(slave);
+    let ret = ctx.read_input_registers(address, count).await.map_err(
+        |e| DriverError(format!("modbus worker thread, read modbus port failed, exc: {}", e))
+    )?;
+    Ok(ret)
+}
+
+// MODBUS WRITING FUNCTIONS
 
 pub async fn write_single_coil(ctx: &mut Context, unit: ModbusUnitSize, address: ModbusAddrSize, value: bool) -> Result<(), DriverError> {
     let slave = Slave(unit);
@@ -137,22 +146,12 @@ pub async fn write_single_coil(ctx: &mut Context, unit: ModbusUnitSize, address:
     Ok(())
 }
 
-pub fn write_to_modbus_dummy(unit: ModbusUnitSize, address: ModbusAddrSize, value: bool) -> Result<(), DriverError> {
-    info!(LOG_TAG, "模拟写入单个 modbus 端口，unit: {}, address: {}, value: {}", unit, address, value);
-    Ok(())
-}
-
 pub async fn write_multi_coils(ctx: &mut Context, unit: ModbusUnitSize, start_address: ModbusAddrSize, values: &[bool]) -> Result<(), DriverError> {
     let slave = Slave(unit);
     ctx.set_slave(slave);
     ctx.write_multiple_coils(start_address, values).await.map_err(
         |e| DriverError(format!("modbus worker 线程，写入 modbus 端口失败，异常: {}", e))
     )?;
-    Ok(())
-}
-
-pub fn write_multi_to_modbus_dummy(unit: ModbusUnitSize, start_address: ModbusAddrSize, values: &[bool]) -> Result<(), DriverError> {
-    info!(LOG_TAG, "模拟写入多个 modbus 端口，unit: {}, start_address: {}, values: {:?}", unit, start_address, values);
     Ok(())
 }
 

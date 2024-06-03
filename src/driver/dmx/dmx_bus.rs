@@ -1,4 +1,4 @@
-//! dmx 总线设备类
+//! dmx modbus class
 //! dmx 总线可以控制多个带地址的设备
 //! 
 //! 功能
@@ -8,18 +8,14 @@
 //! - dmx 仅支持写而不支持读，所以只有下行数据而无上行数据
 
 use dmx::{self, DmxTransmitter};
-use serde_json::Value;
-use crate::common;
 use crate::driver::traits::ReportUpward;
 use crate::entity::dto::device_report_dto::DeviceReportDto;
 use std::sync::mpsc::Sender;
 use std::sync::{mpsc, Arc, Mutex};
 use std::{thread, time, error::Error};
-use std::time::Duration;
 use crate::common::error::DriverError;
 use crate::{info, warn, error, trace, debug};
 use crate::entity::dto::device_state_dto::{StateDtoEnum, StateToDeviceControllerDto, DmxBusStateDto};
-use crate::common::logger::init_logger;
 use super::prelude::{DmxValue, DMX_CHANNEL_LEN};
 use super::dmx_thread::*;
 use super::entity::*;
