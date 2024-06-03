@@ -16,9 +16,9 @@ use crate::{info, warn, error, trace, debug};
 const LOG_TAG: &str = "modbus_thread";
 const MODBUS_POLLING_INTERVAL: u64 = 100;
 
-/// 一个循环执行的端口守护线程
-/// - 当有指令进入时，向下发送指令
-/// - 当指令发送完毕或者没有指令时，则不断轮询接口提交给 Controller 对象，再由 Controller 对象向上游发送消息
+/// looping async function for commanding modbus port
+/// - when a command is received, send the command
+/// - when the controller is idle, it will poll all input devices (if any), and once the data changes, it will notify the upstream interface
 pub async fn run_loop(
     serial_port: &str,
     baudrate: u32,
@@ -36,37 +36,35 @@ pub async fn run_loop(
     if env_mode == "dummy" {
         info!(LOG_TAG, "dummy mode, modbus port will not be open");
     } else {
-        // 打开端口
+        // open the port
         let builder = tokio_serial::new(serial_port, baudrate);
         let port = SerialStream::open(&builder).map_err(|e| {
             DriverError(format!("modbus worker, error, serial port cannot open, serial_port {}, baud_rate{}, exception: {}", serial_port, baudrate, e))
         })?;
-        // 注册默认 Slave 以获得 Contenxt 对象
+        // register slave with context
         let slave = Slave::broadcast();
         context = Some(rtu::attach_slave(port, slave));
     }
 
     loop {
-        // 接收来自 rx 的消息，如果有消息，向下发送 modbus 指令
+        // send command to modbus thread
         if let Ok(command_enum) = command_rx.try_recv() {
             match command_enum {
-                ModbusThreadCommandEnum::WriteSingle(write_single_bo) => {
-                    
-                    if env_mode == "dummy"  {
-                        write_to_modbus_dummy(write_single_bo.unit, write_single_bo.address, write_single_bo.value)?;
-                    } else {
-                        let context_ref = context.as_mut();
-                        write_to_modbus(&mut context_ref.unwrap(), write_single_bo.unit, write_single_bo.address, write_single_bo.value).await?;
-                    }
-                    
+                ModbusThreadCommandEnum::WriteSingleCoil(dto) => {
+                    let context_ref = context.as_mut();
+                    write_single_coil(&mut context_ref.unwrap(), dto.unit, dto.address, dto.value).await?;
                 },
-                ModbusThreadCommandEnum::WriteMulti(write_multiple_bo) => {
-                    if env_mode == "dummy"  {
-                        write_multi_to_modbus_dummy(write_multiple_bo.unit, write_multiple_bo.start_address, write_multiple_bo.values.as_ref())?;
-                    } else {
-                        let context_ref = context.as_mut();
-                        write_multi_to_modbus(&mut context_ref.unwrap(), write_multiple_bo.unit, write_multiple_bo.start_address, write_multiple_bo.values.as_ref()).await?;
-                    }
+                ModbusThreadCommandEnum::WriteMultiCoils(dto) => {
+                    let context_ref = context.as_mut();
+                    write_multi_coils(&mut context_ref.unwrap(), dto.unit, dto.start_address, dto.values.as_ref()).await?;
+                },
+                ModbusThreadCommandEnum::WriteSingleRegister(dto) => {
+                    let context_ref = context.as_mut();
+                    write_single_register(&mut context_ref.unwrap(), dto.unit, dto.address, dto.value).await?;
+                },
+                ModbusThreadCommandEnum::WriteMultiRegisters(dto) => {
+                    let context_ref = context.as_mut();
+                    write_multi_registers(&mut context_ref.unwrap(), dto.unit, dto.start_address, dto.values.as_ref()).await?;
                 },
                 ModbusThreadCommandEnum::Stop => {
                     info!(LOG_TAG, "modbus worker, stop command received, quitting");
@@ -77,7 +75,7 @@ pub async fn run_loop(
             debug!(LOG_TAG, "modbus worker, no command received");
         }
 
-        // 如果暂时没有消息，则对当前已经注册的设备轮询。
+        // if there is no command received, it will poll all input devices
         // 对 controller_map 轮询
         for address in di_controller_map.keys() {
             let controller_cell = di_controller_map.get(address).ok_or(
@@ -93,13 +91,13 @@ pub async fn run_loop(
                 result = read_from_modbus_dummy(unit, *address as ModbusAddrSize, port_num);
             } else {
                 let context_ref = context.as_mut();
-                // 读取端口状态，将状态传递给 controller
+                // read port status from modbus
                 result = read_from_modbus(&mut context_ref.unwrap(), unit,  *address as ModbusAddrSize, port_num).await;
             }
             
             match result {
                 Ok(ret) => {
-                    // 如果读取成功，就通知 controller
+                    // relay data to controller
                     controller.notify_from_bus(*address as ModbusAddrSize, ret)?;
                 },
                 Err(e) => {
@@ -118,7 +116,7 @@ pub async fn read_from_modbus(ctx: &mut Context, unit: ModbusUnitSize, address: 
     let slave = Slave(unit);
     ctx.set_slave(slave);
     let ret = ctx.read_coils(address, count).await.map_err(
-        |e| DriverError(format!("modbus worker 线程，读取 modbus 端口失败，异常: {}", e))
+        |e| DriverError(format!("modbus worker thread, read modbus port failed, exc: {}", e))
     )?;
     Ok(ret)
 }
@@ -128,8 +126,9 @@ pub fn read_from_modbus_dummy(unit: ModbusUnitSize, address: ModbusAddrSize, cou
     Ok(vec![true; count as usize])
 }
 
-/// 向 modbus 端口写一个数据
-pub async fn write_to_modbus(ctx: &mut Context, unit: ModbusUnitSize, address: ModbusAddrSize, value: bool) -> Result<(), DriverError> {
+// writing to modbus
+
+pub async fn write_single_coil(ctx: &mut Context, unit: ModbusUnitSize, address: ModbusAddrSize, value: bool) -> Result<(), DriverError> {
     let slave = Slave(unit);
     ctx.set_slave(slave);
     ctx.write_single_coil(address, value).await.map_err(
@@ -143,8 +142,7 @@ pub fn write_to_modbus_dummy(unit: ModbusUnitSize, address: ModbusAddrSize, valu
     Ok(())
 }
 
-/// 向 modbus 写多个数据
-pub async fn write_multi_to_modbus(ctx: &mut Context, unit: ModbusUnitSize, start_address: ModbusAddrSize, values: &[bool]) -> Result<(), DriverError> {
+pub async fn write_multi_coils(ctx: &mut Context, unit: ModbusUnitSize, start_address: ModbusAddrSize, values: &[bool]) -> Result<(), DriverError> {
     let slave = Slave(unit);
     ctx.set_slave(slave);
     ctx.write_multiple_coils(start_address, values).await.map_err(
@@ -158,6 +156,24 @@ pub fn write_multi_to_modbus_dummy(unit: ModbusUnitSize, start_address: ModbusAd
     Ok(())
 }
 
+pub async fn write_single_register(ctx: &mut Context, unit: ModbusUnitSize, address: ModbusAddrSize, value: u16) -> Result<(), DriverError> {
+    let slave = Slave(unit);
+    ctx.set_slave(slave);
+    ctx.write_single_register(address, value).await.map_err(
+        |e| DriverError(format!("modbus worker 线程，写入 modbus 端口失败，异常: {}", e))
+    )?;
+    Ok(())
+}
+
+pub async fn write_multi_registers(ctx: &mut Context, unit: ModbusUnitSize, start_address: ModbusAddrSize, values: &[u16]) -> Result<(), DriverError> {
+    let slave = Slave(unit);
+    ctx.set_slave(slave);
+    ctx.write_multiple_registers(start_address, values).await.map_err(
+        |e| DriverError(format!("modbus worker 线程，写入 modbus 端口失败，异常: {}", e))
+    )?;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -165,7 +181,7 @@ mod tests {
     use std::thread;
     use std::env;
     use crate::common::logger::init_logger;
-    use crate::driver::modbus::entity::WriteSingleBo;
+    use crate::driver::modbus::entity::WriteSingleCoilDto;
 
     // test reading, use di controller and port
     #[test]

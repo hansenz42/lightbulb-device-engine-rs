@@ -4,7 +4,6 @@ use common::logger::init_logger;
 use device_controller::device_controller::DeviceController;
 use mqtt_client::client::MqttClient;
 
-mod http_server;
 mod mqtt_client;
 mod common;
 mod driver;

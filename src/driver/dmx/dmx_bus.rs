@@ -20,7 +20,7 @@ use crate::common::error::DriverError;
 use crate::{info, warn, error, trace, debug};
 use crate::entity::dto::device_state_dto::{StateDtoEnum, StateToDeviceControllerDto, DmxBusStateDto};
 use crate::common::logger::init_logger;
-use super::prelude::{DmxValue, DmxChannelLen};
+use super::prelude::{DmxValue, DMX_CHANNEL_LEN};
 use super::dmx_thread::*;
 use super::entity::*;
 
@@ -32,7 +32,7 @@ pub struct DmxBus {
     device_id: String,
     serial_port: String,
     // data channel is 512 u8 length
-    data: [DmxValue; DmxChannelLen],
+    data: [DmxValue; DMX_CHANNEL_LEN],
     // thread command sending channel
     thread_tx: Option<mpsc::Sender<DmxThreadCommandEnum>>,
     report_tx: Sender<StateToDeviceControllerDto>,

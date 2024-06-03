@@ -5,26 +5,42 @@ use super::prelude::*;
 #[derive(Debug)]
 pub enum ModbusThreadCommandEnum {
 
-    // send command to port
-    WriteSingle(WriteSingleBo),
-    WriteMulti(WriteMultiBo),
+    // write coil command 
+    WriteSingleCoil(WriteSingleCoilDto),
+    WriteMultiCoils(WriteMultiCoilDto),
+
+    // write register command
+    WriteSingleRegister(WriteSingleRegisterDto),
+    WriteMultiRegisters(WriteMultiRegistersDto),
 
     // stop and close modbus threading
     Stop,
 }
 
-// 指令：写单个线圈
 #[derive(Debug)]
-pub struct WriteSingleBo {
+pub struct WriteSingleCoilDto {
     pub unit: ModbusUnitSize,
     pub address: ModbusAddrSize,
     pub value: bool,
 }
 
-// 指令：写多个线圈一起写
 #[derive(Debug)]
-pub struct WriteMultiBo {
+pub struct WriteMultiCoilDto {
     pub unit: ModbusUnitSize,
     pub start_address: ModbusAddrSize,
     pub values: Vec<bool>
+}
+
+#[derive(Debug)]
+pub struct WriteSingleRegisterDto {
+    pub unit: ModbusUnitSize,
+    pub address: ModbusAddrSize,
+    pub value: u16
+}
+
+#[derive(Debug)]
+pub struct WriteMultiRegistersDto {
+    pub unit: ModbusUnitSize,
+    pub start_address: ModbusAddrSize,
+    pub values: Vec<u16>
 }

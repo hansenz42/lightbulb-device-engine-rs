@@ -14,7 +14,7 @@ const LOOP_INTERVAL: u64 = 100;
 
 pub fn run_loop(
     serial_port_str: &str,
-    channel_data: [DmxValue; DmxChannelLen],
+    channel_data: [DmxValue; DMX_CHANNEL_LEN],
     // dmx 512 值接收器，当 dmx 值改变时接收变量
     downward_rx: mpsc::Receiver<DmxThreadCommandEnum>,
 ) -> Result<(), DriverError> {
@@ -94,13 +94,13 @@ mod tests {
         let (downward_tx, downward_rx) = mpsc::channel();
 
         let handle = thread::spawn(move || {
-            run_loop("COM1", [0; DmxChannelLen], downward_rx);
+            run_loop("COM1", [0; DMX_CHANNEL_LEN], downward_rx);
         });
 
         // downward_tx.send(DmxThreadCommandEnum::Stop).unwrap();
         let _ = downward_tx.send(DmxThreadCommandEnum::SetChannel(
             SetChannelBo {
-                channels: [255; DmxChannelLen],
+                channels: [255; DMX_CHANNEL_LEN],
             }
         ));
 

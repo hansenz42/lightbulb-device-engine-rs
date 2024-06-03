@@ -14,5 +14,5 @@ pub enum DmxThreadCommandEnum {
 
 #[derive(Debug)]
 pub struct SetChannelBo {
-    pub channels: [DmxValue; DmxChannelLen]
+    pub channels: [DmxValue; DMX_CHANNEL_LEN]
 }

@@ -14,7 +14,7 @@ use std::{
 
 use super::prelude::*;
 use super::{
-    entity::{ModbusThreadCommandEnum, WriteMultiBo, WriteSingleBo},
+    entity::{ModbusThreadCommandEnum, WriteMultiCoilDto, WriteSingleCoilDto},
     modbus_thread::*,
     prelude::ModbusAddrSize,
     traits::ModbusListener,
@@ -112,7 +112,7 @@ impl ModbusBus {
         addr: ModbusAddrSize,
         value: bool,
     ) -> Result<(), DriverError> {
-        let command = ModbusThreadCommandEnum::WriteSingle(WriteSingleBo {
+        let command = ModbusThreadCommandEnum::WriteSingleCoil(WriteSingleCoilDto {
             unit: unit,
             address: addr,
             value: value,
@@ -128,7 +128,7 @@ impl ModbusBus {
         addr: ModbusAddrSize,
         values: &[bool],
     ) -> Result<(), DriverError> {
-        let command = ModbusThreadCommandEnum::WriteMulti(WriteMultiBo {
+        let command = ModbusThreadCommandEnum::WriteMultiCoils(WriteMultiCoilDto {
             unit: unit,
             start_address: addr,
             values: Vec::from(values),

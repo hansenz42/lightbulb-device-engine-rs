@@ -6,7 +6,7 @@ use super::modbus_bus::ModbusBus;
 use super::prelude::*;
 use super::traits::{ModbusCaller, ModbusDoControllerCaller};
 use std::sync::mpsc::{self, Sender};
-use super::entity::{ModbusThreadCommandEnum, WriteMultiBo, WriteSingleBo};
+use super::entity::{ModbusThreadCommandEnum, WriteMultiCoilDto, WriteSingleCoilDto};
 use crate::common::error::DriverError;
 use crate::driver::traits::{Refable, ReportUpward};
 use crate::entity::dto::device_report_dto::DeviceReportDto;
