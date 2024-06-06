@@ -1,4 +1,4 @@
-> ⚠️ 该项目仍在开发、测试中，当前可能有部分功能无法正常使用，我将在项目完成后更新该 README 文件
+> ⚠️ 该项目仍在开发、测试中，当前可能有部分功能无法正常使用，我将在项目完成后更新该 README 文件，补充使用方法和功能，敬请关注
 
 ![export_71ssm](https://github.com/hansenz42/lightbulb-device-engine-rs/assets/11825586/5107bd8b-8dbf-40a2-90e3-0c03ab0fac81)
 
