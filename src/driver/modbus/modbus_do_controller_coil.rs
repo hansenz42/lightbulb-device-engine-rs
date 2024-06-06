@@ -36,67 +36,31 @@ impl ModbusCaller for ModbusDoControllerCoil {
         self.unit
     }
 
-    fn get_port_num(&self) -> ModbusAddrSize {
+    fn get_output_num(&self) -> ModbusAddrSize {
         self.output_num
     }
 
-    fn write_one_port(&mut self, address: ModbusAddrSize, value:bool) -> Result<(), DriverError> {
-        // check address range 
-        if address >= self.output_num {
-            return Err(DriverError(format!("ModbusDoController: writing address out of range, device_id: {}, address: {}, value: {}", self.device_id, address, value)));
-        }
+    fn get_device_id(&self) -> String {
+        self.device_id.clone()
+    }
 
-        // check if the value is different 
-        let port_state = self.port_state_vec[address as usize];
-        if port_state != value {
-            if let Ok(modbus_ref )= self.modbus_ref.try_borrow() {
-                let _ = modbus_ref.write_single_coil(self.unit, address, value)?;
-            } else {
-                return Err(DriverError(format!("ModbusDoController: failed to borrow modbus_ref")));
-            }
-        }
+    fn get_port_state_vec_ref(&mut self) -> &mut Vec<bool> {
+        &mut self.port_state_vec
+    }
 
-        // update port state
-        self.port_state_vec[address as usize] = value;
-
-        self.report()?;
+    fn set_port(&mut self, address: ModbusAddrSize, value: bool) -> Result<(), DriverError> {
+        let _ = self.modbus_ref.borrow_mut().write_single_coil(self.get_unit(), address, value)?;
         Ok(())
     }
 
-    fn write_multi_port(&mut self, address: ModbusAddrSize, values: &[bool]) -> Result<(), DriverError> {
-        // check address range 
-        if address + values.len() as ModbusAddrSize > self.output_num {
-            return Err(DriverError(format!("ModbusDoController: writing address out of range, device_id: {}, address: {}, values: {:?}", self.device_id, address, values)));
-        }
-        
-        // check if the values are different 
-        let len = values.len();
-        let port_state_slice = &self.port_state_vec[address as usize..(address as usize + len)];
-        let mut is_diff = false;
-        for i in 0..len {
-            if port_state_slice[i as usize] != values[i as usize] {
-                is_diff = true;
-                break;
-            }
-        }
-
-        if is_diff {
-            if let Ok(modbus_ref) = self.modbus_ref.try_borrow() {
-                let _ = modbus_ref.write_multi_coil(self.unit, address, values)?;
-            } else {
-                return Err(DriverError(format!("ModbusDoController: failed to borrow modbus_ref")));
-            }
-        }
-
-        // update port state
-        for i in 0..len {
-            self.port_state_vec[(address as usize + i) as usize] = values[i];
-        }
-
-        self.report()?;
+    fn set_multi_ports(
+            &mut self,
+            address: ModbusAddrSize,
+            values: &[bool],
+        ) -> Result<(), DriverError> {
+        let _ = self.modbus_ref.borrow_mut().write_multi_coil(self.get_unit(), address, values)?;
         Ok(())
     }
-
 }
 
 impl ReportUpward for ModbusDoControllerCoil {
