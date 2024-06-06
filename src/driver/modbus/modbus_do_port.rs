@@ -3,7 +3,7 @@ use std::env;
 use std::rc::Rc;
 use std::sync::mpsc::Sender;
 
-use super::modbus_do_controller::ModbusDoController;
+use super::modbus_do_controller_coil::ModbusDoControllerCoil;
 use super::prelude::*;
 use super::traits::{ModbusCaller, ModbusDoControllerCaller};
 use crate::common::error::DriverError;
@@ -20,7 +20,7 @@ const LOG_TAG : &str = "modbus_do_port";
 pub struct ModbusDoPort {
     device_id: String,
     address: ModbusAddrSize,
-    controller_ref: Rc<RefCell<ModbusDoController>>,
+    controller_ref: Rc<RefCell<ModbusDoControllerCoil>>,
     report_tx: Sender<StateToDeviceControllerDto>,
     on: bool,
     error_msg: Option<String>,
@@ -32,7 +32,7 @@ impl ModbusDoPort {
     pub fn new(
         device_id: &str,
         address: ModbusAddrSize,
-        controller_ref: Rc<RefCell<ModbusDoController>>,
+        controller_ref: Rc<RefCell<ModbusDoControllerCoil>>,
         report_tx: Sender<StateToDeviceControllerDto>,
     ) -> Self {
         ModbusDoPort {

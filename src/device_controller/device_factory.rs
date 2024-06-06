@@ -4,7 +4,7 @@ use super::entity::device_enum::DeviceRefEnum;
 use super::entity::device_po::DevicePo;
 use super::factory::*;
 use crate::driver::modbus::traits::{ModbusDiControllerListener, ModbusListener};
-use crate::driver::modbus::{modbus_bus, modbus_di_controller};
+use crate::driver::modbus::{modbus_bus, modbus_di_controller_coil};
 use crate::entity::dto::device_meta_info_dto::{DeviceMetaInfoDto, DeviceStatusEnum};
 use crate::entity::dto::device_state_dto::StateToDeviceControllerDto;
 use crate::{common::error::DriverError, driver::modbus::modbus_bus::ModbusBus};

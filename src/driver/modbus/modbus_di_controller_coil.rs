@@ -15,7 +15,7 @@ const DEVICE_TYPE: &str = "modbus_di_controller";
 /// Modbus Digital Input Controller
 /// - Cache data on the controller
 /// - read data from modbus and relay to selector port object
-pub struct ModbusDiController {
+pub struct ModbusDiControllerCoil {
     device_id: String,
     unit: ModbusUnitSize,
     // modbus input port number
@@ -30,7 +30,7 @@ pub struct ModbusDiController {
     last_update: Option<u64>,
 }
 
-impl ReportUpward for ModbusDiController {
+impl ReportUpward for ModbusDiControllerCoil {
     fn get_upward_channel(&self) -> &Sender<StateToDeviceControllerDto> {
         return &self.report_tx;
     }
@@ -55,7 +55,7 @@ impl ReportUpward for ModbusDiController {
     }
 }
 
-impl ModbusListener for ModbusDiController {
+impl ModbusListener for ModbusDiControllerCoil {
     fn get_unit(&self) -> ModbusUnitSize {
         self.unit
     }
@@ -113,7 +113,7 @@ impl ModbusListener for ModbusDiController {
     }
 }
 
-impl ModbusDiController {
+impl ModbusDiControllerCoil {
     pub fn new(device_id: &str, unit: ModbusUnitSize, input_num: ModbusAddrSize, report_tx: Sender<StateToDeviceControllerDto>) -> Self {
         Self {
             device_id: device_id.to_string(),

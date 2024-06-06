@@ -176,7 +176,7 @@ pub async fn write_multi_registers(ctx: &mut Context, unit: ModbusUnitSize, star
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::modbus_di_controller::ModbusDiController;
+    use super::super::modbus_di_controller_coil::ModbusDiControllerCoil;
     use std::thread;
     use std::env;
     use crate::common::logger::init_logger;

@@ -6,7 +6,6 @@ use super::modbus_bus::ModbusBus;
 use super::prelude::*;
 use super::traits::{ModbusCaller, ModbusDoControllerCaller};
 use std::sync::mpsc::{self, Sender};
-use super::entity::{ModbusThreadCommandEnum, WriteMultiCoilDto, WriteSingleCoilDto};
 use crate::common::error::DriverError;
 use crate::driver::traits::{Refable, ReportUpward};
 use crate::entity::dto::device_report_dto::DeviceReportDto;
@@ -18,7 +17,7 @@ const DEVICE_TYPE: &str = "modbus_do_controller";
 /// modbus digital output controller
 /// - record port state
 /// - compare incoming data with recorded state, if different, then send to dmx interface
-pub struct ModbusDoController {
+pub struct ModbusDoControllerCoil {
     device_id: String,
     unit: ModbusUnitSize,
     output_num: ModbusAddrSize,
@@ -32,7 +31,7 @@ pub struct ModbusDoController {
     last_update: Option<u64>,
 }
 
-impl ModbusCaller for ModbusDoController {
+impl ModbusCaller for ModbusDoControllerCoil {
     fn get_unit(&self) -> ModbusUnitSize {
         self.unit
     }
@@ -51,7 +50,7 @@ impl ModbusCaller for ModbusDoController {
         let port_state = self.port_state_vec[address as usize];
         if port_state != value {
             if let Ok(modbus_ref )= self.modbus_ref.try_borrow() {
-                let _ = modbus_ref.write_single_port(self.unit, address, value)?;
+                let _ = modbus_ref.write_single_coil(self.unit, address, value)?;
             } else {
                 return Err(DriverError(format!("ModbusDoController: failed to borrow modbus_ref")));
             }
@@ -83,7 +82,7 @@ impl ModbusCaller for ModbusDoController {
 
         if is_diff {
             if let Ok(modbus_ref) = self.modbus_ref.try_borrow() {
-                let _ = modbus_ref.write_multi_port(self.unit, address, values)?;
+                let _ = modbus_ref.write_multi_coil(self.unit, address, values)?;
             } else {
                 return Err(DriverError(format!("ModbusDoController: failed to borrow modbus_ref")));
             }
@@ -100,7 +99,7 @@ impl ModbusCaller for ModbusDoController {
 
 }
 
-impl ReportUpward for ModbusDoController {
+impl ReportUpward for ModbusDoControllerCoil {
     fn get_upward_channel(&self) -> &Sender<StateToDeviceControllerDto> {
         return &self.report_tx;
     }
@@ -126,7 +125,7 @@ impl ReportUpward for ModbusDoController {
     }
 }
 
-impl ModbusDoController {
+impl ModbusDoControllerCoil {
     pub fn new(
         device_id: &str,
         unit: ModbusUnitSize, 
@@ -134,7 +133,7 @@ impl ModbusDoController {
         modbus_ref: Rc<RefCell<ModbusBus>>,
         report_tx: Sender<StateToDeviceControllerDto>
     ) -> Self {
-        ModbusDoController {
+        ModbusDoControllerCoil {
             device_id: device_id.to_string(),
             unit,
             output_num,

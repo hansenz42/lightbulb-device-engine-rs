@@ -12,7 +12,7 @@ use std::{
     thread,
 };
 
-use super::prelude::*;
+use super::{entity::{WriteMultiRegistersDto, WriteSingleRegisterDto}, prelude::*};
 use super::{
     entity::{ModbusThreadCommandEnum, WriteMultiCoilDto, WriteSingleCoilDto},
     modbus_thread::*,
@@ -106,7 +106,7 @@ impl ModbusBus {
         self.di_controller_vec.push(controller);
     }
 
-    pub fn write_single_port(
+    pub fn write_single_coil(
         &self,
         unit: ModbusUnitSize,
         addr: ModbusAddrSize,
@@ -121,14 +121,43 @@ impl ModbusBus {
         Ok(())
     }
 
-    /// write multiple port at one time
-    pub fn write_multi_port(
+    pub fn write_multi_coil(
         &self,
         unit: ModbusUnitSize,
         addr: ModbusAddrSize,
         values: &[bool],
     ) -> Result<(), DriverError> {
         let command = ModbusThreadCommandEnum::WriteMultiCoils(WriteMultiCoilDto {
+            unit: unit,
+            start_address: addr,
+            values: Vec::from(values),
+        });
+        let _ = self.send_command_to_thread(command)?;
+        Ok(())
+    }
+
+    pub fn write_single_register(
+        &self,
+        unit: ModbusUnitSize,
+        addr: ModbusAddrSize,
+        value: u16,
+    ) -> Result<(), DriverError> {
+        let command = ModbusThreadCommandEnum::WriteSingleRegister(WriteSingleRegisterDto {
+            unit: unit,
+            address: addr,
+            value: value,
+        });
+        let _ = self.send_command_to_thread(command)?;
+        Ok(())
+    }
+
+    pub fn write_multi_register(
+        &self,
+        unit: ModbusUnitSize,
+        addr: ModbusAddrSize,
+        values: &[u16],
+    ) -> Result<(), DriverError> {
+        let command = ModbusThreadCommandEnum::WriteMultiRegisters(WriteMultiRegistersDto {
             unit: unit,
             start_address: addr,
             values: Vec::from(values),

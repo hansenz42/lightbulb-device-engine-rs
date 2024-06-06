@@ -2,14 +2,14 @@ use std::{cell::RefCell, rc::Rc, sync::mpsc::Sender};
 
 use crate::{
     common::error::DriverError,
-    driver::modbus::{modbus_do_controller::ModbusDoController, modbus_do_port::ModbusDoPort},
+    driver::modbus::{modbus_do_controller_coil::ModbusDoControllerCoil, modbus_do_port::ModbusDoPort},
     entity::dto::{device_meta_info_dto::DeviceMetaInfoDto, device_state_dto::StateToDeviceControllerDto},
     util::json,
 };
 
 pub fn make(
     device_info: &DeviceMetaInfoDto,
-    modbus_do_controller_ref: Rc<RefCell<ModbusDoController>>,
+    modbus_do_controller_ref: Rc<RefCell<ModbusDoControllerCoil>>,
     report_tx: Sender<StateToDeviceControllerDto>,
 ) -> Result<ModbusDoPort, DriverError> {
     let address = json::get_config_int(&device_info.config, "address")?;
