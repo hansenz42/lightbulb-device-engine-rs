@@ -1,5 +1,6 @@
 ![export_71ssm](https://github.com/hansenz42/lightbulb-device-engine-rs/assets/11825586/5107bd8b-8dbf-40a2-90e3-0c03ab0fac81)
 
+> 该项目仍在开发、测试中，当前可能有部分功能无法正常使用，我将在项目完成后更新该 README 文件
 
 # 🦀 Rust！安全高性能的 MQTT 智能家居控制器中间件
 
