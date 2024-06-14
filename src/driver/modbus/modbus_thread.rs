@@ -26,8 +26,8 @@ pub async fn run_loop(
     baudrate: u32,
     command_rx: Receiver<ModbusThreadCommandEnum>,
 
-    // di 控制器注册表，用于不间断轮询
-    // 内部可变：因为需要调用 ModbusDigitalInputMountable 对象
+    // di controller map, used for polling
+    // inner mutable: because we need to call ModbusDigitalInputMountable object
     di_controller_map: HashMap<ModbusUnitSize, RefCell<Box<dyn ModbusListener + Send>>>,
 ) -> Result<(), DriverError> {
     let mut context: Option<Context> = None;
@@ -106,7 +106,6 @@ pub async fn run_loop(
             let unit = controller.get_unit();
             let port_num = controller.get_port_num();
             let controller_type = controller.get_controller_type();
-
             let mut result = Ok(vec![]);
             let context_ref = context.as_mut();
 
