@@ -15,7 +15,7 @@ const DEVICE_TYPE: &str = "modbus_di_controller";
 /// Modbus Digital Input Controller
 /// - Cache data on the controller
 /// - read data from modbus and relay to selector port object
-pub struct ModbusDiControllerCoil {
+pub struct ModbusDiControllerRegsiter {
     device_id: String,
     unit: ModbusUnitSize,
     // modbus input port number
@@ -30,7 +30,7 @@ pub struct ModbusDiControllerCoil {
     last_update: Option<u64>,
 }
 
-impl ReportUpward for ModbusDiControllerCoil {
+impl ReportUpward for ModbusDiControllerRegsiter {
     fn get_upward_channel(&self) -> &Sender<StateToDeviceControllerDto> {
         return &self.report_tx;
     }
@@ -55,9 +55,9 @@ impl ReportUpward for ModbusDiControllerCoil {
     }
 }
 
-impl ModbusListener for ModbusDiControllerCoil {
+impl ModbusListener for ModbusDiControllerRegsiter {
     fn get_controller_type(&self) -> ModbusControllerType {
-        ModbusControllerType::Coil
+        ModbusControllerType::Register
     }
 
     fn get_unit(&self) -> ModbusUnitSize {
@@ -117,7 +117,7 @@ impl ModbusListener for ModbusDiControllerCoil {
     }
 }
 
-impl ModbusDiControllerCoil {
+impl ModbusDiControllerRegsiter {
     pub fn new(device_id: &str, unit: ModbusUnitSize, input_num: ModbusAddrSize, report_tx: Sender<StateToDeviceControllerDto>) -> Self {
         Self {
             device_id: device_id.to_string(),
@@ -138,32 +138,4 @@ impl ModbusDiControllerCoil {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use super::super::modbus_di_port::ModbusDiPort;
-    use crate::entity::dto::device_state_dto::{StateToDeviceControllerDto, DiStateDto, StateDtoEnum};
-
-    // 测试实例化并向上发送消息
-    // #[test]
-    // fn test_controller_notify_message() {
-    //     let (tx, rx) = std::sync::mpsc::channel();
-    //     let mut modbus_di_controller = ModbusDiController::new("test_controller", 1, 8);
-    //     // 创建一个 port 设备
-    //     let modbus_di_port = ModbusDiPort::new("test_di_port", 1, tx);
-
-    //     modbus_di_controller.add_di_port(1, Box::new(modbus_di_port)).unwrap();
-    //     modbus_di_controller.notify_from_bus(1, vec![true, false, true, false, true, false, true, false]).unwrap();
-
-    //     let state_bo = rx.recv().unwrap();
-
-    //     match state_bo.state {
-    //         StateDtoEnum::Di(di_state) => {
-    //             assert_eq!(di_state.on, true);
-    //         }
-    //         _ => {
-    //             assert!(false);
-    //         }
-    //     }
-
-    // }
-}
+mod tests {}

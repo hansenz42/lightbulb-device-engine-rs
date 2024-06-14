@@ -14,11 +14,11 @@ use crate::entity::dto::device_state_dto::{StateToDeviceControllerDto, DoControl
 const DEVICE_CLASS: &str = "controller";
 const DEVICE_TYPE: &str = "modbus_do_controller";
 
-/// modbus digital output controller (coil version)
-/// - coil version: write port using write_coil function
+/// modbus digital output controller (register version)
+/// - register version: write port using write_register function
 /// - record port state
 /// - compare incoming data with recorded state, if different, then send to dmx interface
-pub struct ModbusDoControllerCoil {
+pub struct ModbusDoControllerRegister {
     device_id: String,
     unit: ModbusUnitSize,
     output_num: ModbusAddrSize,
@@ -32,7 +32,15 @@ pub struct ModbusDoControllerCoil {
     last_update: Option<u64>,
 }
 
-impl ModbusCaller for ModbusDoControllerCoil {
+fn bool_to_u16(input: bool) -> u16 {
+    if input {
+        1
+    } else {
+        0
+    }
+}
+
+impl ModbusCaller for ModbusDoControllerRegister {
     fn get_unit(&self) -> ModbusUnitSize {
         self.unit
     }
@@ -50,7 +58,7 @@ impl ModbusCaller for ModbusDoControllerCoil {
     }
 
     fn set_port(&mut self, address: ModbusAddrSize, value: bool) -> Result<(), DriverError> {
-        let _ = self.modbus_ref.borrow_mut().write_single_coil(self.get_unit(), address, value)?;
+        let _ = self.modbus_ref.borrow_mut().write_single_register(self.get_unit(), address, bool_to_u16(value))?;
         Ok(())
     }
 
@@ -59,12 +67,13 @@ impl ModbusCaller for ModbusDoControllerCoil {
             address: ModbusAddrSize,
             values: &[bool],
         ) -> Result<(), DriverError> {
-        let _ = self.modbus_ref.borrow_mut().write_multi_coil(self.get_unit(), address, values)?;
-        Ok(())
+            let u16_values = values.iter().map(|v| bool_to_u16(*v)).collect::<Vec<u16>>();
+            let _ = self.modbus_ref.borrow_mut().write_multi_register(self.get_unit(), address, &u16_values)?;
+            Ok(())
     }
 }
 
-impl ReportUpward for ModbusDoControllerCoil {
+impl ReportUpward for ModbusDoControllerRegister {
     fn get_upward_channel(&self) -> &Sender<StateToDeviceControllerDto> {
         return &self.report_tx;
     }
@@ -90,7 +99,7 @@ impl ReportUpward for ModbusDoControllerCoil {
     }
 }
 
-impl ModbusDoControllerCoil {
+impl ModbusDoControllerRegister {
     pub fn new(
         device_id: &str,
         unit: ModbusUnitSize, 
@@ -98,7 +107,7 @@ impl ModbusDoControllerCoil {
         modbus_ref: Rc<RefCell<ModbusBus>>,
         report_tx: Sender<StateToDeviceControllerDto>
     ) -> Self {
-        ModbusDoControllerCoil {
+        ModbusDoControllerRegister {
             device_id: device_id.to_string(),
             unit,
             output_num,
@@ -115,60 +124,4 @@ impl ModbusDoControllerCoil {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-    use std::env;
-    use super::super::modbus_bus::ModbusBus;
-    use crate::common::logger::init_logger;
-
-    // // write single port 
-    // #[test]
-    // fn test_write() {
-    //     env::set_var("mode", "dummy");
-    //     let _ = init_logger();
-        
-    //     let mut modbus = ModbusBus::new("test_device_id", "/dev/null", 9600);
-
-    //     modbus.start().unwrap();
-
-    //     let mut controller = ModbusDoController {
-    //         device_id: "test".to_string(),
-    //         unit: 1,
-    //         output_num: 10,
-    //         mount_port_map: HashMap::new(),
-    //         port_state_vec: vec![false; 10],
-    //         modbus_enum: &modbus
-    //     };
-
-    //     let result = controller.write_one_port(0, true);
-
-    //     println!("{:?}", result);
-
-    //     // wait for 10 sec
-    //     std::thread::sleep(std::time::Duration::from_secs(10));
-    // }
-
-    // #[test]
-    // // write multiple ports
-    // fn test_write_multi() {
-    //     env::set_var("mode", "dummy");
-    //     let mut modbus = ModbusBus::new("test_device_id", "/dev/null", 9600);
-
-    //     modbus.start().unwrap();
-
-    //     let mut controller = ModbusDoController {
-    //         device_id: "test".to_string(),
-    //         unit: 1,
-    //         output_num: 10,
-    //         mount_port_map: HashMap::new(),
-    //         port_state_vec: vec![false; 10],
-    //         modbus_enum: &modbus
-    //     };
-
-    //     let result = controller.write_multi_port(0, &[true, false, true]);
-    //     println!("{:?}", result);
-
-    //     // wait for 10 sec
-    //     std::thread::sleep(std::time::Duration::from_secs(10));
-    // }
-}
+mod tests {}

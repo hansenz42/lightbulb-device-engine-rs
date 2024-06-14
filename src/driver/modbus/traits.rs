@@ -5,9 +5,17 @@ use crate::{common::error::DriverError, driver::traits::ReportUpward};
 
 // ================= di ====================
 
+/// identify modbus device type, can be coil or register
+pub enum ModbusControllerType {
+    Coil,
+    Register
+}
+
 /// the device that can listen to modbus event
 /// it can be mounted to modbus controller
 pub trait ModbusListener {
+    fn get_controller_type(&self) -> ModbusControllerType;
+
     fn get_unit(&self) -> ModbusUnitSize;
 
     fn get_port_num(&self) -> ModbusAddrSize;

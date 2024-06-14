@@ -7,3 +7,5 @@ pub mod modbus_do_port;
 pub mod traits;
 mod prelude;
 pub mod modbus_bus;
+pub mod modbus_do_controller_register;
+pub mod modbus_di_controller_register;
